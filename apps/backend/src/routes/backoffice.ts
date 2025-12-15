@@ -521,4 +521,281 @@ router.post(
   }
 );
 
+// =============================================
+// POINTS OF SALE (Puntos de Venta / Cajas)
+// =============================================
+
+// Listar puntos de venta
+router.get('/points-of-sale', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+
+    const pointsOfSale = await prisma.pointOfSale.findMany({
+      where: { tenantId },
+      include: {
+        branch: { select: { id: true, name: true, code: true } },
+        priceList: { select: { id: true, name: true, currency: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    res.json({
+      success: true,
+      data: pointsOfSale,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Obtener punto de venta por ID
+router.get('/points-of-sale/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+
+    const pointOfSale = await prisma.pointOfSale.findFirst({
+      where: { id, tenantId },
+      include: {
+        branch: { select: { id: true, name: true, code: true } },
+        priceList: { select: { id: true, name: true, currency: true } },
+      },
+    });
+
+    if (!pointOfSale) {
+      throw new ApiError(404, 'NOT_FOUND', 'Punto de venta no encontrado');
+    }
+
+    res.json({
+      success: true,
+      data: pointOfSale,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Crear punto de venta
+const createPointOfSaleSchema = z.object({
+  branchId: z.string().min(1, 'La sucursal es requerida'),
+  code: z.string().min(1, 'El código es requerido'),
+  name: z.string().min(1, 'El nombre es requerido'),
+  description: z.string().optional(),
+  priceListId: z.string().optional(),
+  isActive: z.boolean().optional().default(true),
+});
+
+router.post(
+  '/points-of-sale',
+  authorize('pos:write', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+
+      const validation = createPointOfSaleSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ApiError(422, 'VALIDATION_ERROR', 'Datos inválidos', validation.error.errors);
+      }
+
+      const { branchId, code, name, description, priceListId, isActive } = validation.data;
+
+      // Verificar que la sucursal pertenece al tenant
+      const branch = await prisma.branch.findFirst({
+        where: { id: branchId, tenantId },
+      });
+
+      if (!branch) {
+        throw new ApiError(404, 'NOT_FOUND', 'Sucursal no encontrada');
+      }
+
+      // Verificar que la lista de precios pertenece al tenant (si se especifica)
+      if (priceListId) {
+        const priceList = await prisma.priceList.findFirst({
+          where: { id: priceListId, tenantId },
+        });
+
+        if (!priceList) {
+          throw new ApiError(404, 'NOT_FOUND', 'Lista de precios no encontrada');
+        }
+      }
+
+      // Verificar que no exista otro POS con el mismo código en la misma sucursal
+      const existing = await prisma.pointOfSale.findFirst({
+        where: { tenantId, branchId, code },
+      });
+
+      if (existing) {
+        throw new ApiError(409, 'CONFLICT', 'Ya existe un punto de venta con ese código en la sucursal');
+      }
+
+      const pointOfSale = await prisma.pointOfSale.create({
+        data: {
+          tenantId,
+          branchId,
+          code,
+          name,
+          description,
+          priceListId,
+          isActive,
+        },
+        include: {
+          branch: { select: { id: true, name: true, code: true } },
+          priceList: { select: { id: true, name: true, currency: true } },
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: pointOfSale,
+        message: 'Punto de venta creado exitosamente',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Actualizar punto de venta
+const updatePointOfSaleSchema = z.object({
+  branchId: z.string().min(1).optional(),
+  code: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  priceListId: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
+});
+
+router.put(
+  '/points-of-sale/:id',
+  authorize('pos:write', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const { id } = req.params;
+
+      const validation = updatePointOfSaleSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ApiError(422, 'VALIDATION_ERROR', 'Datos inválidos', validation.error.errors);
+      }
+
+      // Verificar que el punto de venta existe y pertenece al tenant
+      const existing = await prisma.pointOfSale.findFirst({
+        where: { id, tenantId },
+      });
+
+      if (!existing) {
+        throw new ApiError(404, 'NOT_FOUND', 'Punto de venta no encontrado');
+      }
+
+      const { branchId, code, name, description, priceListId, isActive } = validation.data;
+
+      // Verificar sucursal si se cambia
+      if (branchId && branchId !== existing.branchId) {
+        const branch = await prisma.branch.findFirst({
+          where: { id: branchId, tenantId },
+        });
+
+        if (!branch) {
+          throw new ApiError(404, 'NOT_FOUND', 'Sucursal no encontrada');
+        }
+      }
+
+      // Verificar lista de precios si se cambia
+      if (priceListId && priceListId !== existing.priceListId) {
+        const priceList = await prisma.priceList.findFirst({
+          where: { id: priceListId, tenantId },
+        });
+
+        if (!priceList) {
+          throw new ApiError(404, 'NOT_FOUND', 'Lista de precios no encontrada');
+        }
+      }
+
+      // Verificar código único en la sucursal
+      const targetBranchId = branchId || existing.branchId;
+      const targetCode = code || existing.code;
+
+      if (code !== existing.code || branchId !== existing.branchId) {
+        const duplicate = await prisma.pointOfSale.findFirst({
+          where: {
+            tenantId,
+            branchId: targetBranchId,
+            code: targetCode,
+            id: { not: id },
+          },
+        });
+
+        if (duplicate) {
+          throw new ApiError(409, 'CONFLICT', 'Ya existe un punto de venta con ese código en la sucursal');
+        }
+      }
+
+      const pointOfSale = await prisma.pointOfSale.update({
+        where: { id },
+        data: {
+          ...(branchId && { branchId }),
+          ...(code && { code }),
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(priceListId !== undefined && { priceListId }),
+          ...(isActive !== undefined && { isActive }),
+        },
+        include: {
+          branch: { select: { id: true, name: true, code: true } },
+          priceList: { select: { id: true, name: true, currency: true } },
+        },
+      });
+
+      res.json({
+        success: true,
+        data: pointOfSale,
+        message: 'Punto de venta actualizado exitosamente',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Eliminar punto de venta
+router.delete(
+  '/points-of-sale/:id',
+  authorize('pos:delete', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const { id } = req.params;
+
+      // Verificar que el punto de venta existe y pertenece al tenant
+      const existing = await prisma.pointOfSale.findFirst({
+        where: { id, tenantId },
+      });
+
+      if (!existing) {
+        throw new ApiError(404, 'NOT_FOUND', 'Punto de venta no encontrado');
+      }
+
+      // Verificar que no tenga ventas asociadas
+      const salesCount = await prisma.sale.count({
+        where: { pointOfSaleId: id },
+      });
+
+      if (salesCount > 0) {
+        throw new ApiError(400, 'BAD_REQUEST', `No se puede eliminar: el punto de venta tiene ${salesCount} ventas asociadas`);
+      }
+
+      await prisma.pointOfSale.delete({
+        where: { id },
+      });
+
+      res.json({
+        success: true,
+        message: 'Punto de venta eliminado exitosamente',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

@@ -15,12 +15,14 @@ import {
   User,
   Store,
   ListOrdered,
+  Monitor,
 } from 'lucide-react';
 
 const menuItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/branches', label: 'Sucursales', icon: Store },
   { path: '/price-lists', label: 'Listas de Precio', icon: ListOrdered },
+  { path: '/points-of-sale', label: 'Puntos de Venta', icon: Monitor },
   { path: '/categories', label: 'Categorías', icon: FolderTree },
   { path: '/brands', label: 'Marcas', icon: Tags },
   { path: '/products', label: 'Productos', icon: Package },

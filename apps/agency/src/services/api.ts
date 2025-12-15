@@ -203,6 +203,23 @@ export const catalogApi = {
     const response = await api.get(`/agency/tenants/${tenantId}/catalog/branches`);
     return response.data.data;
   },
+  // Puntos de Venta
+  getPointsOfSale: async (tenantId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/points-of-sale`);
+    return response.data.data;
+  },
+  createPointOfSale: async (tenantId: string, data: CreatePointOfSaleDto) => {
+    const response = await api.post(`/agency/tenants/${tenantId}/points-of-sale`, data);
+    return response.data.data;
+  },
+  updatePointOfSale: async (tenantId: string, posId: string, data: UpdatePointOfSaleDto) => {
+    const response = await api.put(`/agency/tenants/${tenantId}/points-of-sale/${posId}`, data);
+    return response.data.data;
+  },
+  deletePointOfSale: async (tenantId: string, posId: string) => {
+    const response = await api.delete(`/agency/tenants/${tenantId}/points-of-sale/${posId}`);
+    return response.data;
+  },
 };
 
 // Types
@@ -327,6 +344,38 @@ export interface Branch {
   name: string;
   code: string;
   isActive: boolean;
+}
+
+export interface PointOfSale {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  branchId: string;
+  branch?: { id: string; name: string; code: string };
+  priceListId?: string;
+  priceList?: { id: string; name: string; currency: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePointOfSaleDto {
+  branchId: string;
+  code: string;
+  name: string;
+  description?: string;
+  priceListId?: string;
+  isActive?: boolean;
+}
+
+export interface UpdatePointOfSaleDto {
+  branchId?: string;
+  code?: string;
+  name?: string;
+  description?: string;
+  priceListId?: string | null;
+  isActive?: boolean;
 }
 
 export default api;

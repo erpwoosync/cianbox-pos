@@ -160,6 +160,30 @@ export const dashboardApi = {
   },
 };
 
+// Points of Sale API
+export const pointsOfSaleApi = {
+  getAll: async () => {
+    const response = await api.get('/backoffice/points-of-sale');
+    return response.data.data;
+  },
+  getById: async (id: string) => {
+    const response = await api.get(`/backoffice/points-of-sale/${id}`);
+    return response.data.data;
+  },
+  create: async (data: CreatePointOfSaleDto) => {
+    const response = await api.post('/backoffice/points-of-sale', data);
+    return response.data.data;
+  },
+  update: async (id: string, data: UpdatePointOfSaleDto) => {
+    const response = await api.put(`/backoffice/points-of-sale/${id}`, data);
+    return response.data.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/backoffice/points-of-sale/${id}`);
+    return response.data;
+  },
+};
+
 // Types
 export interface CreateProductDto {
   sku: string;
@@ -233,6 +257,39 @@ export interface ProductStock {
   quantity: number;
   reserved: number;
   available: number;
+}
+
+// Point of Sale Types
+export interface PointOfSale {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  branchId: string;
+  branch?: { id: string; name: string; code: string };
+  priceListId?: string;
+  priceList?: { id: string; name: string; currency: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePointOfSaleDto {
+  branchId: string;
+  code: string;
+  name: string;
+  description?: string;
+  priceListId?: string;
+  isActive?: boolean;
+}
+
+export interface UpdatePointOfSaleDto {
+  branchId?: string;
+  code?: string;
+  name?: string;
+  description?: string;
+  priceListId?: string | null;
+  isActive?: boolean;
 }
 
 export default api;

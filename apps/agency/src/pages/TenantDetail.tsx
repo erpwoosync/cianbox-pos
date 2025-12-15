@@ -23,8 +23,13 @@ import {
   Store,
   ListOrdered,
   Users,
+  Monitor,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
 } from 'lucide-react';
-import { tenantsApi, connectionsApi, catalogApi, Category, Brand, Product, PriceList, Branch } from '../services/api';
+import { tenantsApi, connectionsApi, catalogApi, Category, Brand, Product, PriceList, Branch, PointOfSale, CreatePointOfSaleDto } from '../services/api';
 
 interface CianboxConnection {
   id: string;
@@ -87,8 +92,23 @@ export default function TenantDetail() {
   const [products, setProducts] = useState<Product[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
+  const [pointsOfSale, setPointsOfSale] = useState<PointOfSale[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+
+  // Puntos de Venta Modal
+  const [showPosModal, setShowPosModal] = useState(false);
+  const [editingPos, setEditingPos] = useState<PointOfSale | null>(null);
+  const [savingPos, setSavingPos] = useState(false);
+  const [deletingPos, setDeletingPos] = useState<string | null>(null);
+  const [posForm, setPosForm] = useState<CreatePointOfSaleDto>({
+    branchId: '',
+    code: '',
+    name: '',
+    description: '',
+    priceListId: '',
+    isActive: true,
+  });
 
   // Form data para datos generales del tenant
   const [generalForm, setGeneralForm] = useState({
@@ -154,7 +174,7 @@ export default function TenantDetail() {
   };
 
   // Cargar catálogo cuando se cambia al tab correspondiente
-  const loadCatalog = async (type: 'categories' | 'brands' | 'products' | 'branches' | 'priceLists') => {
+  const loadCatalog = async (type: 'categories' | 'brands' | 'products' | 'branches' | 'priceLists' | 'pointsOfSale') => {
     if (!id) return;
     setLoadingCatalog(true);
     try {
@@ -173,6 +193,16 @@ export default function TenantDetail() {
       } else if (type === 'priceLists' && priceLists.length === 0) {
         const data = await catalogApi.getPriceLists(id);
         setPriceLists(data);
+      } else if (type === 'pointsOfSale') {
+        // Cargar también branches y priceLists si no están cargados (para el modal)
+        const [posData, branchesData, priceListsData] = await Promise.all([
+          catalogApi.getPointsOfSale(id),
+          branches.length === 0 ? catalogApi.getBranches(id) : Promise.resolve(branches),
+          priceLists.length === 0 ? catalogApi.getPriceLists(id) : Promise.resolve(priceLists),
+        ]);
+        setPointsOfSale(posData);
+        if (branches.length === 0) setBranches(branchesData);
+        if (priceLists.length === 0) setPriceLists(priceListsData);
       }
     } catch (error) {
       console.error(`Error loading ${type}:`, error);
@@ -194,8 +224,93 @@ export default function TenantDetail() {
       loadCatalog('branches');
     } else if (activeTab === 'priceLists') {
       loadCatalog('priceLists');
+    } else if (activeTab === 'pointsOfSale') {
+      loadCatalog('pointsOfSale');
     }
   }, [activeTab]);
+
+  // Funciones de Puntos de Venta
+  const openCreatePosModal = () => {
+    setEditingPos(null);
+    setPosForm({
+      branchId: branches[0]?.id || '',
+      code: '',
+      name: '',
+      description: '',
+      priceListId: priceLists.find(pl => pl.isDefault)?.id || '',
+      isActive: true,
+    });
+    setShowPosModal(true);
+  };
+
+  const openEditPosModal = (pos: PointOfSale) => {
+    setEditingPos(pos);
+    setPosForm({
+      branchId: pos.branchId,
+      code: pos.code,
+      name: pos.name,
+      description: pos.description || '',
+      priceListId: pos.priceListId || '',
+      isActive: pos.isActive,
+    });
+    setShowPosModal(true);
+  };
+
+  const closePosModal = () => {
+    setShowPosModal(false);
+    setEditingPos(null);
+    setPosForm({
+      branchId: '',
+      code: '',
+      name: '',
+      description: '',
+      priceListId: '',
+      isActive: true,
+    });
+  };
+
+  const handleSavePos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setSavingPos(true);
+    try {
+      if (editingPos) {
+        await catalogApi.updatePointOfSale(id, editingPos.id, posForm);
+        showMessage('success', 'Punto de venta actualizado');
+      } else {
+        await catalogApi.createPointOfSale(id, posForm);
+        showMessage('success', 'Punto de venta creado');
+      }
+      closePosModal();
+      setPointsOfSale([]);
+      loadCatalog('pointsOfSale');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } } };
+      console.error('Error saving POS:', error);
+      showMessage('error', err.response?.data?.error?.message || 'Error al guardar');
+    } finally {
+      setSavingPos(false);
+    }
+  };
+
+  const handleDeletePos = async (pos: PointOfSale) => {
+    if (!id) return;
+    if (!confirm(`¿Eliminar el punto de venta "${pos.name}"?`)) return;
+
+    setDeletingPos(pos.id);
+    try {
+      await catalogApi.deletePointOfSale(id, pos.id);
+      showMessage('success', 'Punto de venta eliminado');
+      setPointsOfSale([]);
+      loadCatalog('pointsOfSale');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } } };
+      console.error('Error deleting POS:', error);
+      showMessage('error', err.response?.data?.error?.message || 'Error al eliminar');
+    } finally {
+      setDeletingPos(null);
+    }
+  };
 
   const handleSaveGeneral = async () => {
     setSaving(true);
@@ -470,6 +585,7 @@ export default function TenantDetail() {
               { id: 'cianbox', label: 'Integración Cianbox', icon: Link },
               { id: 'branches', label: 'Sucursales', icon: Store },
               { id: 'priceLists', label: 'Listas Precio', icon: ListOrdered },
+              { id: 'pointsOfSale', label: 'Puntos Venta', icon: Monitor },
               { id: 'categories', label: 'Categorías', icon: FolderTree },
               { id: 'brands', label: 'Marcas', icon: Tags },
               { id: 'products', label: 'Productos', icon: Package },
@@ -1077,6 +1193,130 @@ export default function TenantDetail() {
             </div>
           )}
 
+          {/* Tab Puntos de Venta */}
+          {activeTab === 'pointsOfSale' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Puntos de Venta</h3>
+                <button
+                  onClick={openCreatePosModal}
+                  className="flex items-center gap-2 bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                >
+                  <Plus size={16} />
+                  Nuevo POS
+                </button>
+              </div>
+
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : pointsOfSale.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay puntos de venta configurados. Crea uno para comenzar.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Punto de Venta
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Sucursal
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Lista de Precios
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Estado
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Acciones
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {pointsOfSale.map((pos) => (
+                        <tr key={pos.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <Monitor size={20} className="text-purple-600" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{pos.name}</p>
+                                <p className="text-xs text-gray-500">Código: {pos.code}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Store size={16} className="text-orange-500" />
+                              <span className="text-sm text-gray-700">{pos.branch?.name || '-'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {pos.priceList ? (
+                              <div className="flex items-center gap-2">
+                                <ListOrdered size={16} className="text-teal-500" />
+                                <span className="text-sm text-gray-700">{pos.priceList.name}</span>
+                                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+                                  {pos.priceList.currency}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">Sin lista asignada</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                pos.isActive
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}
+                            >
+                              {pos.isActive ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => openEditPosModal(pos)}
+                                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                title="Editar"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeletePos(pos)}
+                                disabled={deletingPos === pos.id}
+                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                                title="Eliminar"
+                              >
+                                {deletingPos === pos.id ? (
+                                  <RefreshCw size={16} className="animate-spin" />
+                                ) : (
+                                  <Trash2 size={16} />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-4 text-sm text-gray-500">
+                Total: {pointsOfSale.length} puntos de venta
+              </div>
+            </div>
+          )}
+
           {/* Tab Categorías */}
           {activeTab === 'categories' && (
             <div>
@@ -1309,6 +1549,140 @@ export default function TenantDetail() {
           )}
         </div>
       </div>
+
+      {/* Modal Punto de Venta */}
+      {showPosModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {editingPos ? 'Editar Punto de Venta' : 'Nuevo Punto de Venta'}
+              </h2>
+              <button
+                onClick={closePosModal}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePos} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sucursal *
+                </label>
+                <select
+                  value={posForm.branchId}
+                  onChange={(e) => setPosForm({ ...posForm, branchId: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                  <option value="">Seleccionar sucursal...</option>
+                  {branches.filter(b => b.isActive).map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name} ({branch.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Código *
+                </label>
+                <input
+                  type="text"
+                  value={posForm.code}
+                  onChange={(e) => setPosForm({ ...posForm, code: e.target.value })}
+                  required
+                  placeholder="Ej: CAJA-01"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre *
+                </label>
+                <input
+                  type="text"
+                  value={posForm.name}
+                  onChange={(e) => setPosForm({ ...posForm, name: e.target.value })}
+                  required
+                  placeholder="Ej: Caja Principal"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descripción
+                </label>
+                <textarea
+                  value={posForm.description}
+                  onChange={(e) => setPosForm({ ...posForm, description: e.target.value })}
+                  rows={2}
+                  placeholder="Descripción opcional..."
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Lista de Precios
+                </label>
+                <select
+                  value={posForm.priceListId || ''}
+                  onChange={(e) => setPosForm({ ...posForm, priceListId: e.target.value || undefined })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                  <option value="">Sin lista asignada</option>
+                  {priceLists.map((priceList) => (
+                    <option key={priceList.id} value={priceList.id}>
+                      {priceList.name} ({priceList.currency})
+                      {priceList.isDefault ? ' - Por defecto' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Define qué precios se usarán en este punto de venta
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="posIsActive"
+                  checked={posForm.isActive}
+                  onChange={(e) => setPosForm({ ...posForm, isActive: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="posIsActive" className="text-sm font-medium text-gray-700">
+                  Activo
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closePosModal}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPos}
+                  className="flex-1 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingPos && <RefreshCw size={16} className="animate-spin" />}
+                  {editingPos ? 'Guardar' : 'Crear'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
