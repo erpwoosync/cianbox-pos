@@ -639,6 +639,96 @@ router.post(
 );
 
 /**
+ * POST /api/agency/tenants/:id/sync/branches
+ * Sincronizar sucursales de un tenant desde Cianbox
+ */
+router.post(
+  '/tenants/:id/sync/branches',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      console.log(`[Sync] Iniciando sync de sucursales para tenant: ${req.params.id}`);
+      const cianbox = await CianboxService.forTenant(req.params.id);
+      const synced = await cianbox.syncBranches(req.params.id);
+
+      res.json({
+        success: true,
+        message: `${synced} sucursales sincronizadas`,
+        data: { synced },
+      });
+    } catch (error) {
+      console.error(`[Sync] Error en sucursales:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({
+        success: false,
+        message: `Error al sincronizar sucursales: ${errorMessage}`,
+        error: errorMessage,
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/sync/price-lists
+ * Sincronizar listas de precios de un tenant desde Cianbox
+ */
+router.post(
+  '/tenants/:id/sync/price-lists',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      console.log(`[Sync] Iniciando sync de listas de precios para tenant: ${req.params.id}`);
+      const cianbox = await CianboxService.forTenant(req.params.id);
+      const synced = await cianbox.syncPriceLists(req.params.id);
+
+      res.json({
+        success: true,
+        message: `${synced} listas de precios sincronizadas`,
+        data: { synced },
+      });
+    } catch (error) {
+      console.error(`[Sync] Error en listas de precios:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({
+        success: false,
+        message: `Error al sincronizar listas de precios: ${errorMessage}`,
+        error: errorMessage,
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/sync/customers
+ * Sincronizar clientes de un tenant desde Cianbox
+ */
+router.post(
+  '/tenants/:id/sync/customers',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      console.log(`[Sync] Iniciando sync de clientes para tenant: ${req.params.id}`);
+      const cianbox = await CianboxService.forTenant(req.params.id);
+      const synced = await cianbox.syncCustomers(req.params.id);
+
+      res.json({
+        success: true,
+        message: `${synced} clientes sincronizados`,
+        data: { synced },
+      });
+    } catch (error) {
+      console.error(`[Sync] Error en clientes:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({
+        success: false,
+        message: `Error al sincronizar clientes: ${errorMessage}`,
+        error: errorMessage,
+      });
+    }
+  }
+);
+
+/**
  * POST /api/agency/tenants/:id/sync/all
  * Sincronizar todo desde Cianbox (categorías, marcas, productos)
  */

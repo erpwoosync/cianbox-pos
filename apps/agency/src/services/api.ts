@@ -81,6 +81,18 @@ export const tenantsApi = {
     const response = await api.post(`/agency/tenants/${id}/sync/brands`);
     return response.data;
   },
+  syncBranches: async (id: string) => {
+    const response = await api.post(`/agency/tenants/${id}/sync/branches`);
+    return response.data;
+  },
+  syncPriceLists: async (id: string) => {
+    const response = await api.post(`/agency/tenants/${id}/sync/price-lists`);
+    return response.data;
+  },
+  syncCustomers: async (id: string) => {
+    const response = await api.post(`/agency/tenants/${id}/sync/customers`);
+    return response.data;
+  },
   syncAll: async (id: string) => {
     const response = await api.post(`/agency/tenants/${id}/sync/all`);
     return response.data;
