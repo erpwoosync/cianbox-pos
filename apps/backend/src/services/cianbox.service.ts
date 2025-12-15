@@ -519,6 +519,7 @@ export class CianboxService {
 
   /**
    * Realiza una petición autenticada a Cianbox
+   * El token se envía como query parameter según la API de Cianbox
    */
   private async request<T>(
     endpoint: string,
@@ -526,27 +527,39 @@ export class CianboxService {
   ): Promise<T> {
     const token = await this.getAccessToken();
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    // Cianbox requiere el token como query parameter, no como header
+    const separator = endpoint.includes('?') ? '&' : '?';
+    const url = `${this.baseUrl}${endpoint}${separator}access_token=${token}`;
+
+    console.log(`[Cianbox] Request: ${options.method || 'GET'} ${this.baseUrl}${endpoint}`);
+
+    const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
         ...options.headers,
       },
     });
 
+    const responseText = await response.text();
+    console.log(`[Cianbox] Response status: ${response.status}, body length: ${responseText.length}`);
+
     if (response.status === 401) {
       // Token inválido, intentar re-autenticar
+      console.log('[Cianbox] Token inválido, re-autenticando...');
       await this.authenticate();
       return this.request<T>(endpoint, options);
     }
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new CianboxError(`Error Cianbox: ${response.status} - ${error}`);
+      throw new CianboxError(`Error Cianbox: ${response.status} - ${responseText}`);
     }
 
-    return response.json() as Promise<T>;
+    try {
+      return JSON.parse(responseText) as T;
+    } catch {
+      throw new CianboxError(`Respuesta inválida de Cianbox: ${responseText.substring(0, 200)}`);
+    }
   }
 
   /**
