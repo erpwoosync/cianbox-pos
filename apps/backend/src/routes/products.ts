@@ -46,6 +46,62 @@ const productCreateSchema = z.object({
 
 const productUpdateSchema = productCreateSchema.partial();
 
+// =============================================
+// CATEGORÍAS Y MARCAS (deben ir ANTES de /:id)
+// =============================================
+
+/**
+ * GET /api/products/categories
+ * Listar categorías
+ */
+router.get(
+  '/categories',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const categories = await prisma.category.findMany({
+        where: {
+          tenantId: req.user!.tenantId,
+          isActive: true,
+        },
+        orderBy: [{ level: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+      });
+
+      res.json({ success: true, data: categories });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/products/brands
+ * Listar marcas
+ */
+router.get(
+  '/brands',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const brands = await prisma.brand.findMany({
+        where: {
+          tenantId: req.user!.tenantId,
+          isActive: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      res.json({ success: true, data: brands });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// =============================================
+// PRODUCTOS
+// =============================================
+
 /**
  * GET /api/products
  * Listar productos con búsqueda y filtros
@@ -407,62 +463,6 @@ router.delete(
       });
 
       res.json({ success: true, message: 'Producto desactivado' });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-// =============================================
-// CATEGORÍAS
-// =============================================
-
-/**
- * GET /api/products/categories
- * Listar categorías
- */
-router.get(
-  '/categories',
-  authenticate,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      const categories = await prisma.category.findMany({
-        where: {
-          tenantId: req.user!.tenantId,
-          isActive: true,
-        },
-        orderBy: [{ level: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
-      });
-
-      res.json({ success: true, data: categories });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-// =============================================
-// MARCAS
-// =============================================
-
-/**
- * GET /api/products/brands
- * Listar marcas
- */
-router.get(
-  '/brands',
-  authenticate,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      const brands = await prisma.brand.findMany({
-        where: {
-          tenantId: req.user!.tenantId,
-          isActive: true,
-        },
-        orderBy: { name: 'asc' },
-      });
-
-      res.json({ success: true, data: brands });
     } catch (error) {
       next(error);
     }
