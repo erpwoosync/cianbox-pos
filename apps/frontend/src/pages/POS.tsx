@@ -25,11 +25,22 @@ interface Product {
   name: string;
   shortName?: string;
   imageUrl?: string;
-  basePrice: number;
-  taxRate: number;
+  basePrice?: number;
+  taxRate?: number;
   category?: { id: string; name: string };
-  prices?: Array<{ priceListId: string; price: number }>;
+  prices?: Array<{ priceListId: string; price: number; priceList?: { id: string; name: string } }>;
 }
+
+// Helper para obtener el precio del producto
+const getProductPrice = (product: Product): number => {
+  // Primero intentar basePrice
+  if (product.basePrice != null) return product.basePrice;
+  // Luego buscar en prices (primer precio disponible)
+  if (product.prices && product.prices.length > 0) {
+    return product.prices[0].price;
+  }
+  return 0;
+};
 
 interface CartItem {
   id: string;
@@ -146,7 +157,7 @@ export default function POS() {
         return updated;
       }
 
-      const price = product.basePrice || 0;
+      const price = getProductPrice(product);
       return [
         ...prev,
         {
@@ -215,7 +226,7 @@ export default function POS() {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           discount: item.discount,
-          taxRate: item.product.taxRate,
+          taxRate: item.product.taxRate || 21,
           promotionId: item.promotionId,
           promotionName: item.promotionName,
         })),
@@ -312,7 +323,7 @@ export default function POS() {
                   </p>
                 </div>
                 <p className="font-semibold">
-                  ${product.basePrice?.toFixed(2)}
+                  ${getProductPrice(product).toFixed(2)}
                 </p>
               </button>
             ))}
@@ -375,7 +386,7 @@ export default function POS() {
                     {product.shortName || product.name}
                   </p>
                   <p className="text-primary-600 font-semibold mt-1">
-                    ${product.basePrice?.toFixed(2)}
+                    ${getProductPrice(product).toFixed(2)}
                   </p>
                 </button>
               ))}
