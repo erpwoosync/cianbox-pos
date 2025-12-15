@@ -13,10 +13,14 @@ import {
   X,
   ChevronDown,
   User,
+  Store,
+  ListOrdered,
 } from 'lucide-react';
 
 const menuItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/branches', label: 'Sucursales', icon: Store },
+  { path: '/price-lists', label: 'Listas de Precio', icon: ListOrdered },
   { path: '/categories', label: 'Categorías', icon: FolderTree },
   { path: '/brands', label: 'Marcas', icon: Tags },
   { path: '/products', label: 'Productos', icon: Package },

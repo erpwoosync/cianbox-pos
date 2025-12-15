@@ -20,8 +20,11 @@ import {
   Search,
   DollarSign,
   Warehouse,
+  Store,
+  ListOrdered,
+  Users,
 } from 'lucide-react';
-import { tenantsApi, connectionsApi, catalogApi, Category, Brand, Product } from '../services/api';
+import { tenantsApi, connectionsApi, catalogApi, Category, Brand, Product, PriceList, Branch } from '../services/api';
 
 interface CianboxConnection {
   id: string;
@@ -69,6 +72,9 @@ export default function TenantDetail() {
   const [syncingCategories, setSyncingCategories] = useState(false);
   const [syncingBrands, setSyncingBrands] = useState(false);
   const [syncingProducts, setSyncingProducts] = useState(false);
+  const [syncingBranches, setSyncingBranches] = useState(false);
+  const [syncingPriceLists, setSyncingPriceLists] = useState(false);
+  const [syncingCustomers, setSyncingCustomers] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
@@ -79,6 +85,8 @@ export default function TenantDetail() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [priceLists, setPriceLists] = useState<PriceList[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [productSearch, setProductSearch] = useState('');
 
@@ -146,7 +154,7 @@ export default function TenantDetail() {
   };
 
   // Cargar catálogo cuando se cambia al tab correspondiente
-  const loadCatalog = async (type: 'categories' | 'brands' | 'products') => {
+  const loadCatalog = async (type: 'categories' | 'brands' | 'products' | 'branches' | 'priceLists') => {
     if (!id) return;
     setLoadingCatalog(true);
     try {
@@ -159,6 +167,12 @@ export default function TenantDetail() {
       } else if (type === 'products' && products.length === 0) {
         const data = await catalogApi.getProducts(id);
         setProducts(data);
+      } else if (type === 'branches' && branches.length === 0) {
+        const data = await catalogApi.getBranches(id);
+        setBranches(data);
+      } else if (type === 'priceLists' && priceLists.length === 0) {
+        const data = await catalogApi.getPriceLists(id);
+        setPriceLists(data);
       }
     } catch (error) {
       console.error(`Error loading ${type}:`, error);
@@ -176,6 +190,10 @@ export default function TenantDetail() {
       loadCatalog('brands');
     } else if (activeTab === 'products') {
       loadCatalog('products');
+    } else if (activeTab === 'branches') {
+      loadCatalog('branches');
+    } else if (activeTab === 'priceLists') {
+      loadCatalog('priceLists');
     }
   }, [activeTab]);
 
@@ -284,6 +302,59 @@ export default function TenantDetail() {
       showMessage('error', err.response?.data?.message || 'Error al sincronizar productos');
     } finally {
       setSyncingProducts(false);
+    }
+  };
+
+  const handleSyncBranches = async () => {
+    setSyncingBranches(true);
+    try {
+      const result = await tenantsApi.syncBranches(id!);
+      await loadTenant();
+      setBranches([]); // Limpiar para recargar
+      if (activeTab === 'branches') {
+        loadCatalog('branches');
+      }
+      showMessage('success', result.message || 'Sucursales sincronizadas');
+    } catch (error: unknown) {
+      console.error('Error syncing branches:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error al sincronizar sucursales');
+    } finally {
+      setSyncingBranches(false);
+    }
+  };
+
+  const handleSyncPriceLists = async () => {
+    setSyncingPriceLists(true);
+    try {
+      const result = await tenantsApi.syncPriceLists(id!);
+      await loadTenant();
+      setPriceLists([]); // Limpiar para recargar
+      if (activeTab === 'priceLists') {
+        loadCatalog('priceLists');
+      }
+      showMessage('success', result.message || 'Listas de precios sincronizadas');
+    } catch (error: unknown) {
+      console.error('Error syncing price lists:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error al sincronizar listas de precios');
+    } finally {
+      setSyncingPriceLists(false);
+    }
+  };
+
+  const handleSyncCustomers = async () => {
+    setSyncingCustomers(true);
+    try {
+      const result = await tenantsApi.syncCustomers(id!);
+      await loadTenant();
+      showMessage('success', result.message || 'Clientes sincronizados');
+    } catch (error: unknown) {
+      console.error('Error syncing customers:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error al sincronizar clientes');
+    } finally {
+      setSyncingCustomers(false);
     }
   };
 
@@ -397,6 +468,8 @@ export default function TenantDetail() {
             {[
               { id: 'general', label: 'General', icon: Settings },
               { id: 'cianbox', label: 'Integración Cianbox', icon: Link },
+              { id: 'branches', label: 'Sucursales', icon: Store },
+              { id: 'priceLists', label: 'Listas Precio', icon: ListOrdered },
               { id: 'categories', label: 'Categorías', icon: FolderTree },
               { id: 'brands', label: 'Marcas', icon: Tags },
               { id: 'products', label: 'Productos', icon: Package },
@@ -768,6 +841,30 @@ export default function TenantDetail() {
 
                 <div className="flex flex-wrap gap-3">
                   <button
+                    onClick={handleSyncBranches}
+                    disabled={syncingBranches || syncingAll || !hasConnection}
+                    className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
+                  >
+                    {syncingBranches ? (
+                      <RefreshCw size={18} className="animate-spin" />
+                    ) : (
+                      <Store size={18} />
+                    )}
+                    {syncingBranches ? 'Sincronizando...' : 'Sucursales'}
+                  </button>
+                  <button
+                    onClick={handleSyncPriceLists}
+                    disabled={syncingPriceLists || syncingAll || !hasConnection}
+                    className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
+                  >
+                    {syncingPriceLists ? (
+                      <RefreshCw size={18} className="animate-spin" />
+                    ) : (
+                      <ListOrdered size={18} />
+                    )}
+                    {syncingPriceLists ? 'Sincronizando...' : 'Listas Precio'}
+                  </button>
+                  <button
                     onClick={handleSyncCategories}
                     disabled={syncingCategories || syncingAll || !hasConnection}
                     className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
@@ -775,7 +872,7 @@ export default function TenantDetail() {
                     {syncingCategories ? (
                       <RefreshCw size={18} className="animate-spin" />
                     ) : (
-                      <Play size={18} />
+                      <FolderTree size={18} />
                     )}
                     {syncingCategories ? 'Sincronizando...' : 'Categorías'}
                   </button>
@@ -787,7 +884,7 @@ export default function TenantDetail() {
                     {syncingBrands ? (
                       <RefreshCw size={18} className="animate-spin" />
                     ) : (
-                      <Play size={18} />
+                      <Tags size={18} />
                     )}
                     {syncingBrands ? 'Sincronizando...' : 'Marcas'}
                   </button>
@@ -799,13 +896,25 @@ export default function TenantDetail() {
                     {syncingProducts ? (
                       <RefreshCw size={18} className="animate-spin" />
                     ) : (
-                      <Play size={18} />
+                      <Package size={18} />
                     )}
                     {syncingProducts ? 'Sincronizando...' : 'Productos'}
                   </button>
                   <button
+                    onClick={handleSyncCustomers}
+                    disabled={syncingCustomers || syncingAll || !hasConnection}
+                    className="flex items-center gap-2 bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition-colors disabled:opacity-50"
+                  >
+                    {syncingCustomers ? (
+                      <RefreshCw size={18} className="animate-spin" />
+                    ) : (
+                      <Users size={18} />
+                    )}
+                    {syncingCustomers ? 'Sincronizando...' : 'Clientes'}
+                  </button>
+                  <button
                     onClick={handleSyncAll}
-                    disabled={syncingAll || syncingCategories || syncingBrands || syncingProducts || !hasConnection}
+                    disabled={syncingAll || syncingCategories || syncingBrands || syncingProducts || syncingBranches || syncingPriceLists || syncingCustomers || !hasConnection}
                     className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                   >
                     {syncingAll ? (
@@ -822,6 +931,148 @@ export default function TenantDetail() {
                     Configura la conexión Cianbox para habilitar la sincronización
                   </p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Tab Sucursales */}
+          {activeTab === 'branches' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Sucursales</h3>
+                <button
+                  onClick={handleSyncBranches}
+                  disabled={syncingBranches || !hasConnection}
+                  className="flex items-center gap-2 bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 text-sm"
+                >
+                  {syncingBranches ? (
+                    <RefreshCw size={16} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={16} />
+                  )}
+                  Sincronizar
+                </button>
+              </div>
+
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : branches.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay sucursales registradas
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {branches.map((branch) => (
+                    <div
+                      key={branch.id}
+                      className="flex items-center gap-4 p-4 border rounded-lg hover:shadow-md transition-shadow"
+                    >
+                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <Store className="w-6 h-6 text-orange-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 truncate">{branch.name}</h3>
+                        <p className="text-sm text-gray-500">
+                          Código: {branch.code || '-'}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          branch.isActive
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {branch.isActive ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4 text-sm text-gray-500">
+                Total: {branches.length} sucursales
+              </div>
+            </div>
+          )}
+
+          {/* Tab Listas de Precios */}
+          {activeTab === 'priceLists' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Listas de Precios</h3>
+                <button
+                  onClick={handleSyncPriceLists}
+                  disabled={syncingPriceLists || !hasConnection}
+                  className="flex items-center gap-2 bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50 text-sm"
+                >
+                  {syncingPriceLists ? (
+                    <RefreshCw size={16} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={16} />
+                  )}
+                  Sincronizar
+                </button>
+              </div>
+
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : priceLists.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay listas de precios registradas
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Nombre
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Moneda
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Por Defecto
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {priceLists.map((priceList) => (
+                        <tr key={priceList.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+                                <ListOrdered size={20} className="text-teal-600" />
+                              </div>
+                              <span className="font-medium text-gray-900">{priceList.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {priceList.currency || 'ARS'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {priceList.isDefault ? (
+                              <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">
+                                Por defecto
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-4 text-sm text-gray-500">
+                Total: {priceLists.length} listas de precios
               </div>
             </div>
           )}
