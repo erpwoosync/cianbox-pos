@@ -92,3 +92,47 @@ jobs:
         run: |
           echo "Frontend deployed successfully!"
           echo "Application available at http://172.16.1.61"
+
+  deploy-agency:
+    name: Deploy Agency Backoffice
+    runs-on: self-hosted
+    needs: deploy-backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install agency dependencies
+        working-directory: ./apps/agency
+        run: npm ci
+
+      - name: Build agency
+        working-directory: ./apps/agency
+        env:
+          VITE_API_URL: /api
+        run: npm run build
+
+      - name: Deploy agency
+        run: |
+          sudo mkdir -p /var/www/cianbox-pos/apps/agency/dist
+          sudo rsync -av --delete \
+            ./apps/agency/dist/ /var/www/cianbox-pos/apps/agency/dist/
+
+      - name: Configure nginx for agency
+        run: |
+          # Copy nginx config if not exists or update it
+          if [ ! -f /etc/nginx/sites-available/cianbox-pos-agency ]; then
+            sudo cp ./deploy/nginx-agency.conf /etc/nginx/sites-available/cianbox-pos-agency
+            sudo ln -sf /etc/nginx/sites-available/cianbox-pos-agency /etc/nginx/sites-enabled/
+            sudo nginx -t && sudo systemctl reload nginx
+          fi
+
+      - name: Deployment complete
+        run: |
+          echo "Agency Backoffice deployed successfully!"
+          echo "Agency available at http://172.16.1.61:8083"

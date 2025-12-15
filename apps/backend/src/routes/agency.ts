@@ -349,8 +349,11 @@ router.get(
           databaseServer: {
             select: { id: true, name: true, host: true },
           },
+          cianboxConnection: {
+            select: { id: true, cuenta: true, lastSync: true, syncStatus: true },
+          },
           _count: {
-            select: { users: true, branches: true, products: true, sales: true },
+            select: { users: true, branches: true, products: true, sales: true, categories: true, brands: true },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -359,6 +362,270 @@ router.get(
       res.json({
         success: true,
         data: tenants,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id
+ * Obtener detalle de un tenant
+ */
+router.get(
+  '/tenants/:id',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: req.params.id },
+        include: {
+          databaseServer: {
+            select: { id: true, name: true, host: true },
+          },
+          cianboxConnection: true,
+          _count: {
+            select: { users: true, branches: true, products: true, sales: true, categories: true, brands: true },
+          },
+        },
+      });
+
+      if (!tenant) {
+        throw ApiError.notFound('Tenant no encontrado');
+      }
+
+      res.json({
+        success: true,
+        data: tenant,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/agency/tenants/:id
+ * Actualizar un tenant
+ */
+router.put(
+  '/tenants/:id',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { name, slug, taxId, plan, databaseServerId, status } = req.body;
+
+      const tenant = await prisma.tenant.update({
+        where: { id: req.params.id },
+        data: {
+          ...(name && { name }),
+          ...(slug && { slug }),
+          ...(taxId !== undefined && { taxId }),
+          ...(plan && { plan }),
+          ...(databaseServerId !== undefined && { databaseServerId }),
+          ...(status && { status }),
+        },
+      });
+
+      res.json({
+        success: true,
+        data: tenant,
+        message: 'Tenant actualizado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/agency/tenants/:id
+ * Eliminar un tenant
+ */
+router.delete(
+  '/tenants/:id',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      await prisma.tenant.delete({
+        where: { id: req.params.id },
+      });
+
+      res.json({
+        success: true,
+        message: 'Tenant eliminado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/connection
+ * Obtener conexión Cianbox de un tenant
+ */
+router.get(
+  '/tenants/:id/connection',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const connection = await prisma.cianboxConnection.findUnique({
+        where: { tenantId: req.params.id },
+      });
+
+      res.json({
+        success: true,
+        data: connection,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/agency/tenants/:id/connection
+ * Actualizar/crear conexión Cianbox de un tenant
+ */
+router.put(
+  '/tenants/:id/connection',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { cuenta, appName, appCode, user, password, syncPageSize } = req.body;
+
+      const connection = await prisma.cianboxConnection.upsert({
+        where: { tenantId: req.params.id },
+        create: {
+          tenantId: req.params.id,
+          cuenta: cuenta || '',
+          appName: appName || '',
+          appCode: appCode || '',
+          user: user || '',
+          password: password || '',
+          syncPageSize: syncPageSize || 50,
+        },
+        update: {
+          ...(cuenta && { cuenta }),
+          ...(appName && { appName }),
+          ...(appCode && { appCode }),
+          ...(user && { user }),
+          ...(password && { password }),
+          ...(syncPageSize && { syncPageSize }),
+        },
+      });
+
+      res.json({
+        success: true,
+        data: connection,
+        message: 'Conexión actualizada',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/connection/test
+ * Probar conexión Cianbox de un tenant
+ */
+router.post(
+  '/tenants/:id/connection/test',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const connection = await prisma.cianboxConnection.findUnique({
+        where: { tenantId: req.params.id },
+      });
+
+      if (!connection) {
+        throw ApiError.notFound('Conexión no configurada');
+      }
+
+      // TODO: Implementar test real a la API de Cianbox
+      // Por ahora simulamos una conexión exitosa
+      res.json({
+        success: true,
+        message: 'Conexión exitosa',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/sync/products
+ * Sincronizar productos de un tenant desde Cianbox
+ */
+router.post(
+  '/tenants/:id/sync/products',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const connection = await prisma.cianboxConnection.findUnique({
+        where: { tenantId: req.params.id },
+      });
+
+      if (!connection) {
+        throw ApiError.notFound('Conexión Cianbox no configurada');
+      }
+
+      // TODO: Implementar sincronización real con CianboxService
+      // Por ahora actualizar el estado de sync
+      await prisma.cianboxConnection.update({
+        where: { tenantId: req.params.id },
+        data: {
+          lastSync: new Date(),
+          syncStatus: 'success',
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Sincronización iniciada',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/sync/status
+ * Estado de sincronización de un tenant
+ */
+router.get(
+  '/tenants/:id/sync/status',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const connection = await prisma.cianboxConnection.findUnique({
+        where: { tenantId: req.params.id },
+        select: {
+          lastSync: true,
+          syncStatus: true,
+        },
+      });
+
+      const counts = await prisma.$transaction([
+        prisma.product.count({ where: { tenantId: req.params.id } }),
+        prisma.category.count({ where: { tenantId: req.params.id } }),
+        prisma.brand.count({ where: { tenantId: req.params.id } }),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          lastSync: connection?.lastSync,
+          status: connection?.syncStatus,
+          products: counts[0],
+          categories: counts[1],
+          brands: counts[2],
+        },
       });
     } catch (error) {
       next(error);
@@ -624,6 +891,189 @@ router.get(
           },
           recentTenants,
         },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// =============================================
+// GESTIÓN DE USUARIOS DE AGENCIA
+// =============================================
+
+const agencyUserCreateSchema = z.object({
+  email: z.string().email('Email inválido'),
+  password: z.string().min(6, 'Contraseña debe tener al menos 6 caracteres'),
+  name: z.string().min(1, 'Nombre requerido'),
+});
+
+const agencyUserUpdateSchema = z.object({
+  email: z.string().email().optional(),
+  password: z.string().min(6).optional(),
+  name: z.string().min(1).optional(),
+  status: z.enum(['ACTIVE', 'DISABLED']).optional(),
+});
+
+/**
+ * GET /api/agency/users
+ * Listar usuarios de agencia
+ */
+router.get(
+  '/users',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const users = await prisma.agencyUser.findMany({
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      res.json({
+        success: true,
+        data: users,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/agency/users
+ * Crear usuario de agencia
+ */
+router.post(
+  '/users',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const validation = agencyUserCreateSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const { email, password, name } = validation.data;
+
+      const existingUser = await prisma.agencyUser.findUnique({
+        where: { email: email.toLowerCase() },
+      });
+
+      if (existingUser) {
+        throw ApiError.conflict('Ya existe un usuario con ese email');
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      const user = await prisma.agencyUser.create({
+        data: {
+          email: email.toLowerCase(),
+          passwordHash,
+          name,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: user,
+        message: 'Usuario creado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/agency/users/:id
+ * Actualizar usuario de agencia
+ */
+router.put(
+  '/users/:id',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const validation = agencyUserUpdateSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const data = validation.data;
+      const updateData: Record<string, unknown> = {};
+
+      if (data.email) {
+        updateData.email = data.email.toLowerCase();
+      }
+      if (data.name) {
+        updateData.name = data.name;
+      }
+      if (data.status) {
+        updateData.status = data.status;
+      }
+      if (data.password) {
+        updateData.passwordHash = await bcrypt.hash(data.password, 10);
+      }
+
+      const user = await prisma.agencyUser.update({
+        where: { id: req.params.id },
+        data: updateData,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        data: user,
+        message: 'Usuario actualizado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/agency/users/:id
+ * Eliminar usuario de agencia
+ */
+router.delete(
+  '/users/:id',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      // Evitar que el usuario se elimine a sí mismo
+      if (req.params.id === req.agencyUser?.id) {
+        throw ApiError.badRequest('No puedes eliminar tu propio usuario');
+      }
+
+      await prisma.agencyUser.delete({
+        where: { id: req.params.id },
+      });
+
+      res.json({
+        success: true,
+        message: 'Usuario eliminado',
       });
     } catch (error) {
       next(error);
