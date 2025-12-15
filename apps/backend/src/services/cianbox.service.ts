@@ -163,6 +163,94 @@ export class CianboxService {
   }
 
   /**
+   * Testea la conexión a Cianbox intentando autenticarse
+   * Retorna información del resultado
+   */
+  static async testConnection(tenantId: string): Promise<{
+    success: boolean;
+    message: string;
+    expiresIn?: number;
+  }> {
+    const connection = await prisma.cianboxConnection.findUnique({
+      where: { tenantId },
+    });
+
+    if (!connection) {
+      return {
+        success: false,
+        message: 'Conexión no configurada',
+      };
+    }
+
+    // Construir URL de la API
+    const baseUrl = `https://${connection.cuenta}/api/v2`;
+
+    try {
+      const response = await fetch(`${baseUrl}/auth/credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          app_name: connection.appName,
+          app_code: connection.appCode,
+          user: connection.user,
+          password: connection.password,
+        }),
+      });
+
+      const data = await response.json() as {
+        status?: number;
+        statusMessage?: string;
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+        error?: string;
+        message?: string;
+      };
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: data.message || data.error || `Error HTTP ${response.status}`,
+        };
+      }
+
+      if (data.access_token) {
+        // Guardar el token obtenido
+        const expiresAt = new Date();
+        expiresAt.setSeconds(expiresAt.getSeconds() + (data.expires_in || 86400) - 300);
+
+        await prisma.cianboxConnection.update({
+          where: { id: connection.id },
+          data: {
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            tokenExpiresAt: expiresAt,
+          },
+        });
+
+        return {
+          success: true,
+          message: 'Conexión exitosa',
+          expiresIn: data.expires_in,
+        };
+      }
+
+      return {
+        success: false,
+        message: data.statusMessage || data.message || 'Error de autenticación',
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error de conexión';
+      return {
+        success: false,
+        message: `No se pudo conectar: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
    * Obtiene un token de acceso válido
    * Si el token actual está expirado, lo renueva
    */

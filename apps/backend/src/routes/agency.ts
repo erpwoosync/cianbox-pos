@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../services/database.service.js';
 import DatabaseService from '../services/database.service.js';
+import CianboxService from '../services/cianbox.service.js';
 import { ApiError, ValidationError, AuthenticationError } from '../utils/errors.js';
 
 const router = Router();
@@ -541,19 +542,12 @@ router.post(
   agencyAuth,
   async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
     try {
-      const connection = await prisma.cianboxConnection.findUnique({
-        where: { tenantId: req.params.id },
-      });
+      const result = await CianboxService.testConnection(req.params.id);
 
-      if (!connection) {
-        throw ApiError.notFound('Conexión no configurada');
-      }
-
-      // TODO: Implementar test real a la API de Cianbox
-      // Por ahora simulamos una conexión exitosa
       res.json({
-        success: true,
-        message: 'Conexión exitosa',
+        success: result.success,
+        message: result.message,
+        data: result.expiresIn ? { expiresIn: result.expiresIn } : undefined,
       });
     } catch (error) {
       next(error);

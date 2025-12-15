@@ -443,25 +443,30 @@ export default function TenantDetail() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Cuenta (URL base)
+                      Cuenta Cianbox
                     </label>
-                    <input
-                      type="text"
-                      value={cianboxForm.cuenta}
-                      onChange={(e) =>
-                        setCianboxForm({ ...cianboxForm, cuenta: e.target.value })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                      placeholder="mitienda.cianbox.com"
-                    />
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-sm">
+                        https://
+                      </span>
+                      <input
+                        type="text"
+                        value={cianboxForm.cuenta}
+                        onChange={(e) =>
+                          setCianboxForm({ ...cianboxForm, cuenta: e.target.value })
+                        }
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        placeholder="mitienda.cianbox.com"
+                      />
+                    </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      URL de tu cuenta Cianbox (sin https://)
+                      Subdominio de tu cuenta en Cianbox
                     </p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nombre de Aplicación
+                      app_name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -470,13 +475,16 @@ export default function TenantDetail() {
                         setCianboxForm({ ...cianboxForm, appName: e.target.value })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                      placeholder="POS Cianbox"
+                      placeholder="Mi Aplicación POS"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Nombre de la aplicación registrada en Cianbox
+                    </p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Código de Aplicación
+                      app_code <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -484,14 +492,17 @@ export default function TenantDetail() {
                       onChange={(e) =>
                         setCianboxForm({ ...cianboxForm, appCode: e.target.value })
                       }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                      placeholder="pos-app-001"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono"
+                      placeholder="abc123xyz"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Código único de la aplicación
+                    </p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Usuario
+                      user <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -500,13 +511,17 @@ export default function TenantDetail() {
                         setCianboxForm({ ...cianboxForm, user: e.target.value })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                      placeholder="api_user"
+                      placeholder="usuario@empresa.com"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Usuario de Cianbox con permisos de API
+                    </p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Contraseña {hasConnection && <span className="text-gray-400">(dejar vacío para mantener)</span>}
+                      password <span className="text-red-500">*</span>
+                      {hasConnection && <span className="text-gray-400 font-normal"> (dejar vacío para mantener)</span>}
                     </label>
                     <div className="relative">
                       <input
