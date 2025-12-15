@@ -63,24 +63,16 @@ interface CianboxProduct {
   }>;
 }
 
+// Campos reales de la API de Cianbox según documentación
 interface CianboxCategory {
   id: number;
-  code: string;
-  name: string;
-  description: string;
-  parentId: number | null;
-  level: number;
-  sortOrder: number;
-  imageUrl: string;
-  isActive: boolean;
+  categoria: string;  // nombre de la categoría
+  padre: number;      // id de categoría padre (0 = sin padre)
 }
 
 interface CianboxBrand {
   id: number;
-  name: string;
-  description: string;
-  logoUrl: string;
-  isActive: boolean;
+  marca: string;  // nombre de la marca
 }
 
 interface CianboxPriceList {
@@ -712,26 +704,32 @@ export class CianboxService {
 
   /**
    * Sincroniza categorías desde Cianbox
+   * API Cianbox devuelve: { id, categoria, padre }
    */
   async syncCategories(tenantId: string): Promise<number> {
     const categories = await this.getCategories();
     let synced = 0;
 
-    // Primero las categorías padre (level 0)
-    const sortedCategories = categories.sort((a, b) => a.level - b.level);
+    console.log(`[Cianbox] Sincronizando ${categories.length} categorías`);
+
+    // Primero las categorías sin padre (padre = 0), luego las hijas
+    const sortedCategories = categories.sort((a, b) => a.padre - b.padre);
 
     for (const category of sortedCategories) {
-      // Buscar categoría padre si existe
+      // Buscar categoría padre si existe (padre > 0)
       let parentId: string | null = null;
-      if (category.parentId) {
+      if (category.padre && category.padre > 0) {
         const parent = await prisma.category.findFirst({
           where: {
             tenantId,
-            cianboxCategoryId: category.parentId,
+            cianboxCategoryId: category.padre,
           },
         });
         parentId = parent?.id || null;
       }
+
+      // Mapear campos de Cianbox a nuestro modelo
+      const categoryName = category.categoria || `Categoría ${category.id}`;
 
       await prisma.category.upsert({
         where: {
@@ -741,27 +739,15 @@ export class CianboxService {
           },
         },
         update: {
-          code: category.code,
-          name: category.name,
-          description: category.description,
+          name: categoryName,
           parentId,
-          level: category.level,
-          sortOrder: category.sortOrder,
-          imageUrl: category.imageUrl,
-          isActive: category.isActive,
           lastSyncedAt: new Date(),
         },
         create: {
           tenantId,
           cianboxCategoryId: category.id,
-          code: category.code,
-          name: category.name,
-          description: category.description,
+          name: categoryName,
           parentId,
-          level: category.level,
-          sortOrder: category.sortOrder,
-          imageUrl: category.imageUrl,
-          isActive: category.isActive,
           lastSyncedAt: new Date(),
         },
       });
@@ -785,12 +771,18 @@ export class CianboxService {
 
   /**
    * Sincroniza marcas desde Cianbox
+   * API Cianbox devuelve: { id, marca }
    */
   async syncBrands(tenantId: string): Promise<number> {
     const brands = await this.getBrands();
     let synced = 0;
 
+    console.log(`[Cianbox] Sincronizando ${brands.length} marcas`);
+
     for (const brand of brands) {
+      // Mapear campos de Cianbox a nuestro modelo
+      const brandName = brand.marca || `Marca ${brand.id}`;
+
       await prisma.brand.upsert({
         where: {
           tenantId_cianboxBrandId: {
@@ -799,19 +791,13 @@ export class CianboxService {
           },
         },
         update: {
-          name: brand.name,
-          description: brand.description,
-          logoUrl: brand.logoUrl,
-          isActive: brand.isActive,
+          name: brandName,
           lastSyncedAt: new Date(),
         },
         create: {
           tenantId,
           cianboxBrandId: brand.id,
-          name: brand.name,
-          description: brand.description,
-          logoUrl: brand.logoUrl,
-          isActive: brand.isActive,
+          name: brandName,
           lastSyncedAt: new Date(),
         },
       });
