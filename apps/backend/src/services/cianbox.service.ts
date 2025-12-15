@@ -669,9 +669,13 @@ export class CianboxService {
         brandId = brand?.id || null;
       }
 
+      // Generar SKU único: usar codigo_interno o generar basado en ID de Cianbox
+      // El SKU debe ser único por tenant, así que si está vacío usamos CBX-{id}
+      const sku = product.codigo_interno?.trim() || `CBX-${product.id}`;
+
       // Mapear campos de Cianbox a nuestro modelo
       const productData = {
-        sku: product.codigo_interno || null,
+        sku,
         barcode: product.codigo_barras || null,
         name: product.producto,
         description: product.descripcion || null,
