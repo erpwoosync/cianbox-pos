@@ -21,6 +21,7 @@ import salesRoutes from './routes/sales.js';
 import promotionsRoutes from './routes/promotions.js';
 import cianboxRoutes from './routes/cianbox.js';
 import agencyRoutes from './routes/agency.js';
+import backofficeRoutes from './routes/backoffice.js';
 
 // Importar servicios
 import CianboxService from './services/cianbox.service.js';
@@ -31,7 +32,9 @@ import { ApiError } from './utils/errors.js';
 // Configuración
 const PORT = process.env.PORT || 3000;
 const CORS_ORIGINS = process.env.CORS_ORIGINS?.split(',') || [
-  'http://localhost:5173',
+  'http://localhost:5173',  // POS Frontend
+  'http://localhost:5174',  // Client Backoffice
+  'http://localhost:5175',  // Agency Backoffice
   'http://localhost:3000',
 ];
 
@@ -94,6 +97,7 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/promotions', promotionsRoutes);
 app.use('/api/cianbox', cianboxRoutes);
 app.use('/api/agency', agencyRoutes); // Super admin / gestión de DB servers
+app.use('/api/backoffice', backofficeRoutes); // Client backoffice - gestión de catálogo
 
 // Ruta 404
 app.use((_req, res) => {
