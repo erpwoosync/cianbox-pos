@@ -1241,4 +1241,219 @@ router.get(
   }
 );
 
+// =============================================
+// CATÁLOGO DE TENANT (vista desde agency)
+// =============================================
+
+/**
+ * GET /api/agency/tenants/:id/catalog/categories
+ * Listar categorías de un tenant
+ */
+router.get(
+  '/tenants/:id/catalog/categories',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const categories = await prisma.category.findMany({
+        where: { tenantId: req.params.id },
+        include: {
+          _count: { select: { products: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      res.json({
+        success: true,
+        data: categories,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/catalog/brands
+ * Listar marcas de un tenant
+ */
+router.get(
+  '/tenants/:id/catalog/brands',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const brands = await prisma.brand.findMany({
+        where: { tenantId: req.params.id },
+        include: {
+          _count: { select: { products: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      res.json({
+        success: true,
+        data: brands,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/catalog/products
+ * Listar productos de un tenant con precios y stock
+ */
+router.get(
+  '/tenants/:id/catalog/products',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { categoryId, brandId, search } = req.query;
+
+      const where: {
+        tenantId: string;
+        categoryId?: string;
+        brandId?: string;
+        OR?: Array<{ name?: { contains: string; mode: 'insensitive' }; sku?: { contains: string; mode: 'insensitive' }; barcode?: { contains: string } }>;
+      } = { tenantId: req.params.id };
+
+      if (categoryId) {
+        where.categoryId = categoryId as string;
+      }
+
+      if (brandId) {
+        where.brandId = brandId as string;
+      }
+
+      if (search) {
+        const searchStr = search as string;
+        where.OR = [
+          { name: { contains: searchStr, mode: 'insensitive' } },
+          { sku: { contains: searchStr, mode: 'insensitive' } },
+          { barcode: { contains: searchStr } },
+        ];
+      }
+
+      const products = await prisma.product.findMany({
+        where,
+        include: {
+          category: { select: { id: true, name: true } },
+          brand: { select: { id: true, name: true } },
+          prices: {
+            include: {
+              priceList: { select: { id: true, name: true } },
+            },
+          },
+          stock: {
+            include: {
+              branch: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      res.json({
+        success: true,
+        data: products,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/catalog/products/:productId
+ * Obtener detalle de un producto con precios y stock
+ */
+router.get(
+  '/tenants/:id/catalog/products/:productId',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const product = await prisma.product.findFirst({
+        where: {
+          id: req.params.productId,
+          tenantId: req.params.id,
+        },
+        include: {
+          category: { select: { id: true, name: true } },
+          brand: { select: { id: true, name: true } },
+          prices: {
+            include: {
+              priceList: { select: { id: true, name: true } },
+            },
+          },
+          stock: {
+            include: {
+              branch: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      if (!product) {
+        throw ApiError.notFound('Producto no encontrado');
+      }
+
+      res.json({
+        success: true,
+        data: product,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/catalog/price-lists
+ * Listar listas de precios de un tenant
+ */
+router.get(
+  '/tenants/:id/catalog/price-lists',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const priceLists = await prisma.priceList.findMany({
+        where: { tenantId: req.params.id },
+        orderBy: { name: 'asc' },
+      });
+
+      res.json({
+        success: true,
+        data: priceLists,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/catalog/branches
+ * Listar sucursales de un tenant
+ */
+router.get(
+  '/tenants/:id/catalog/branches',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const branches = await prisma.branch.findMany({
+        where: { tenantId: req.params.id },
+        select: { id: true, name: true, code: true, isActive: true },
+        orderBy: { name: 'asc' },
+      });
+
+      res.json({
+        success: true,
+        data: branches,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

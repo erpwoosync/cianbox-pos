@@ -33,13 +33,14 @@ api.interceptors.response.use(
 
 // Auth API
 export const authApi = {
-  login: async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
+  login: async (email: string, password: string, tenantSlug: string) => {
+    const response = await api.post('/auth/login', { email, password, tenantSlug });
     return response.data.data;
   },
   logout: () => {
     localStorage.removeItem('backoffice_token');
     localStorage.removeItem('backoffice_user');
+    localStorage.removeItem('backoffice_tenant');
   },
 };
 

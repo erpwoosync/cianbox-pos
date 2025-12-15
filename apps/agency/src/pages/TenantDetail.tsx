@@ -14,8 +14,14 @@ import {
   Link,
   Eye,
   EyeOff,
+  FolderTree,
+  Tags,
+  Package,
+  Search,
+  DollarSign,
+  Warehouse,
 } from 'lucide-react';
-import { tenantsApi, connectionsApi } from '../services/api';
+import { tenantsApi, connectionsApi, catalogApi, Category, Brand, Product } from '../services/api';
 
 interface CianboxConnection {
   id: string;
@@ -68,6 +74,13 @@ export default function TenantDetail() {
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Catálogo
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
 
   // Form data para datos generales del tenant
   const [generalForm, setGeneralForm] = useState({
@@ -131,6 +144,40 @@ export default function TenantDetail() {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
   };
+
+  // Cargar catálogo cuando se cambia al tab correspondiente
+  const loadCatalog = async (type: 'categories' | 'brands' | 'products') => {
+    if (!id) return;
+    setLoadingCatalog(true);
+    try {
+      if (type === 'categories' && categories.length === 0) {
+        const data = await catalogApi.getCategories(id);
+        setCategories(data);
+      } else if (type === 'brands' && brands.length === 0) {
+        const data = await catalogApi.getBrands(id);
+        setBrands(data);
+      } else if (type === 'products' && products.length === 0) {
+        const data = await catalogApi.getProducts(id);
+        setProducts(data);
+      }
+    } catch (error) {
+      console.error(`Error loading ${type}:`, error);
+      showMessage('error', `Error al cargar ${type}`);
+    } finally {
+      setLoadingCatalog(false);
+    }
+  };
+
+  // Efecto para cargar catálogo al cambiar de tab
+  useEffect(() => {
+    if (activeTab === 'categories') {
+      loadCatalog('categories');
+    } else if (activeTab === 'brands') {
+      loadCatalog('brands');
+    } else if (activeTab === 'products') {
+      loadCatalog('products');
+    }
+  }, [activeTab]);
 
   const handleSaveGeneral = async () => {
     setSaving(true);
@@ -346,15 +393,18 @@ export default function TenantDetail() {
       {/* Tabs */}
       <div className="bg-white rounded-xl shadow-sm">
         <div className="border-b border-gray-200">
-          <nav className="flex gap-4 px-6">
+          <nav className="flex gap-4 px-6 overflow-x-auto">
             {[
               { id: 'general', label: 'General', icon: Settings },
               { id: 'cianbox', label: 'Integración Cianbox', icon: Link },
+              { id: 'categories', label: 'Categorías', icon: FolderTree },
+              { id: 'brands', label: 'Marcas', icon: Tags },
+              { id: 'products', label: 'Productos', icon: Package },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-4 border-b-2 transition-colors ${
+                className={`flex items-center gap-2 py-4 border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -772,6 +822,237 @@ export default function TenantDetail() {
                     Configura la conexión Cianbox para habilitar la sincronización
                   </p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Tab Categorías */}
+          {activeTab === 'categories' && (
+            <div>
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : categories.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay categorías registradas
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {categories.map((category) => (
+                    <div
+                      key={category.id}
+                      className="flex items-center gap-3 px-4 py-3 border rounded-lg hover:bg-gray-50"
+                      style={{ marginLeft: category.parentId ? '2rem' : 0 }}
+                    >
+                      <FolderTree size={18} className="text-purple-500" />
+                      <span className="flex-1 font-medium text-gray-700">{category.name}</span>
+                      <span className="text-sm text-gray-500">
+                        {category._count?.products || 0} productos
+                      </span>
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          category.isActive
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {category.isActive ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab Marcas */}
+          {activeTab === 'brands' && (
+            <div>
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : brands.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay marcas registradas
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {brands.map((brand) => (
+                    <div
+                      key={brand.id}
+                      className="flex items-center gap-4 p-4 border rounded-lg hover:shadow-md transition-shadow"
+                    >
+                      <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        {brand.logoUrl ? (
+                          <img
+                            src={brand.logoUrl}
+                            alt={brand.name}
+                            className="w-10 h-10 object-contain"
+                          />
+                        ) : (
+                          <Tags className="w-6 h-6 text-indigo-600" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 truncate">{brand.name}</h3>
+                        <p className="text-sm text-gray-500">
+                          {brand._count?.products || 0} productos
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          brand.isActive
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {brand.isActive ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab Productos */}
+          {activeTab === 'products' && (
+            <div>
+              {/* Search */}
+              <div className="mb-4">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Buscar producto..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : products.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay productos registrados
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Producto
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          SKU
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Categoría
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Marca
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                          Precio
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                          Stock
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Estado
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {products
+                        .filter(
+                          (p) =>
+                            p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                            p.sku.toLowerCase().includes(productSearch.toLowerCase())
+                        )
+                        .map((product) => {
+                          const mainPrice = product.prices?.[0]?.price;
+                          const totalStock = product.stock?.reduce(
+                            (sum, s) => sum + (Number(s.available) || 0),
+                            0
+                          ) || 0;
+
+                          return (
+                            <tr key={product.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                                    <Package size={20} className="text-gray-400" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-900">{product.name}</p>
+                                    {product.barcode && (
+                                      <p className="text-sm text-gray-500">{product.barcode}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">{product.sku}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {product.category?.name || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {product.brand?.name || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {mainPrice ? (
+                                  <span className="flex items-center justify-end gap-1 text-green-600">
+                                    <DollarSign size={14} />
+                                    {Number(mainPrice).toLocaleString('es-AR', {
+                                      minimumFractionDigits: 2,
+                                    })}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span
+                                  className={`flex items-center justify-end gap-1 ${
+                                    totalStock <= 0
+                                      ? 'text-red-600'
+                                      : totalStock < 10
+                                      ? 'text-amber-600'
+                                      : 'text-gray-900'
+                                  }`}
+                                >
+                                  <Warehouse size={14} />
+                                  {totalStock}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span
+                                  className={`px-2 py-1 text-xs rounded-full ${
+                                    product.isActive
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-gray-100 text-gray-500'
+                                  }`}
+                                >
+                                  {product.isActive ? 'Activo' : 'Inactivo'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-4 text-sm text-gray-500">
+                Total: {products.length} productos
               </div>
             </div>
           )}

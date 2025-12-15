@@ -159,6 +159,40 @@ export const dashboardApi = {
   },
 };
 
+// Tenant Catalog API (para ver catálogo de cada tenant)
+export const catalogApi = {
+  // Categorías
+  getCategories: async (tenantId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/catalog/categories`);
+    return response.data.data;
+  },
+  // Marcas
+  getBrands: async (tenantId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/catalog/brands`);
+    return response.data.data;
+  },
+  // Productos
+  getProducts: async (tenantId: string, params?: { categoryId?: string; brandId?: string; search?: string }) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/catalog/products`, { params });
+    return response.data.data;
+  },
+  // Producto por ID con precios y stock
+  getProduct: async (tenantId: string, productId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/catalog/products/${productId}`);
+    return response.data.data;
+  },
+  // Listas de precios
+  getPriceLists: async (tenantId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/catalog/price-lists`);
+    return response.data.data;
+  },
+  // Sucursales
+  getBranches: async (tenantId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/catalog/branches`);
+    return response.data.data;
+  },
+};
+
 // Types
 export interface CreateTenantDto {
   name: string;
@@ -217,6 +251,70 @@ export interface UpdateAgencyUserDto {
   password?: string;
   name?: string;
   isActive?: boolean;
+}
+
+// Catalog Types
+export interface Category {
+  id: string;
+  name: string;
+  parentId: string | null;
+  isActive: boolean;
+  children?: Category[];
+  _count?: { products: number };
+}
+
+export interface Brand {
+  id: string;
+  name: string;
+  description?: string;
+  logoUrl?: string;
+  isActive: boolean;
+  _count?: { products: number };
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  barcode?: string;
+  name: string;
+  shortName?: string;
+  description?: string;
+  category?: { id: string; name: string };
+  brand?: { id: string; name: string };
+  unit: string;
+  isActive: boolean;
+  prices?: ProductPrice[];
+  stock?: ProductStock[];
+}
+
+export interface ProductPrice {
+  id: string;
+  priceListId: string;
+  priceList?: { id: string; name: string };
+  price: number;
+}
+
+export interface ProductStock {
+  id: string;
+  branchId: string;
+  branch?: { id: string; name: string };
+  quantity: number;
+  reserved: number;
+  available: number;
+}
+
+export interface PriceList {
+  id: string;
+  name: string;
+  currency: string;
+  isDefault: boolean;
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+  code: string;
+  isActive: boolean;
 }
 
 export default api;
