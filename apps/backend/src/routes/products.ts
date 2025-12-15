@@ -288,8 +288,8 @@ router.post(
 
       // Verificar SKU único
       if (data.sku) {
-        const existing = await prisma.product.findUnique({
-          where: { tenantId_sku: { tenantId, sku: data.sku } },
+        const existing = await prisma.product.findFirst({
+          where: { tenantId, sku: data.sku },
         });
         if (existing) {
           throw ApiError.conflict('Ya existe un producto con ese SKU');
@@ -353,8 +353,8 @@ router.put(
 
       // Verificar SKU único si cambió
       if (data.sku && data.sku !== existing.sku) {
-        const skuExists = await prisma.product.findUnique({
-          where: { tenantId_sku: { tenantId, sku: data.sku } },
+        const skuExists = await prisma.product.findFirst({
+          where: { tenantId, sku: data.sku },
         });
         if (skuExists) {
           throw ApiError.conflict('Ya existe un producto con ese SKU');
