@@ -34,10 +34,14 @@ interface Product {
 // Helper para obtener el precio del producto
 const getProductPrice = (product: Product): number => {
   // Primero intentar basePrice
-  if (product.basePrice != null) return product.basePrice;
+  if (product.basePrice != null) {
+    const price = Number(product.basePrice);
+    if (!isNaN(price)) return price;
+  }
   // Luego buscar en prices (primer precio disponible)
   if (product.prices && product.prices.length > 0) {
-    return product.prices[0].price;
+    const price = Number(product.prices[0].price);
+    if (!isNaN(price)) return price;
   }
   return 0;
 };
