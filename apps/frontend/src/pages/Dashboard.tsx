@@ -1,206 +1,209 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
-  BarChart3,
   Package,
   Users,
-  Settings,
-  LogOut,
-  RefreshCw,
   DollarSign,
   TrendingUp,
+  ArrowUpRight,
+  ArrowDownRight,
+  BarChart3,
 } from 'lucide-react';
-import { useAuthStore } from '../context/authStore';
+import { salesService } from '../services/api';
+
+interface DailySummary {
+  totalSales: number;
+  totalAmount: number;
+  avgTicket: number;
+  totalItems: number;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, tenant, logout } = useAuthStore();
+  const [summary, setSummary] = useState<DailySummary>({
+    totalSales: 0,
+    totalAmount: 0,
+    avgTicket: 0,
+    totalItems: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  useEffect(() => {
+    loadSummary();
+  }, []);
+
+  const loadSummary = async () => {
+    try {
+      const response = await salesService.getDailySummary();
+      if (response.success) {
+        setSummary({
+          totalSales: response.data.totalSales || 0,
+          totalAmount: response.data.totalAmount || 0,
+          avgTicket: response.data.avgTicket || 0,
+          totalItems: response.data.totalItems || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading summary:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const stats = [
     {
       label: 'Ventas Hoy',
-      value: '$0.00',
+      value: `$${summary.totalAmount.toFixed(2)}`,
+      change: '+12%',
+      changeType: 'positive',
       icon: DollarSign,
-      color: 'bg-green-500',
+      color: 'bg-emerald-500',
     },
     {
       label: 'Transacciones',
-      value: '0',
+      value: summary.totalSales.toString(),
+      change: '+5%',
+      changeType: 'positive',
       icon: ShoppingCart,
       color: 'bg-blue-500',
     },
     {
       label: 'Ticket Promedio',
-      value: '$0.00',
+      value: `$${summary.avgTicket.toFixed(2)}`,
+      change: '-2%',
+      changeType: 'negative',
       icon: TrendingUp,
       color: 'bg-purple-500',
     },
     {
-      label: 'Productos',
-      value: '0',
+      label: 'Items Vendidos',
+      value: summary.totalItems.toString(),
       icon: Package,
       color: 'bg-orange-500',
     },
   ];
 
-  const menuItems = [
+  const quickActions = [
     {
-      label: 'Punto de Venta',
-      description: 'Registrar ventas',
+      label: 'Abrir POS',
+      description: 'Iniciar punto de venta',
       icon: ShoppingCart,
       path: '/pos',
-      color: 'bg-primary-500',
+      color: 'bg-emerald-600 hover:bg-emerald-700',
     },
     {
       label: 'Productos',
       description: 'Gestionar catálogo',
       icon: Package,
-      path: '/products',
-      color: 'bg-green-500',
+      path: '/productos',
+      color: 'bg-blue-600 hover:bg-blue-700',
     },
     {
-      label: 'Reportes',
-      description: 'Ver estadísticas',
+      label: 'Ventas',
+      description: 'Ver historial',
       icon: BarChart3,
-      path: '/reports',
-      color: 'bg-purple-500',
+      path: '/ventas',
+      color: 'bg-purple-600 hover:bg-purple-700',
     },
     {
-      label: 'Clientes',
-      description: 'Base de clientes',
+      label: 'Usuarios',
+      description: 'Administrar accesos',
       icon: Users,
-      path: '/customers',
-      color: 'bg-orange-500',
-    },
-    {
-      label: 'Sincronizar',
-      description: 'Sync con Cianbox',
-      icon: RefreshCw,
-      path: '/sync',
-      color: 'bg-cyan-500',
-    },
-    {
-      label: 'Configuración',
-      description: 'Ajustes del sistema',
-      icon: Settings,
-      path: '/settings',
-      color: 'bg-gray-500',
+      path: '/usuarios',
+      color: 'bg-orange-600 hover:bg-orange-700',
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo y Tenant */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-                <ShoppingCart className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  {tenant?.name || 'Cianbox POS'}
-                </h1>
-                <p className="text-xs text-gray-500">
-                  {user?.branch?.name || 'Sin sucursal asignada'}
-                </p>
-              </div>
-            </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-500">Resumen de actividad del día</p>
+      </div>
 
-            {/* Usuario y Logout */}
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                <p className="text-xs text-gray-500">{user?.role.name}</p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Cerrar sesión"
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100"
+          >
+            <div className="flex items-start justify-between">
+              <div
+                className={`${stat.color} w-10 h-10 rounded-lg flex items-center justify-center`}
               >
-                <LogOut className="w-5 h-5" />
-              </button>
+                <stat.icon className="w-5 h-5 text-white" />
+              </div>
+              {stat.change && (
+                <span
+                  className={`flex items-center text-sm font-medium ${
+                    stat.changeType === 'positive'
+                      ? 'text-emerald-600'
+                      : 'text-red-600'
+                  }`}
+                >
+                  {stat.changeType === 'positive' ? (
+                    <ArrowUpRight className="w-4 h-4" />
+                  ) : (
+                    <ArrowDownRight className="w-4 h-4" />
+                  )}
+                  {stat.change}
+                </span>
+              )}
+            </div>
+            <div className="mt-3">
+              <p className="text-2xl font-bold text-gray-900">
+                {isLoading ? '-' : stat.value}
+              </p>
+              <p className="text-sm text-gray-500">{stat.label}</p>
             </div>
           </div>
-        </div>
-      </header>
+        ))}
+      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-white rounded-xl p-4 shadow-sm border border-gray-100"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`${stat.color} w-10 h-10 rounded-lg flex items-center justify-center`}
-                >
-                  <stat.icon className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">{stat.label}</p>
-                  <p className="text-xl font-semibold text-gray-900">
-                    {stat.value}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Menu Grid */}
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Acceso rápido
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {menuItems.map((item) => (
+      {/* Quick Actions */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Acceso rápido</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {quickActions.map((action) => (
             <button
-              key={item.label}
-              onClick={() => navigate(item.path)}
-              className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 text-left hover:shadow-md hover:border-gray-200 transition-all group"
+              key={action.label}
+              onClick={() => navigate(action.path)}
+              className={`${action.color} text-white rounded-xl p-5 text-left transition-colors`}
             >
-              <div
-                className={`${item.color} w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}
-              >
-                <item.icon className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="font-semibold text-gray-900">{item.label}</h3>
-              <p className="text-sm text-gray-500 mt-1">{item.description}</p>
+              <action.icon className="w-8 h-8 mb-3" />
+              <p className="font-semibold">{action.label}</p>
+              <p className="text-sm opacity-80">{action.description}</p>
             </button>
           ))}
         </div>
+      </div>
 
-        {/* Acceso rápido POS */}
-        <div className="mt-8">
-          <button
-            onClick={() => navigate('/pos')}
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white rounded-xl p-6 shadow-lg flex items-center justify-center gap-3 transition-colors"
-          >
-            <ShoppingCart className="w-8 h-8" />
-            <div className="text-left">
-              <p className="text-xl font-semibold">Abrir Punto de Venta</p>
-              <p className="text-primary-200 text-sm">
-                Presiona aquí o usa el atajo F2
-              </p>
-            </div>
-          </button>
+      {/* Main POS Button */}
+      <button
+        onClick={() => navigate('/pos')}
+        className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-xl p-6 shadow-lg flex items-center justify-center gap-4 transition-all"
+      >
+        <ShoppingCart className="w-10 h-10" />
+        <div className="text-left">
+          <p className="text-xl font-semibold">Abrir Punto de Venta</p>
+          <p className="text-emerald-100">Presiona aquí para iniciar ventas</p>
         </div>
-      </main>
+      </button>
 
-      {/* Footer */}
-      <footer className="text-center py-4 text-sm text-gray-500">
-        Cianbox POS v1.0.0 &copy; {new Date().getFullYear()}
-      </footer>
+      {/* Recent Activity */}
+      <div className="bg-white rounded-xl shadow-sm border p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Actividad Reciente
+        </h2>
+        <div className="text-center py-8 text-gray-500">
+          <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p>No hay actividad reciente</p>
+          <p className="text-sm">Las últimas ventas aparecerán aquí</p>
+        </div>
+      </div>
     </div>
   );
 }

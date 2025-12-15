@@ -1,12 +1,21 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './context/authStore';
 
+// Layout
+import Layout from './components/Layout';
+
 // Pages
 import Login from './pages/Login';
-import POS from './pages/POS';
 import Dashboard from './pages/Dashboard';
+import POS from './pages/POS';
+import Products from './pages/Products';
+import Categories from './pages/Categories';
+import Users from './pages/Users';
+import Sales from './pages/Sales';
+import Sync from './pages/Sync';
+import Settings from './pages/Settings';
 
-// Layout protegido
+// Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -20,26 +29,26 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <Routes>
-      {/* Rutas públicas */}
+      {/* Public routes */}
       <Route path="/login" element={<Login />} />
 
-      {/* Rutas protegidas */}
+      {/* Protected routes with Layout */}
       <Route
-        path="/"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <Layout />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/pos"
-        element={
-          <ProtectedRoute>
-            <POS />
-          </ProtectedRoute>
-        }
-      />
+      >
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/pos" element={<POS />} />
+        <Route path="/productos" element={<Products />} />
+        <Route path="/categorias" element={<Categories />} />
+        <Route path="/usuarios" element={<Users />} />
+        <Route path="/ventas" element={<Sales />} />
+        <Route path="/sync" element={<Sync />} />
+        <Route path="/configuracion" element={<Settings />} />
+      </Route>
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
