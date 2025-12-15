@@ -1578,9 +1578,9 @@ export default function TenantDetail() {
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 >
                   <option value="">Seleccionar sucursal...</option>
-                  {branches.filter(b => b.isActive).map((branch) => (
+                  {branches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
-                      {branch.name} ({branch.code})
+                      {branch.name} ({branch.code}){!branch.isActive ? ' (Inactiva)' : ''}
                     </option>
                   ))}
                 </select>

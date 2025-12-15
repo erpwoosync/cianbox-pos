@@ -1013,6 +1013,9 @@ export class CianboxService {
       const code = `SUC-${branch.id}`;
       const isDefault = branch.id === 1; // La primera sucursal es la default
 
+      // Usar vigente directamente (default true si no viene)
+      const isActive = branch.vigente !== false;
+
       await prisma.branch.upsert({
         where: {
           tenantId_cianboxBranchId: {
@@ -1028,7 +1031,7 @@ export class CianboxService {
           state: branch.provincia || null,
           phone: branch.telefono || null,
           isDefault,
-          isActive: branch.vigente ?? true,
+          isActive,
           lastSyncedAt: new Date(),
         },
         create: {
@@ -1041,7 +1044,7 @@ export class CianboxService {
           state: branch.provincia || null,
           phone: branch.telefono || null,
           isDefault,
-          isActive: branch.vigente ?? true,
+          isActive,
           lastSyncedAt: new Date(),
         },
       });

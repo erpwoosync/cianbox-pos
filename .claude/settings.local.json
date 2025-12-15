@@ -7,7 +7,26 @@
       "Bash(ssh:*)",
       "Bash(scp:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(where:*)",
+      "Bash(gh auth:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: Cianbox POS Backend\n\n- Multi-tenant POS system with Cianbox ERP integration\n- Backend API with Express, Prisma, PostgreSQL\n- JWT authentication and role-based authorization\n- Database sharding support for scalability\n- Promotions engine (2x1, discounts, flash sales)\n- Product sync with Cianbox API\n- Frontend scaffolding with React + Vite + TailwindCSS\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(npm install)",
+      "Bash(git commit:*)",
+      "Bash(npm run build:*)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npx prisma generate:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm install:*)",
+      "Bash(gh run list:*)",
+      "Bash(timeout 90 bash:*)",
+      "Bash(timeout 60 bash:*)",
+      "Bash(timeout 45 bash -c \"echo ''Esperando...''; sleep 35; echo ''Listo''\")",
+      "Bash(timeout 50 bash:*)"
     ]
   }
 }
