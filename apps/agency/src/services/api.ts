@@ -73,6 +73,18 @@ export const tenantsApi = {
     const response = await api.post(`/agency/tenants/${id}/sync/products`);
     return response.data;
   },
+  syncCategories: async (id: string) => {
+    const response = await api.post(`/agency/tenants/${id}/sync/categories`);
+    return response.data;
+  },
+  syncBrands: async (id: string) => {
+    const response = await api.post(`/agency/tenants/${id}/sync/brands`);
+    return response.data;
+  },
+  syncAll: async (id: string) => {
+    const response = await api.post(`/agency/tenants/${id}/sync/all`);
+    return response.data;
+  },
   getSyncStatus: async (id: string) => {
     const response = await api.get(`/agency/tenants/${id}/sync/status`);
     return response.data.data;

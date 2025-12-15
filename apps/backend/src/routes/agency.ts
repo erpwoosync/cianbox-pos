@@ -556,6 +556,52 @@ router.post(
 );
 
 /**
+ * POST /api/agency/tenants/:id/sync/categories
+ * Sincronizar categorías de un tenant desde Cianbox
+ */
+router.post(
+  '/tenants/:id/sync/categories',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const cianbox = await CianboxService.forTenant(req.params.id);
+      const synced = await cianbox.syncCategories(req.params.id);
+
+      res.json({
+        success: true,
+        message: `${synced} categorías sincronizadas`,
+        data: { synced },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/sync/brands
+ * Sincronizar marcas de un tenant desde Cianbox
+ */
+router.post(
+  '/tenants/:id/sync/brands',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const cianbox = await CianboxService.forTenant(req.params.id);
+      const synced = await cianbox.syncBrands(req.params.id);
+
+      res.json({
+        success: true,
+        message: `${synced} marcas sincronizadas`,
+        data: { synced },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * POST /api/agency/tenants/:id/sync/products
  * Sincronizar productos de un tenant desde Cianbox
  */
@@ -564,27 +610,36 @@ router.post(
   agencyAuth,
   async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
     try {
-      const connection = await prisma.cianboxConnection.findUnique({
-        where: { tenantId: req.params.id },
-      });
-
-      if (!connection) {
-        throw ApiError.notFound('Conexión Cianbox no configurada');
-      }
-
-      // TODO: Implementar sincronización real con CianboxService
-      // Por ahora actualizar el estado de sync
-      await prisma.cianboxConnection.update({
-        where: { tenantId: req.params.id },
-        data: {
-          lastSync: new Date(),
-          syncStatus: 'success',
-        },
-      });
+      const cianbox = await CianboxService.forTenant(req.params.id);
+      const synced = await cianbox.syncProducts(req.params.id);
 
       res.json({
         success: true,
-        message: 'Sincronización iniciada',
+        message: `${synced} productos sincronizados`,
+        data: { synced },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/sync/all
+ * Sincronizar todo desde Cianbox (categorías, marcas, productos)
+ */
+router.post(
+  '/tenants/:id/sync/all',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const cianbox = await CianboxService.forTenant(req.params.id);
+      const result = await cianbox.syncAll(req.params.id);
+
+      res.json({
+        success: true,
+        message: 'Sincronización completa',
+        data: result,
       });
     } catch (error) {
       next(error);

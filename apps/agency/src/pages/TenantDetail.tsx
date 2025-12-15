@@ -60,7 +60,10 @@ export default function TenantDetail() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('general');
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [syncingCategories, setSyncingCategories] = useState(false);
+  const [syncingBrands, setSyncingBrands] = useState(false);
+  const [syncingProducts, setSyncingProducts] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -192,17 +195,63 @@ export default function TenantDetail() {
     }
   };
 
-  const handleSync = async () => {
-    setSyncing(true);
+  const handleSyncCategories = async () => {
+    setSyncingCategories(true);
     try {
-      await tenantsApi.syncProducts(id!);
+      const result = await tenantsApi.syncCategories(id!);
       await loadTenant();
-      showMessage('success', 'Sincronización iniciada');
-    } catch (error) {
-      console.error('Error syncing:', error);
-      showMessage('error', 'Error al sincronizar');
+      showMessage('success', result.message || 'Categorías sincronizadas');
+    } catch (error: unknown) {
+      console.error('Error syncing categories:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error al sincronizar categorías');
     } finally {
-      setSyncing(false);
+      setSyncingCategories(false);
+    }
+  };
+
+  const handleSyncBrands = async () => {
+    setSyncingBrands(true);
+    try {
+      const result = await tenantsApi.syncBrands(id!);
+      await loadTenant();
+      showMessage('success', result.message || 'Marcas sincronizadas');
+    } catch (error: unknown) {
+      console.error('Error syncing brands:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error al sincronizar marcas');
+    } finally {
+      setSyncingBrands(false);
+    }
+  };
+
+  const handleSyncProducts = async () => {
+    setSyncingProducts(true);
+    try {
+      const result = await tenantsApi.syncProducts(id!);
+      await loadTenant();
+      showMessage('success', result.message || 'Productos sincronizados');
+    } catch (error: unknown) {
+      console.error('Error syncing products:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error al sincronizar productos');
+    } finally {
+      setSyncingProducts(false);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    setSyncingAll(true);
+    try {
+      const result = await tenantsApi.syncAll(id!);
+      await loadTenant();
+      showMessage('success', result.message || 'Sincronización completa');
+    } catch (error: unknown) {
+      console.error('Error syncing all:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error en sincronización');
+    } finally {
+      setSyncingAll(false);
     }
   };
 
@@ -669,16 +718,52 @@ export default function TenantDetail() {
 
                 <div className="flex flex-wrap gap-3">
                   <button
-                    onClick={handleSync}
-                    disabled={syncing || !hasConnection}
-                    className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                    onClick={handleSyncCategories}
+                    disabled={syncingCategories || syncingAll || !hasConnection}
+                    className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
                   >
-                    {syncing ? (
+                    {syncingCategories ? (
                       <RefreshCw size={18} className="animate-spin" />
                     ) : (
                       <Play size={18} />
                     )}
-                    {syncing ? 'Sincronizando...' : 'Sincronizar Productos'}
+                    {syncingCategories ? 'Sincronizando...' : 'Categorías'}
+                  </button>
+                  <button
+                    onClick={handleSyncBrands}
+                    disabled={syncingBrands || syncingAll || !hasConnection}
+                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                  >
+                    {syncingBrands ? (
+                      <RefreshCw size={18} className="animate-spin" />
+                    ) : (
+                      <Play size={18} />
+                    )}
+                    {syncingBrands ? 'Sincronizando...' : 'Marcas'}
+                  </button>
+                  <button
+                    onClick={handleSyncProducts}
+                    disabled={syncingProducts || syncingAll || !hasConnection}
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {syncingProducts ? (
+                      <RefreshCw size={18} className="animate-spin" />
+                    ) : (
+                      <Play size={18} />
+                    )}
+                    {syncingProducts ? 'Sincronizando...' : 'Productos'}
+                  </button>
+                  <button
+                    onClick={handleSyncAll}
+                    disabled={syncingAll || syncingCategories || syncingBrands || syncingProducts || !hasConnection}
+                    className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {syncingAll ? (
+                      <RefreshCw size={18} className="animate-spin" />
+                    ) : (
+                      <Play size={18} />
+                    )}
+                    {syncingAll ? 'Sincronizando todo...' : 'Sincronizar Todo'}
                   </button>
                 </div>
 
