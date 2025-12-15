@@ -564,6 +564,7 @@ router.post(
   agencyAuth,
   async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
     try {
+      console.log(`[Sync] Iniciando sync de categorías para tenant: ${req.params.id}`);
       const cianbox = await CianboxService.forTenant(req.params.id);
       const synced = await cianbox.syncCategories(req.params.id);
 
@@ -573,7 +574,13 @@ router.post(
         data: { synced },
       });
     } catch (error) {
-      next(error);
+      console.error(`[Sync] Error en categorías:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({
+        success: false,
+        message: `Error al sincronizar categorías: ${errorMessage}`,
+        error: errorMessage,
+      });
     }
   }
 );
@@ -587,6 +594,7 @@ router.post(
   agencyAuth,
   async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
     try {
+      console.log(`[Sync] Iniciando sync de marcas para tenant: ${req.params.id}`);
       const cianbox = await CianboxService.forTenant(req.params.id);
       const synced = await cianbox.syncBrands(req.params.id);
 
@@ -596,7 +604,13 @@ router.post(
         data: { synced },
       });
     } catch (error) {
-      next(error);
+      console.error(`[Sync] Error en marcas:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({
+        success: false,
+        message: `Error al sincronizar marcas: ${errorMessage}`,
+        error: errorMessage,
+      });
     }
   }
 );
