@@ -10,14 +10,13 @@ import {
   Banknote,
   QrCode,
   ArrowLeft,
-  User,
   Tag,
   X,
   Check,
   Loader2,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, promotionsService } from '../services/api';
+import { productsService, salesService } from '../services/api';
 
 interface Product {
   id: string;
@@ -52,7 +51,7 @@ type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR';
 
 export default function POS() {
   const navigate = useNavigate();
-  const { user, tenant } = useAuthStore();
+  const { user } = useAuthStore();
 
   // Estado del carrito
   const [cart, setCart] = useState<CartItem[]>([]);
