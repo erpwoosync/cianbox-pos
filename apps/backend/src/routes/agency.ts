@@ -494,7 +494,7 @@ router.put(
   agencyAuth,
   async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { cuenta, appName, appCode, user, password, syncPageSize } = req.body;
+      const { cuenta, appName, appCode, user, password, syncPageSize, isActive, webhookUrl } = req.body;
 
       const connection = await prisma.cianboxConnection.upsert({
         where: { tenantId: req.params.id },
@@ -506,14 +506,18 @@ router.put(
           user: user || '',
           password: password || '',
           syncPageSize: syncPageSize || 50,
+          isActive: isActive ?? true,
+          webhookUrl: webhookUrl || null,
         },
         update: {
-          ...(cuenta && { cuenta }),
-          ...(appName && { appName }),
-          ...(appCode && { appCode }),
-          ...(user && { user }),
-          ...(password && { password }),
-          ...(syncPageSize && { syncPageSize }),
+          ...(cuenta !== undefined && { cuenta }),
+          ...(appName !== undefined && { appName }),
+          ...(appCode !== undefined && { appCode }),
+          ...(user !== undefined && { user }),
+          ...(password && { password }), // Solo actualizar si se envía
+          ...(syncPageSize !== undefined && { syncPageSize }),
+          ...(isActive !== undefined && { isActive }),
+          ...(webhookUrl !== undefined && { webhookUrl: webhookUrl || null }),
         },
       });
 

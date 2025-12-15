@@ -159,13 +159,20 @@ export interface CreateTenantDto {
 export interface UpdateTenantDto {
   name?: string;
   slug?: string;
-  isActive?: boolean;
+  status?: string;
+  plan?: string;
   dbServerId?: string;
 }
 
 export interface UpdateConnectionDto {
-  apiUrl: string;
-  apiKey: string;
+  cuenta?: string;
+  appName?: string;
+  appCode?: string;
+  user?: string;
+  password?: string;
+  syncPageSize?: number;
+  isActive?: boolean;
+  webhookUrl?: string;
 }
 
 export interface CreateDbServerDto {
