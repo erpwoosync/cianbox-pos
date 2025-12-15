@@ -10,22 +10,23 @@ const prisma = new PrismaClient();
 
 // Tipos para respuestas de Cianbox
 interface CianboxAuthResponse {
-  status: number;
-  statusMessage: string;
-  token?: string;
-  refreshToken?: string;
-  expiresIn?: number;
+  status: string;
+  statusMessage?: string;
+  body?: {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  };
 }
 
 interface CianboxPaginatedResponse<T> {
-  status: number;
-  statusMessage: string;
-  data: T[];
-  pagination: {
+  status: string;
+  body: T[];
+  paging?: {
     page: number;
-    pageSize: number;
+    limit: number;
     total: number;
-    totalPages: number;
+    pages: number;
   };
 }
 
@@ -307,17 +308,19 @@ export class CianboxService {
    * Autentica con Cianbox y obtiene nuevo token
    */
   private async authenticate(): Promise<string> {
+    // Usar form-urlencoded como requiere Cianbox
+    const formData = new URLSearchParams();
+    formData.append('app_name', this.connection.appName);
+    formData.append('app_code', this.connection.appCode);
+    formData.append('user', this.connection.user);
+    formData.append('password', this.connection.password);
+
     const response = await fetch(`${this.baseUrl}/auth/credentials`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        app_name: this.connection.appName,
-        app_code: this.connection.appCode,
-        user: this.connection.user,
-        password: this.connection.password,
-      }),
+      body: formData.toString(),
     });
 
     if (!response.ok) {
@@ -326,30 +329,30 @@ export class CianboxService {
 
     const data = (await response.json()) as CianboxAuthResponse;
 
-    if (data.status !== 200 || !data.token) {
+    if (data.status !== 'ok' || !data.body?.access_token) {
       throw new CianboxError(data.statusMessage || 'Error de autenticación');
     }
 
     // Calcular fecha de expiración (restamos 5 minutos de margen)
     const expiresAt = new Date();
     expiresAt.setSeconds(
-      expiresAt.getSeconds() + (data.expiresIn || 3600) - 300
+      expiresAt.getSeconds() + (data.body.expires_in || 3600) - 300
     );
 
     // Actualizar conexión con nuevo token
     await prisma.cianboxConnection.update({
       where: { id: this.connection.id },
       data: {
-        accessToken: data.token,
-        refreshToken: data.refreshToken,
+        accessToken: data.body.access_token,
+        refreshToken: data.body.refresh_token,
         tokenExpiresAt: expiresAt,
       },
     });
 
-    this.connection.accessToken = data.token;
+    this.connection.accessToken = data.body.access_token;
     this.connection.tokenExpiresAt = expiresAt;
 
-    return data.token;
+    return data.body.access_token;
   }
 
   /**
@@ -389,20 +392,32 @@ export class CianboxService {
    */
   private async fetchAllPaginated<T>(
     endpoint: string,
-    pageSize: number = 50
+    limit: number = 50
   ): Promise<T[]> {
     const allData: T[] = [];
     let page = 1;
     let hasMore = true;
 
     while (hasMore) {
+      console.log(`[Cianbox] Fetching ${endpoint}?page=${page}&limit=${limit}`);
+
       const response = await this.request<CianboxPaginatedResponse<T>>(
-        `${endpoint}?page=${page}&pageSize=${pageSize}`
+        `${endpoint}?page=${page}&limit=${limit}`
       );
 
-      allData.push(...response.data);
+      console.log(`[Cianbox] Response status: ${response.status}, items: ${response.body?.length || 0}`);
 
-      hasMore = page < response.pagination.totalPages;
+      if (response.body && Array.isArray(response.body)) {
+        allData.push(...response.body);
+      }
+
+      // Si hay paginación, verificar si hay más páginas
+      if (response.paging) {
+        hasMore = page < response.paging.pages;
+      } else {
+        // Si no hay paginación, asumir que vino todo en una página
+        hasMore = false;
+      }
       page++;
     }
 
