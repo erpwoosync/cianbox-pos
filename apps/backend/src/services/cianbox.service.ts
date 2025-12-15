@@ -209,11 +209,13 @@ export class CianboxService {
       console.log(`[Cianbox] Response status: ${response.status}, body: ${responseText.substring(0, 500)}`);
 
       let data: {
-        status?: number;
+        status?: string;
         statusMessage?: string;
-        access_token?: string;
-        refresh_token?: string;
-        expires_in?: number;
+        body?: {
+          access_token?: string;
+          refresh_token?: string;
+          expires_in?: number;
+        };
         error?: string;
         message?: string;
       };
@@ -234,16 +236,21 @@ export class CianboxService {
         };
       }
 
-      if (data.access_token) {
+      // La respuesta de Cianbox tiene estructura: { status: "ok", body: { access_token, ... } }
+      const accessToken = data.body?.access_token;
+      const refreshToken = data.body?.refresh_token;
+      const expiresIn = data.body?.expires_in;
+
+      if (accessToken) {
         // Guardar el token obtenido
         const expiresAt = new Date();
-        expiresAt.setSeconds(expiresAt.getSeconds() + (data.expires_in || 86400) - 300);
+        expiresAt.setSeconds(expiresAt.getSeconds() + (expiresIn || 86400) - 300);
 
         await prisma.cianboxConnection.update({
           where: { id: connection.id },
           data: {
-            accessToken: data.access_token,
-            refreshToken: data.refresh_token,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
             tokenExpiresAt: expiresAt,
           },
         });
@@ -251,13 +258,21 @@ export class CianboxService {
         return {
           success: true,
           message: 'Conexión exitosa',
-          expiresIn: data.expires_in,
+          expiresIn: expiresIn,
+        };
+      }
+
+      // Si status no es "ok", mostrar el error
+      if (data.status !== 'ok') {
+        return {
+          success: false,
+          message: data.statusMessage || data.message || `Estado: ${data.status}`,
         };
       }
 
       return {
         success: false,
-        message: data.statusMessage || data.message || 'Error de autenticación - sin token',
+        message: data.statusMessage || data.message || 'Error de autenticación - respuesta sin token',
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error de conexión';
