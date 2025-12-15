@@ -185,22 +185,30 @@ export class CianboxService {
 
     // Construir URL de la API: https://cianbox.org/{empresa}/api/v2
     const baseUrl = `https://cianbox.org/${connection.cuenta}/api/v2`;
+    const authUrl = `${baseUrl}/auth/credentials`;
+
+    // Usar form-urlencoded como indica la documentación de Cianbox
+    const formData = new URLSearchParams();
+    formData.append('app_name', connection.appName);
+    formData.append('app_code', connection.appCode);
+    formData.append('user', connection.user);
+    formData.append('password', connection.password);
+
+    console.log(`[Cianbox] Testing connection to: ${authUrl}`);
 
     try {
-      const response = await fetch(`${baseUrl}/auth/credentials`, {
+      const response = await fetch(authUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
-          app_name: connection.appName,
-          app_code: connection.appCode,
-          user: connection.user,
-          password: connection.password,
-        }),
+        body: formData.toString(),
       });
 
-      const data = await response.json() as {
+      const responseText = await response.text();
+      console.log(`[Cianbox] Response status: ${response.status}, body: ${responseText.substring(0, 500)}`);
+
+      let data: {
         status?: number;
         statusMessage?: string;
         access_token?: string;
@@ -210,10 +218,19 @@ export class CianboxService {
         message?: string;
       };
 
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        return {
+          success: false,
+          message: `Respuesta inválida de Cianbox: ${responseText.substring(0, 100)}`,
+        };
+      }
+
       if (!response.ok) {
         return {
           success: false,
-          message: data.message || data.error || `Error HTTP ${response.status}`,
+          message: data.message || data.error || data.statusMessage || `Error HTTP ${response.status}`,
         };
       }
 
@@ -240,10 +257,11 @@ export class CianboxService {
 
       return {
         success: false,
-        message: data.statusMessage || data.message || 'Error de autenticación',
+        message: data.statusMessage || data.message || 'Error de autenticación - sin token',
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error de conexión';
+      console.error(`[Cianbox] Connection error:`, error);
       return {
         success: false,
         message: `No se pudo conectar: ${errorMessage}`,
