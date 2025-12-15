@@ -30,37 +30,66 @@ interface CianboxPaginatedResponse<T> {
   };
 }
 
+// Campos reales de la API de Cianbox para productos
 interface CianboxProduct {
   id: number;
-  sku: string;
-  barcode: string;
-  name: string;
-  shortName: string;
-  description: string;
-  categoryId: number;
-  brandId: number;
-  basePrice: number;
-  cost: number;
-  taxRate: number;
-  taxIncluded: boolean;
-  trackStock: boolean;
-  allowNegativeStock: boolean;
-  minStock: number;
-  sellFractions: boolean;
-  unitOfMeasure: string;
-  imageUrl: string;
-  isActive: boolean;
-  isService: boolean;
-  prices: Array<{
-    priceListId: number;
-    price: number;
-    cost: number;
+  updated: string;
+  producto: string;           // nombre del producto
+  id_marca: number;
+  marca: string;
+  id_categoria: number;
+  categoria: string;
+  id_producto_padre: number;
+  es_padre: boolean;
+  descripcion: string;
+  precio_actualizado: string;
+  codigo_interno: string;     // SKU
+  codigo_barras: string;      // barcode
+  costo: number;
+  costo_neto_calculado: number;
+  costo_final_calculado: number;
+  afecta_stock: boolean;      // trackStock
+  stock_total: number;
+  stock_sucursal: Array<{
+    id_sucursal: number;
+    stock: number;
+    reservado: number;
+    disponible: number;
   }>;
-  stock: Array<{
-    branchId: number;
-    quantity: number;
-    reserved: number;
+  reservado: number;
+  cantidad_minima: number;    // minStock
+  cantidad_critica: number;
+  precio_neto: number;
+  precio_oferta: number;
+  precio_oferta_calculado: number;
+  oferta: boolean;
+  detalle_oferta: object;
+  precios: Array<{
+    id_lista_precio: number;
+    updated: string;
+    id_moneda: number;
+    neto: number;
+    final: number;
+    redondeo: number;
+    neto_calculado: number;
+    final_calculado: number;
   }>;
+  alicuota_iva: number;       // taxRate (21, 10.5, etc.)
+  ubicacion: string;          // location
+  talle: string;
+  color: string;
+  genero: string;
+  temporada: string;
+  material: string;
+  estado: string;
+  garantia: string;
+  imagenes: string[];
+  detalle_imagenes: object[];
+  vigente: boolean;           // isActive
+  alto: number;
+  ancho: number;
+  profundidad: number;
+  peso: number;
 }
 
 // Campos reales de la API de Cianbox según documentación
@@ -75,27 +104,23 @@ interface CianboxBrand {
   marca: string;  // nombre de la marca
 }
 
+// Campos reales de la API de Cianbox para listas de precios
 interface CianboxPriceList {
   id: number;
-  name: string;
-  description: string;
-  currency: string;
-  isDefault: boolean;
-  isActive: boolean;
+  lista: string;        // nombre de la lista
+  vencimiento: string | null;
+  vigente: boolean;     // isActive
 }
 
+// Campos reales de la API de Cianbox para sucursales
 interface CianboxBranch {
   id: number;
-  code: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  phone: string;
-  email: string;
-  isDefault: boolean;
-  isActive: boolean;
+  sucursal: string;    // nombre de la sucursal
+  telefono: string;
+  domicilio: string;   // dirección
+  localidad: string;   // ciudad
+  provincia: string;   // estado/provincia
+  vigente: boolean;    // isActive
 }
 
 interface CianboxCustomer {
@@ -617,66 +642,157 @@ export class CianboxService {
 
   /**
    * Sincroniza productos desde Cianbox
+   * Incluye precios y stock
    */
   async syncProducts(tenantId: string): Promise<number> {
     const products = await this.getProducts();
     let synced = 0;
 
+    console.log(`[Cianbox] Sincronizando ${products.length} productos con precios y stock`);
+
     for (const product of products) {
-      await prisma.product.upsert({
+      // Buscar categoría por cianboxCategoryId
+      let categoryId: string | null = null;
+      if (product.id_categoria) {
+        const category = await prisma.category.findFirst({
+          where: { tenantId, cianboxCategoryId: product.id_categoria },
+        });
+        categoryId = category?.id || null;
+      }
+
+      // Buscar marca por cianboxBrandId
+      let brandId: string | null = null;
+      if (product.id_marca) {
+        const brand = await prisma.brand.findFirst({
+          where: { tenantId, cianboxBrandId: product.id_marca },
+        });
+        brandId = brand?.id || null;
+      }
+
+      // Mapear campos de Cianbox a nuestro modelo
+      const productData = {
+        sku: product.codigo_interno || null,
+        barcode: product.codigo_barras || null,
+        name: product.producto,
+        description: product.descripcion || null,
+        categoryId,
+        brandId,
+        basePrice: product.precio_neto || 0,
+        baseCost: product.costo || 0,
+        taxRate: product.alicuota_iva || 21,
+        taxIncluded: true,
+        trackStock: product.afecta_stock ?? true,
+        allowNegativeStock: false,
+        minStock: product.cantidad_minima || null,
+        location: product.ubicacion || null,
+        imageUrl: product.imagenes?.[0] || null,
+        isActive: product.vigente ?? true,
+        isService: !product.afecta_stock,
+        lastSyncedAt: new Date(),
+        cianboxData: product as unknown as object,
+      };
+
+      // Upsert producto
+      const savedProduct = await prisma.product.upsert({
         where: {
           tenantId_cianboxProductId: {
             tenantId,
             cianboxProductId: product.id,
           },
         },
-        update: {
-          sku: product.sku,
-          barcode: product.barcode,
-          name: product.name,
-          shortName: product.shortName,
-          description: product.description,
-          basePrice: product.basePrice,
-          baseCost: product.cost,
-          taxRate: product.taxRate,
-          taxIncluded: product.taxIncluded,
-          trackStock: product.trackStock,
-          allowNegativeStock: product.allowNegativeStock,
-          minStock: product.minStock,
-          sellFractions: product.sellFractions,
-          unitOfMeasure: product.unitOfMeasure,
-          imageUrl: product.imageUrl,
-          isActive: product.isActive,
-          isService: product.isService,
-          lastSyncedAt: new Date(),
-          cianboxData: product as unknown as object,
-        },
+        update: productData,
         create: {
           tenantId,
           cianboxProductId: product.id,
-          sku: product.sku,
-          barcode: product.barcode,
-          name: product.name,
-          shortName: product.shortName,
-          description: product.description,
-          basePrice: product.basePrice,
-          baseCost: product.cost,
-          taxRate: product.taxRate,
-          taxIncluded: product.taxIncluded,
-          trackStock: product.trackStock,
-          allowNegativeStock: product.allowNegativeStock,
-          minStock: product.minStock,
-          sellFractions: product.sellFractions,
-          unitOfMeasure: product.unitOfMeasure,
-          imageUrl: product.imageUrl,
-          isActive: product.isActive,
-          isService: product.isService,
-          lastSyncedAt: new Date(),
-          cianboxData: product as unknown as object,
+          ...productData,
         },
       });
 
+      // Sincronizar precios
+      if (product.precios && Array.isArray(product.precios)) {
+        for (const precio of product.precios) {
+          // Buscar lista de precios por cianboxPriceListId
+          const priceList = await prisma.priceList.findFirst({
+            where: { tenantId, cianboxPriceListId: precio.id_lista_precio },
+          });
+
+          if (priceList && precio.final_calculado > 0) {
+            await prisma.productPrice.upsert({
+              where: {
+                productId_priceListId: {
+                  productId: savedProduct.id,
+                  priceListId: priceList.id,
+                },
+              },
+              update: {
+                price: precio.final_calculado,
+                cost: product.costo_final_calculado || product.costo || 0,
+                updatedAt: new Date(),
+              },
+              create: {
+                productId: savedProduct.id,
+                priceListId: priceList.id,
+                price: precio.final_calculado,
+                cost: product.costo_final_calculado || product.costo || 0,
+              },
+            });
+          }
+        }
+      }
+
+      // Sincronizar stock por sucursal
+      if (product.stock_sucursal && Array.isArray(product.stock_sucursal)) {
+        for (const stockItem of product.stock_sucursal) {
+          // Buscar o crear sucursal por cianboxBranchId
+          let branch = await prisma.branch.findFirst({
+            where: { tenantId, cianboxBranchId: stockItem.id_sucursal },
+          });
+
+          if (!branch) {
+            // Crear sucursal si no existe
+            branch = await prisma.branch.create({
+              data: {
+                tenantId,
+                cianboxBranchId: stockItem.id_sucursal,
+                code: `SUC-${stockItem.id_sucursal}`,
+                name: `Sucursal ${stockItem.id_sucursal}`,
+                isActive: true,
+              },
+            });
+          }
+
+          // Upsert stock
+          const available = stockItem.disponible ?? (stockItem.stock - (stockItem.reservado || 0));
+          await prisma.productStock.upsert({
+            where: {
+              productId_branchId: {
+                productId: savedProduct.id,
+                branchId: branch.id,
+              },
+            },
+            update: {
+              quantity: stockItem.stock,
+              reserved: stockItem.reservado || 0,
+              available: available,
+              updatedAt: new Date(),
+            },
+            create: {
+              productId: savedProduct.id,
+              branchId: branch.id,
+              quantity: stockItem.stock,
+              reserved: stockItem.reservado || 0,
+              available: available,
+            },
+          });
+        }
+      }
+
       synced++;
+
+      // Log progreso cada 100 productos
+      if (synced % 100 === 0) {
+        console.log(`[Cianbox] Sincronizados ${synced}/${products.length} productos`);
+      }
     }
 
     // Actualizar última sincronización
@@ -684,10 +800,11 @@ export class CianboxService {
       where: { id: this.connection.id },
       data: {
         lastSync: new Date(),
-        syncStatus: `Sincronizados ${synced} productos`,
+        syncStatus: `Sincronizados ${synced} productos con precios y stock`,
       },
     });
 
+    console.log(`[Cianbox] Sincronización de productos completada: ${synced} productos`);
     return synced;
   }
 
@@ -821,12 +938,19 @@ export class CianboxService {
 
   /**
    * Sincroniza listas de precios desde Cianbox
+   * API devuelve: { id, lista, vencimiento, vigente }
    */
   async syncPriceLists(tenantId: string): Promise<number> {
     const priceLists = await this.getPriceLists();
     let synced = 0;
 
+    console.log(`[Cianbox] Sincronizando ${priceLists.length} listas de precios`);
+
     for (const priceList of priceLists) {
+      // Mapear campos de Cianbox a nuestro modelo
+      const name = priceList.lista || `Lista ${priceList.id}`;
+      const isDefault = priceList.id === 0; // La lista "General" (id=0) es la default
+
       await prisma.priceList.upsert({
         where: {
           tenantId_cianboxPriceListId: {
@@ -835,21 +959,18 @@ export class CianboxService {
           },
         },
         update: {
-          name: priceList.name,
-          description: priceList.description,
-          currency: priceList.currency,
-          isDefault: priceList.isDefault,
-          isActive: priceList.isActive,
+          name,
+          isDefault,
+          isActive: priceList.vigente,
           lastSyncedAt: new Date(),
         },
         create: {
           tenantId,
           cianboxPriceListId: priceList.id,
-          name: priceList.name,
-          description: priceList.description,
-          currency: priceList.currency,
-          isDefault: priceList.isDefault,
-          isActive: priceList.isActive,
+          name,
+          currency: 'ARS',
+          isDefault,
+          isActive: priceList.vigente,
           lastSyncedAt: new Date(),
         },
       });
@@ -866,19 +987,28 @@ export class CianboxService {
 
   /**
    * Obtiene todas las sucursales
+   * Endpoint correcto: /productos/sucursales
    */
   async getBranches(): Promise<CianboxBranch[]> {
-    return this.fetchAllPaginated<CianboxBranch>('/sucursales');
+    return this.fetchAllPaginated<CianboxBranch>('/productos/sucursales');
   }
 
   /**
    * Sincroniza sucursales desde Cianbox
+   * API devuelve: { id, sucursal, telefono, domicilio, localidad, provincia, vigente }
    */
   async syncBranches(tenantId: string): Promise<number> {
     const branches = await this.getBranches();
     let synced = 0;
 
+    console.log(`[Cianbox] Sincronizando ${branches.length} sucursales`);
+
     for (const branch of branches) {
+      // Mapear campos de Cianbox a nuestro modelo
+      const name = branch.sucursal || `Sucursal ${branch.id}`;
+      const code = `SUC-${branch.id}`;
+      const isDefault = branch.id === 1; // La primera sucursal es la default
+
       await prisma.branch.upsert({
         where: {
           tenantId_cianboxBranchId: {
@@ -887,31 +1017,27 @@ export class CianboxService {
           },
         },
         update: {
-          code: branch.code,
-          name: branch.name,
-          address: branch.address,
-          city: branch.city,
-          state: branch.state,
-          zipCode: branch.zipCode,
-          phone: branch.phone,
-          email: branch.email,
-          isDefault: branch.isDefault,
-          isActive: branch.isActive,
+          code,
+          name,
+          address: branch.domicilio || null,
+          city: branch.localidad || null,
+          state: branch.provincia || null,
+          phone: branch.telefono || null,
+          isDefault,
+          isActive: branch.vigente ?? true,
           lastSyncedAt: new Date(),
         },
         create: {
           tenantId,
           cianboxBranchId: branch.id,
-          code: branch.code,
-          name: branch.name,
-          address: branch.address,
-          city: branch.city,
-          state: branch.state,
-          zipCode: branch.zipCode,
-          phone: branch.phone,
-          email: branch.email,
-          isDefault: branch.isDefault,
-          isActive: branch.isActive,
+          code,
+          name,
+          address: branch.domicilio || null,
+          city: branch.localidad || null,
+          state: branch.provincia || null,
+          phone: branch.telefono || null,
+          isDefault,
+          isActive: branch.vigente ?? true,
           lastSyncedAt: new Date(),
         },
       });
