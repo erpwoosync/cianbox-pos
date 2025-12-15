@@ -18,6 +18,7 @@ import {
   Monitor,
   Shield,
   Users,
+  Building2,
 } from 'lucide-react';
 
 const menuItems = [
@@ -35,7 +36,7 @@ const menuItems = [
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user, tenant, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -56,17 +57,28 @@ export default function Layout({ children }: { children: ReactNode }) {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between h-16 px-4 border-b">
-          <Link to="/" className="flex items-center gap-2">
-            <Package className="w-8 h-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-800">Backoffice</span>
-          </Link>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-          >
-            <X size={20} />
-          </button>
+        <div className="flex flex-col border-b">
+          <div className="flex items-center justify-between h-16 px-4">
+            <Link to="/" className="flex items-center gap-2">
+              <Package className="w-8 h-8 text-blue-600" />
+              <span className="text-xl font-bold text-gray-800">Backoffice</span>
+            </Link>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          {/* Tenant indicator */}
+          <div className="px-4 pb-3">
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+              <Building2 size={16} className="text-blue-600" />
+              <span className="text-sm font-medium text-blue-700 truncate">
+                {tenant?.name || user?.tenantName || 'Sin tenant'}
+              </span>
+            </div>
+          </div>
         </div>
 
         <nav className="p-4 space-y-1">
@@ -91,11 +103,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
-          <div className="text-xs text-gray-500 text-center">
-            {user?.tenantName}
-          </div>
-        </div>
       </aside>
 
       {/* Main content */}
@@ -109,6 +116,14 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               <Menu size={24} />
             </button>
+
+            {/* Tenant name visible in header on mobile */}
+            <div className="lg:hidden flex items-center gap-2 ml-2">
+              <Building2 size={18} className="text-blue-600" />
+              <span className="text-sm font-medium text-gray-700 truncate max-w-[150px]">
+                {tenant?.name || user?.tenantName}
+              </span>
+            </div>
 
             <div className="flex-1" />
 
