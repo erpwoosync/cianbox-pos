@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:wp.sfdcdigital.com)",
+      "WebSearch",
+      "Bash(start \"\" \"C:\\Users\\gabri\\OneDrive\\Carpetas\\Documentos\\GitHub\\cianbox-pos\\mockup\\pos-mockup.html\")",
+      "Bash(ssh:*)",
+      "Bash(scp:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

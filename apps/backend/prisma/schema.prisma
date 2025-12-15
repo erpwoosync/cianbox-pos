@@ -1,0 +1,1115 @@
+// ==============================================
+// CIANBOX POS - Schema de Base de Datos
+// Sistema Multi-tenant con integración a Cianbox ERP
+// ==============================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==============================================
+// NIVEL AGENCIA (Super Admins globales)
+// ==============================================
+
+// Servidores de Base de Datos (para sharding multi-tenant)
+model DatabaseServer {
+  id            String               @id @default(cuid())
+  name          String               @unique // "DB Principal", "DB Región Sur"
+  host          String               // "db1.example.com"
+  port          Int                  @default(5432)
+  database      String               // nombre de la base de datos
+  username      String
+  password      String               // Encriptado
+  sslEnabled    Boolean              @default(true)
+  maxConnections Int                 @default(100)
+  isDefault     Boolean              @default(false) // Servidor por defecto para nuevos tenants
+  isActive      Boolean              @default(true)
+  region        String?              // "us-east", "sa-south", etc.
+  description   String?
+
+  // Métricas (actualizadas por health check)
+  lastHealthCheck DateTime?
+  healthStatus    DatabaseHealthStatus @default(UNKNOWN)
+  tenantCount     Int                  @default(0)
+
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  // Relaciones
+  tenants       Tenant[]
+
+  @@map("database_servers")
+}
+
+enum DatabaseHealthStatus {
+  HEALTHY
+  DEGRADED
+  UNHEALTHY
+  UNKNOWN
+}
+
+model AgencyUser {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  passwordHash String
+  name         String
+  avatar       String?
+  status       AgencyUserStatus @default(ACTIVE)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@map("agency_users")
+}
+
+enum AgencyUserStatus {
+  ACTIVE
+  DISABLED
+}
+
+// Configuración global de la agencia
+model AgencySettings {
+  id        String   @id @default("default")
+  appName   String   @default("Cianbox POS")
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agency_settings")
+}
+
+// ==============================================
+// NIVEL TENANT (Multi-tenant)
+// ==============================================
+
+model Tenant {
+  id               String       @id @default(cuid())
+  name             String       // "Mi Tienda S.A."
+  slug             String       @unique // "mi-tienda" (usado en login)
+  taxId            String?      // CUIT/RUT/NIF
+  logo             String?
+  plan             Plan         @default(FREE)
+  status           TenantStatus @default(TRIAL)
+  settings         Json         @default("{}") // Configuración JSON flexible
+
+  // Sharding: Servidor de DB asignado (null = servidor por defecto)
+  databaseServerId String?
+  databaseServer   DatabaseServer? @relation(fields: [databaseServerId], references: [id])
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // Relaciones
+  users             User[]
+  roles             Role[]
+  cianboxConnection CianboxConnection?
+  branches          Branch[]
+  pointsOfSale      PointOfSale[]
+  categories        Category[]
+  brands            Brand[]
+  priceLists        PriceList[]
+  products          Product[]
+  customers         Customer[]
+  promotions        Promotion[]
+  combos            Combo[]
+  sales             Sale[]
+  cashRegisters     CashRegister[]
+  printers          Printer[]
+  printPoints       PrintPoint[]
+
+  @@map("tenants")
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+// ==============================================
+// USUARIOS, ROLES Y PERMISOS
+// ==============================================
+
+model User {
+  id           String     @id @default(cuid())
+  tenantId     String
+  email        String
+  passwordHash String
+  name         String
+  avatar       String?
+  pin          String?    // PIN para operaciones rápidas en POS
+  status       UserStatus @default(ACTIVE)
+  roleId       String
+  branchId     String?    // Sucursal asignada por defecto
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relaciones
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role          Role           @relation(fields: [roleId], references: [id])
+  branch        Branch?        @relation(fields: [branchId], references: [id])
+  sales         Sale[]
+  cashRegisters CashRegister[]
+  sessions      UserSession[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, branchId])
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String   // "Administrador", "Cajero", "Supervisor"
+  description String?
+  isSystem    Boolean  @default(false)
+  permissions String[] // Array de permisos: ['pos:sell', 'pos:discount', 'inventory:view']
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+// Sesiones de usuario (tracking de login/logout)
+model UserSession {
+  id              String        @id @default(cuid())
+  userId          String
+  pointOfSaleId   String?       // Punto de venta donde inició sesión
+  deviceInfo      String?
+  ipAddress       String?
+  status          SessionStatus @default(ACTIVE)
+  loginAt         DateTime      @default(now())
+  logoutAt        DateTime?
+  lastActivityAt  DateTime      @default(now())
+  durationMinutes Int?
+
+  // Relaciones
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pointOfSale PointOfSale? @relation(fields: [pointOfSaleId], references: [id])
+
+  @@index([userId, status])
+  @@map("user_sessions")
+}
+
+enum SessionStatus {
+  ACTIVE
+  CLOSED
+  EXPIRED
+  FORCED_CLOSE
+}
+
+// ==============================================
+// CONEXIÓN CIANBOX
+// ==============================================
+
+model CianboxConnection {
+  id             String    @id @default(cuid())
+  tenantId       String    @unique
+  cuenta         String    // Nombre de cuenta en Cianbox (URL)
+  appName        String
+  appCode        String
+  user           String
+  password       String    // Encriptado
+  accessToken    String?   // Token actual (cacheado)
+  refreshToken   String?   // Token de refresco
+  tokenExpiresAt DateTime?
+  syncPageSize   Int       @default(50) // Productos por página en sync (max 200)
+  isActive       Boolean   @default(true)
+  lastSync       DateTime?
+  syncStatus     String?
+  webhookUrl     String?   // URL para recibir webhooks de Cianbox
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relaciones
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("cianbox_connections")
+}
+
+// ==============================================
+// SUCURSALES Y PUNTOS DE VENTA
+// ==============================================
+
+// Sucursales (sincronizadas desde Cianbox)
+model Branch {
+  id               String    @id @default(cuid())
+  tenantId         String
+  cianboxBranchId  Int?      // ID en Cianbox (null si es local)
+  code             String    // "SUC-001"
+  name             String    // "Casa Central"
+  address          String?
+  city             String?
+  state            String?
+  zipCode          String?
+  phone            String?
+  email            String?
+  isDefault        Boolean   @default(false)
+  isActive         Boolean   @default(true)
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relaciones
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pointsOfSale PointOfSale[]
+  productStock ProductStock[]
+  users        User[]
+  sales        Sale[]
+  cashRegisters CashRegister[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, cianboxBranchId])
+  @@map("branches")
+}
+
+// Puntos de Venta / Cajas
+model PointOfSale {
+  id            String   @id @default(cuid())
+  tenantId      String
+  branchId      String
+  code          String   // "CAJA-01"
+  name          String   // "Caja Principal"
+  description   String?
+  priceListId   String?  // Lista de precios por defecto
+  printPointId  String?  // Punto de impresión por defecto
+  isActive      Boolean  @default(true)
+  settings      Json     @default("{}") // Configuración específica del POS
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch        Branch        @relation(fields: [branchId], references: [id])
+  priceList     PriceList?    @relation(fields: [priceListId], references: [id])
+  printPoint    PrintPoint?   @relation(fields: [printPointId], references: [id])
+  sales         Sale[]
+  cashRegisters CashRegister[]
+  sessions      UserSession[]
+
+  @@unique([tenantId, branchId, code])
+  @@map("points_of_sale")
+}
+
+// ==============================================
+// CATÁLOGO: CATEGORÍAS, MARCAS, LISTAS DE PRECIOS
+// ==============================================
+
+// Categorías (sincronizadas desde Cianbox, con jerarquía)
+model Category {
+  id                String    @id @default(cuid())
+  tenantId          String
+  cianboxCategoryId Int?      // ID en Cianbox
+  code              String?   // Código interno
+  name              String
+  description       String?
+  parentId          String?   // Categoría padre (jerarquía)
+  level             Int       @default(0) // Nivel en la jerarquía
+  sortOrder         Int       @default(0)
+  imageUrl          String?
+  isActive          Boolean   @default(true)
+  lastSyncedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relaciones
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@unique([tenantId, cianboxCategoryId])
+  @@index([tenantId, parentId])
+  @@map("categories")
+}
+
+// Marcas (sincronizadas desde Cianbox)
+model Brand {
+  id             String    @id @default(cuid())
+  tenantId       String
+  cianboxBrandId Int?      // ID en Cianbox
+  name           String
+  description    String?
+  logoUrl        String?
+  isActive       Boolean   @default(true)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relaciones
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([tenantId, cianboxBrandId])
+  @@map("brands")
+}
+
+// Listas de Precios (sincronizadas desde Cianbox)
+model PriceList {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  cianboxPriceListId Int?      // ID en Cianbox
+  name               String    // "Lista Minorista", "Lista Mayorista"
+  description        String?
+  currency           String    @default("ARS") // Moneda: ARS, USD, etc.
+  isDefault          Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  lastSyncedAt       DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relaciones
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prices       ProductPrice[]
+  pointsOfSale PointOfSale[]
+  customers    Customer[]
+
+  @@unique([tenantId, cianboxPriceListId])
+  @@map("price_lists")
+}
+
+// ==============================================
+// PRODUCTOS
+// ==============================================
+
+model Product {
+  id               String    @id @default(cuid())
+  tenantId         String
+  cianboxProductId Int?      // ID en Cianbox (null si producto local)
+
+  // Códigos
+  sku              String?   // Código interno / SKU
+  barcode          String?   // Código de barras (EAN/UPC)
+  internalCode     String?   // Código adicional
+
+  // Información básica
+  name             String
+  shortName        String?   // Nombre corto para ticket
+  description      String?
+
+  // Clasificación
+  categoryId       String?
+  brandId          String?
+
+  // Precios (precio base, los específicos están en ProductPrice)
+  basePrice        Decimal?  @db.Decimal(12, 2)
+  baseCost         Decimal?  @db.Decimal(12, 2)
+
+  // Impuestos
+  taxRate          Decimal   @default(21) @db.Decimal(5, 2) // IVA 21%
+  taxIncluded      Boolean   @default(true) // Si el precio incluye impuestos
+
+  // Control
+  trackStock       Boolean   @default(true) // Si controla stock
+  allowNegativeStock Boolean @default(false)
+  minStock         Int?      // Stock mínimo para alerta
+
+  // Configuración de venta
+  sellFractions    Boolean   @default(false) // Permite vender fracciones
+  unitOfMeasure    String    @default("UN") // UN, KG, LT, MT, etc.
+
+  // Imágenes
+  imageUrl         String?
+  thumbnailUrl     String?
+
+  // Estado
+  isActive         Boolean   @default(true)
+  isService        Boolean   @default(false) // Es servicio (no tiene stock)
+
+  // Ubicación (para picking)
+  location         String?   // "R1-F2-C3" (Rack-Fila-Columna)
+
+  // Sincronización
+  lastSyncedAt     DateTime?
+  cianboxData      Json?     // Datos raw de Cianbox para referencia
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relaciones
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category         Category?        @relation(fields: [categoryId], references: [id])
+  brand            Brand?           @relation(fields: [brandId], references: [id])
+  prices           ProductPrice[]
+  stock            ProductStock[]
+  saleItems        SaleItem[]
+  promotionProducts PromotionProduct[]
+  comboItems       ComboItem[]
+
+  @@unique([tenantId, sku])
+  @@unique([tenantId, cianboxProductId])
+  @@index([tenantId, barcode])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, brandId])
+  @@index([tenantId, name])
+  @@map("products")
+}
+
+// Precios por Lista de Precios
+model ProductPrice {
+  id          String   @id @default(cuid())
+  productId   String
+  priceListId String
+  price       Decimal  @db.Decimal(12, 2)
+  cost        Decimal? @db.Decimal(12, 2)
+  margin      Decimal? @db.Decimal(5, 2) // Margen en %
+  validFrom   DateTime @default(now())
+  validUntil  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, priceListId])
+  @@index([priceListId])
+  @@map("product_prices")
+}
+
+// Stock por Sucursal
+model ProductStock {
+  id           String   @id @default(cuid())
+  productId    String
+  branchId     String
+  quantity     Decimal  @db.Decimal(12, 3) // Permite decimales para peso
+  reserved     Decimal  @default(0) @db.Decimal(12, 3) // Stock reservado
+  available    Decimal  @db.Decimal(12, 3) // quantity - reserved (calculado)
+  minStock     Int?     // Override del mínimo por sucursal
+  maxStock     Int?
+  location     String?  // Ubicación específica en esta sucursal
+  lastCountAt  DateTime? // Último inventario
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, branchId])
+  @@index([branchId])
+  @@map("product_stock")
+}
+
+// ==============================================
+// CLIENTES
+// ==============================================
+
+model Customer {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  cianboxCustomerId  Int?      // ID en Cianbox
+
+  // Tipo de cliente
+  customerType       CustomerType @default(CONSUMER)
+
+  // Datos fiscales
+  taxId              String?   // CUIT/CUIL/DNI
+  taxIdType          String?   // CUIT, CUIL, DNI, PASSPORT, etc.
+  taxCategory        String?   // Responsable Inscripto, Monotributista, etc.
+
+  // Datos personales/empresa
+  name               String    // Razón social o nombre completo
+  tradeName          String?   // Nombre de fantasía
+  firstName          String?
+  lastName           String?
+
+  // Contacto
+  email              String?
+  phone              String?
+  mobile             String?
+
+  // Dirección
+  address            String?
+  city               String?
+  state              String?
+  zipCode            String?
+  country            String    @default("AR")
+
+  // Comercial
+  priceListId        String?   // Lista de precios asignada
+  creditLimit        Decimal?  @db.Decimal(12, 2)
+  creditBalance      Decimal   @default(0) @db.Decimal(12, 2)
+  paymentTermDays    Int       @default(0) // Días de crédito
+
+  // Descuentos
+  globalDiscount     Decimal   @default(0) @db.Decimal(5, 2) // Descuento general %
+
+  // Estado
+  isActive           Boolean   @default(true)
+  notes              String?
+
+  // Sincronización
+  lastSyncedAt       DateTime?
+  cianboxData        Json?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relaciones
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  priceList PriceList? @relation(fields: [priceListId], references: [id])
+  sales     Sale[]
+
+  @@unique([tenantId, cianboxCustomerId])
+  @@unique([tenantId, taxId])
+  @@index([tenantId, name])
+  @@index([tenantId, email])
+  @@map("customers")
+}
+
+enum CustomerType {
+  CONSUMER      // Consumidor final
+  INDIVIDUAL    // Persona física
+  BUSINESS      // Empresa
+  GOVERNMENT    // Gobierno
+  RESELLER      // Revendedor
+}
+
+// ==============================================
+// PROMOCIONES Y COMBOS
+// ==============================================
+
+model Promotion {
+  id             String          @id @default(cuid())
+  tenantId       String
+  code           String?         // Código de promoción (para cupones)
+  name           String          // "2x1 en Bebidas"
+  description    String?
+  type           PromotionType
+
+  // Configuración según tipo
+  discountType   DiscountType    @default(PERCENTAGE)
+  discountValue  Decimal         @db.Decimal(12, 2) // Valor del descuento
+  buyQuantity    Int?            // Comprar X unidades
+  getQuantity    Int?            // Llevar Y unidades (para BUY_X_GET_Y)
+  minPurchase    Decimal?        @db.Decimal(12, 2) // Compra mínima
+  maxDiscount    Decimal?        @db.Decimal(12, 2) // Descuento máximo
+
+  // Aplicación
+  applyTo        PromotionApplyTo @default(SPECIFIC_PRODUCTS)
+  categoryIds    String[]        // Categorías aplicables
+  brandIds       String[]        // Marcas aplicables
+
+  // Vigencia
+  startDate      DateTime?
+  endDate        DateTime?
+  daysOfWeek     Int[]           // 0=Dom, 1=Lun... (vacío = todos)
+  startTime      String?         // "09:00" - hora inicio diaria
+  endTime        String?         // "18:00" - hora fin diaria
+
+  // Límites
+  maxUses        Int?            // Usos totales máximos
+  maxUsesPerCustomer Int?        // Usos por cliente
+  currentUses    Int             @default(0)
+
+  // Estado
+  isActive       Boolean         @default(true)
+  priority       Int             @default(0) // Mayor = se aplica primero
+  stackable      Boolean         @default(false) // Se puede combinar con otras
+
+  // Metadatos
+  metadata       Json            @default("{}") // Para eventos especiales (BlackFriday, etc)
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Relaciones
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  applicableProducts PromotionProduct[]
+  saleItems          SaleItem[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, startDate, endDate])
+  @@map("promotions")
+}
+
+enum PromotionType {
+  PERCENTAGE           // % de descuento
+  FIXED_AMOUNT         // Monto fijo de descuento
+  BUY_X_GET_Y          // Compra X lleva Y (incluye 2x1)
+  SECOND_UNIT_DISCOUNT // 2da unidad al X%
+  BUNDLE_PRICE         // Precio especial por combo
+  FREE_SHIPPING        // Envío gratis
+  COUPON               // Cupón de descuento
+  FLASH_SALE           // Venta flash (tiempo limitado)
+  LOYALTY              // Programa de fidelidad
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FIXED_PRICE     // Precio fijo (para combos)
+}
+
+enum PromotionApplyTo {
+  ALL_PRODUCTS        // Todos los productos
+  SPECIFIC_PRODUCTS   // Productos específicos
+  CATEGORIES          // Por categorías
+  BRANDS              // Por marcas
+  CART_TOTAL          // Total del carrito
+}
+
+// Productos en promoción
+model PromotionProduct {
+  id          String @id @default(cuid())
+  promotionId String
+  productId   String
+
+  // Relaciones
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, productId])
+  @@map("promotion_products")
+}
+
+// Combos / Packs
+model Combo {
+  id             String   @id @default(cuid())
+  tenantId       String
+  code           String   // "COMBO-001"
+  name           String   // "Combo Familiar"
+  description    String?
+  imageUrl       String?
+
+  // Precios
+  regularPrice   Decimal  @db.Decimal(12, 2) // Suma de precios individuales
+  comboPrice     Decimal  @db.Decimal(12, 2) // Precio del combo
+
+  // Vigencia
+  startDate      DateTime?
+  endDate        DateTime?
+
+  // Estado
+  isActive       Boolean  @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relaciones
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items     ComboItem[]
+  saleItems SaleItem[]
+
+  @@unique([tenantId, code])
+  @@map("combos")
+}
+
+model ComboItem {
+  id        String @id @default(cuid())
+  comboId   String
+  productId String
+  quantity  Int    @default(1)
+
+  // Relaciones
+  combo   Combo   @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([comboId, productId])
+  @@map("combo_items")
+}
+
+// ==============================================
+// VENTAS
+// ==============================================
+
+model Sale {
+  id              String      @id @default(cuid())
+  tenantId        String
+  branchId        String
+  pointOfSaleId   String
+  userId          String      // Cajero
+  customerId      String?     // Cliente (opcional)
+
+  // Numeración
+  saleNumber      String      // "A-0001-00000001"
+  receiptType     ReceiptType @default(TICKET)
+  fiscalNumber    String?     // Número fiscal (CAE, etc)
+
+  // Montos
+  subtotal        Decimal     @db.Decimal(12, 2)
+  discount        Decimal     @default(0) @db.Decimal(12, 2)
+  tax             Decimal     @default(0) @db.Decimal(12, 2)
+  total           Decimal     @db.Decimal(12, 2)
+
+  // Estado
+  status          SaleStatus  @default(COMPLETED)
+
+  // Referencia
+  cianboxSaleId   Int?        // ID si se sincronizó con Cianbox
+  notes           String?
+  metadata        Json        @default("{}")
+
+  // Timestamps
+  saleDate        DateTime    @default(now()) // Fecha de venta (puede diferir de createdAt)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  cancelledAt     DateTime?
+  cancelledBy     String?     // Usuario que canceló
+  cancelReason    String?
+
+  // Relaciones
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  pointOfSale PointOfSale @relation(fields: [pointOfSaleId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  customer    Customer?   @relation(fields: [customerId], references: [id])
+  items       SaleItem[]
+  payments    Payment[]
+
+  @@unique([tenantId, saleNumber])
+  @@index([tenantId, saleDate])
+  @@index([tenantId, branchId, saleDate])
+  @@index([tenantId, customerId])
+  @@index([tenantId, status])
+  @@map("sales")
+}
+
+enum ReceiptType {
+  TICKET          // Ticket simple
+  INVOICE_A       // Factura A
+  INVOICE_B       // Factura B
+  INVOICE_C       // Factura C
+  CREDIT_NOTE_A   // Nota de crédito A
+  CREDIT_NOTE_B   // Nota de crédito B
+  CREDIT_NOTE_C   // Nota de crédito C
+  RECEIPT         // Recibo
+}
+
+enum SaleStatus {
+  PENDING         // Pendiente (carrito)
+  COMPLETED       // Completada
+  CANCELLED       // Anulada
+  REFUNDED        // Devuelta (total)
+  PARTIAL_REFUND  // Devolución parcial
+}
+
+// Detalle de venta
+model SaleItem {
+  id            String   @id @default(cuid())
+  saleId        String
+  productId     String?
+  comboId       String?  // Si es un combo
+
+  // Datos del producto al momento de venta (desnormalizados)
+  productCode   String?
+  productName   String
+  productBarcode String?
+
+  // Cantidades y precios
+  quantity      Decimal  @db.Decimal(12, 3)
+  unitPrice     Decimal  @db.Decimal(12, 2) // Precio unitario original
+  discount      Decimal  @default(0) @db.Decimal(12, 2) // Descuento aplicado
+  subtotal      Decimal  @db.Decimal(12, 2) // (unitPrice * quantity) - discount
+  taxRate       Decimal  @default(21) @db.Decimal(5, 2)
+  taxAmount     Decimal  @default(0) @db.Decimal(12, 2)
+
+  // Promoción aplicada
+  promotionId   String?
+  promotionName String?  // Nombre de la promoción aplicada
+
+  // Control
+  isReturn      Boolean  @default(false) // Si es devolución
+
+  createdAt     DateTime @default(now())
+
+  // Relaciones
+  sale      Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product   Product?   @relation(fields: [productId], references: [id])
+  combo     Combo?     @relation(fields: [comboId], references: [id])
+  promotion Promotion? @relation(fields: [promotionId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+// ==============================================
+// COBROS / PAGOS
+// ==============================================
+
+model Payment {
+  id            String        @id @default(cuid())
+  saleId        String
+  method        PaymentMethod
+  amount        Decimal       @db.Decimal(12, 2)
+
+  // Detalles según método
+  reference     String?       // Nro. de operación/autorización
+  cardBrand     String?       // VISA, MASTERCARD, etc.
+  cardLastFour  String?       // Últimos 4 dígitos
+  installments  Int           @default(1) // Cuotas
+
+  // Para efectivo
+  amountTendered Decimal?     @db.Decimal(12, 2) // Monto recibido
+  changeAmount   Decimal?     @db.Decimal(12, 2) // Vuelto
+
+  // QR / Transferencia
+  transactionId String?       // ID de transacción externa
+  providerData  Json?         // Datos del proveedor (MP, etc)
+
+  // Estado
+  status        PaymentStatus @default(COMPLETED)
+
+  createdAt     DateTime      @default(now())
+
+  // Relaciones
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  CASH          // Efectivo
+  CREDIT_CARD   // Tarjeta de crédito
+  DEBIT_CARD    // Tarjeta de débito
+  QR            // QR (MercadoPago, etc)
+  TRANSFER      // Transferencia bancaria
+  CHECK         // Cheque
+  CREDIT        // Cuenta corriente (fiado)
+  VOUCHER       // Vale/Voucher
+  GIFTCARD      // Tarjeta de regalo
+  POINTS        // Puntos de fidelidad
+  OTHER         // Otro
+}
+
+enum PaymentStatus {
+  PENDING       // Pendiente de confirmación
+  COMPLETED     // Completado
+  FAILED        // Fallido
+  REFUNDED      // Reembolsado
+  CANCELLED     // Cancelado
+}
+
+// ==============================================
+// CAJA / ARQUEO
+// ==============================================
+
+model CashRegister {
+  id               String             @id @default(cuid())
+  tenantId         String
+  branchId         String
+  pointOfSaleId    String
+  userId           String             // Usuario que abrió/cerró
+
+  // Montos
+  openingAmount    Decimal            @db.Decimal(12, 2) // Fondo de caja inicial
+  closingAmount    Decimal?           @db.Decimal(12, 2) // Monto al cierre
+  expectedAmount   Decimal?           @db.Decimal(12, 2) // Monto esperado (calculado)
+  difference       Decimal?           @db.Decimal(12, 2) // Diferencia (sobrante/faltante)
+
+  // Totales por método (calculados)
+  totalCash        Decimal            @default(0) @db.Decimal(12, 2)
+  totalCard        Decimal            @default(0) @db.Decimal(12, 2)
+  totalOther       Decimal            @default(0) @db.Decimal(12, 2)
+
+  // Estado
+  status           CashRegisterStatus @default(OPEN)
+
+  // Timestamps
+  openedAt         DateTime           @default(now())
+  closedAt         DateTime?
+
+  // Observaciones
+  openingNotes     String?
+  closingNotes     String?
+
+  // Relaciones
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  pointOfSale PointOfSale @relation(fields: [pointOfSaleId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  movements   CashMovement[]
+
+  @@index([tenantId, branchId, openedAt])
+  @@index([pointOfSaleId, status])
+  @@map("cash_registers")
+}
+
+enum CashRegisterStatus {
+  OPEN
+  CLOSED
+  SUSPENDED
+}
+
+// Movimientos de caja (ingresos/egresos)
+model CashMovement {
+  id             String           @id @default(cuid())
+  cashRegisterId String
+  type           CashMovementType
+  amount         Decimal          @db.Decimal(12, 2)
+  reason         String           // "Pago a proveedor", "Ingreso por venta", etc.
+  reference      String?          // Referencia del movimiento
+  createdAt      DateTime         @default(now())
+
+  // Relaciones
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+
+  @@index([cashRegisterId])
+  @@map("cash_movements")
+}
+
+enum CashMovementType {
+  INCOME        // Ingreso
+  EXPENSE       // Egreso
+  ADJUSTMENT    // Ajuste
+}
+
+// ==============================================
+// IMPRESORAS Y PUNTOS DE IMPRESIÓN
+// ==============================================
+
+model Printer {
+  id           String      @id @default(cuid())
+  tenantId     String
+  name         String      // "Impresora Tickets Caja 1"
+  type         PrinterType
+
+  // Conexión
+  connectionType PrinterConnection @default(USB)
+  ipAddress    String?     // Para impresoras de red
+  port         Int?        // Puerto de red
+  usbPath      String?     // Path USB
+  bluetoothAddress String? // MAC Address Bluetooth
+
+  // Configuración
+  paperWidth   Int         @default(80) // Ancho de papel en mm (58, 80)
+  characterSet String      @default("PC437")
+
+  // Estado
+  isActive     Boolean     @default(true)
+  isDefault    Boolean     @default(false)
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relaciones
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  printPoints PrintPointPrinter[]
+
+  @@unique([tenantId, name])
+  @@map("printers")
+}
+
+enum PrinterType {
+  THERMAL       // Térmica (tickets)
+  LASER         // Láser
+  INKJET        // Inyección de tinta
+  LABEL         // Etiquetas
+  FISCAL        // Fiscal (controlador)
+}
+
+enum PrinterConnection {
+  USB
+  NETWORK       // Red (IP)
+  BLUETOOTH
+  SERIAL        // Puerto serie
+  CLOUD         // Impresión en la nube
+}
+
+// Puntos de impresión (agrupan impresoras)
+model PrintPoint {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String   // "Cocina", "Caja Principal"
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  printers     PrintPointPrinter[]
+  pointsOfSale PointOfSale[]
+
+  @@unique([tenantId, name])
+  @@map("print_points")
+}
+
+// Relación muchos a muchos entre PrintPoint y Printer
+model PrintPointPrinter {
+  id           String     @id @default(cuid())
+  printPointId String
+  printerId    String
+  printType    PrintType  // Tipo de documento a imprimir
+  copies       Int        @default(1) // Cantidad de copias
+
+  // Relaciones
+  printPoint PrintPoint @relation(fields: [printPointId], references: [id], onDelete: Cascade)
+  printer    Printer    @relation(fields: [printerId], references: [id], onDelete: Cascade)
+
+  @@unique([printPointId, printerId, printType])
+  @@map("print_point_printers")
+}
+
+enum PrintType {
+  TICKET        // Ticket de venta
+  INVOICE       // Factura
+  KITCHEN       // Comanda cocina
+  BAR           // Comanda bar
+  LABEL         // Etiqueta
+  REPORT        // Reportes
+}
+
+// ==============================================
+// AUDITORÍA / LOGS
+// ==============================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String?
+  action     String   // "CREATE", "UPDATE", "DELETE"
+  entity     String   // "Product", "Sale", etc.
+  entityId   String
+  oldData    Json?    // Datos anteriores
+  newData    Json?    // Datos nuevos
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, userId, createdAt])
+  @@map("audit_logs")
+}
+
+// ==============================================
+// CONFIGURACIÓN DEL SISTEMA
+// ==============================================
+
+model SystemConfig {
+  id        String   @id @default(cuid())
+  tenantId  String
+  key       String   // "pos.ticket.header", "pos.receipt.footer"
+  value     String   @db.Text
+  type      String   @default("string") // string, number, boolean, json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, key])
+  @@map("system_configs")
+}

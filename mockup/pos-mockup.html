@@ -1,0 +1,2167 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="modern">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cianbox POS - Mockup</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* ==========================================
+       TEMA: MODERNO (Default - Azul)
+       ========================================== */
+    [data-theme="modern"] {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-light: #eff6ff;
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --bg-main: var(--gray-100);
+      --bg-card: white;
+      --bg-header: white;
+      --text-primary: var(--gray-800);
+      --text-secondary: var(--gray-500);
+      --border-color: var(--gray-200);
+      --shadow: 0 8px 25px rgba(0,0,0,0.1);
+      --card-radius: 12px;
+      --btn-radius: 10px;
+    }
+
+    /* ==========================================
+       TEMA: OSCURO (Dark Mode)
+       ========================================== */
+    [data-theme="dark"] {
+      --primary: #3b82f6;
+      --primary-dark: #2563eb;
+      --primary-light: #1e3a5f;
+      --success: #10b981;
+      --success-light: #064e3b;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --gray-50: #1f2937;
+      --gray-100: #111827;
+      --gray-200: #374151;
+      --gray-300: #4b5563;
+      --gray-400: #6b7280;
+      --gray-500: #9ca3af;
+      --gray-600: #d1d5db;
+      --gray-700: #e5e7eb;
+      --gray-800: #f3f4f6;
+      --gray-900: #f9fafb;
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --bg-header: #1e293b;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border-color: #334155;
+      --shadow: 0 8px 25px rgba(0,0,0,0.4);
+      --card-radius: 12px;
+      --btn-radius: 10px;
+    }
+
+    /* ==========================================
+       TEMA: VERDE (Nature/Fresh)
+       ========================================== */
+    [data-theme="nature"] {
+      --primary: #059669;
+      --primary-dark: #047857;
+      --primary-light: #ecfdf5;
+      --success: #10b981;
+      --success-light: #d1fae5;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --gray-50: #f0fdf4;
+      --gray-100: #f0fdf4;
+      --gray-200: #d1fae5;
+      --gray-300: #a7f3d0;
+      --gray-400: #6ee7b7;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --bg-main: #f0fdf4;
+      --bg-card: white;
+      --bg-header: #059669;
+      --text-primary: var(--gray-800);
+      --text-secondary: var(--gray-500);
+      --border-color: #d1fae5;
+      --shadow: 0 8px 25px rgba(5, 150, 105, 0.15);
+      --card-radius: 16px;
+      --btn-radius: 12px;
+    }
+
+    /* ==========================================
+       TEMA: RETAIL CLÁSICO (Naranja/Cálido)
+       ========================================== */
+    [data-theme="retail"] {
+      --primary: #ea580c;
+      --primary-dark: #c2410c;
+      --primary-light: #fff7ed;
+      --success: #16a34a;
+      --success-light: #f0fdf4;
+      --warning: #eab308;
+      --danger: #dc2626;
+      --gray-50: #fafaf9;
+      --gray-100: #f5f5f4;
+      --gray-200: #e7e5e4;
+      --gray-300: #d6d3d1;
+      --gray-400: #a8a29e;
+      --gray-500: #78716c;
+      --gray-600: #57534e;
+      --gray-700: #44403c;
+      --gray-800: #292524;
+      --gray-900: #1c1917;
+      --bg-main: #fafaf9;
+      --bg-card: white;
+      --bg-header: white;
+      --text-primary: var(--gray-800);
+      --text-secondary: var(--gray-500);
+      --border-color: var(--gray-200);
+      --shadow: 0 4px 15px rgba(0,0,0,0.08);
+      --card-radius: 8px;
+      --btn-radius: 6px;
+    }
+
+    /* ==========================================
+       TEMA: ELEGANTE (Púrpura/Premium)
+       ========================================== */
+    [data-theme="elegant"] {
+      --primary: #7c3aed;
+      --primary-dark: #6d28d9;
+      --primary-light: #f5f3ff;
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --gray-50: #faf5ff;
+      --gray-100: #f3e8ff;
+      --gray-200: #e9d5ff;
+      --gray-300: #d8b4fe;
+      --gray-400: #a78bfa;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --bg-main: #faf5ff;
+      --bg-card: white;
+      --bg-header: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+      --text-primary: var(--gray-800);
+      --text-secondary: var(--gray-500);
+      --border-color: #e9d5ff;
+      --shadow: 0 8px 30px rgba(124, 58, 237, 0.15);
+      --card-radius: 16px;
+      --btn-radius: 12px;
+    }
+
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--bg-main);
+      height: 100vh;
+      overflow: hidden;
+      color: var(--text-primary);
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg-header);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      height: 64px;
+      transition: background 0.3s ease;
+    }
+
+    [data-theme="nature"] .header,
+    [data-theme="elegant"] .header {
+      color: white;
+    }
+
+    [data-theme="nature"] .logo,
+    [data-theme="elegant"] .logo {
+      color: white;
+    }
+
+    [data-theme="nature"] .user-info,
+    [data-theme="elegant"] .user-info {
+      background: rgba(255,255,255,0.2);
+    }
+
+    [data-theme="nature"] .user-name,
+    [data-theme="elegant"] .user-name {
+      color: white;
+    }
+
+    [data-theme="nature"] .search-box input,
+    [data-theme="elegant"] .search-box input {
+      background: rgba(255,255,255,0.9);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: var(--primary);
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--primary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 1.25rem;
+    }
+
+    .header-center {
+      flex: 1;
+      max-width: 500px;
+      margin: 0 24px;
+    }
+
+    .search-box {
+      position: relative;
+      width: 100%;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 10px 16px 10px 44px;
+      border: 2px solid var(--gray-200);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .search-box::before {
+      content: "🔍";
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Theme Selector */
+    .theme-selector {
+      position: relative;
+    }
+
+    .theme-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--gray-100);
+      border: 1px solid var(--border-color);
+      border-radius: var(--btn-radius);
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      transition: all 0.2s;
+    }
+
+    [data-theme="nature"] .theme-btn,
+    [data-theme="elegant"] .theme-btn {
+      background: rgba(255,255,255,0.2);
+      border-color: rgba(255,255,255,0.3);
+      color: white;
+    }
+
+    .theme-btn:hover {
+      background: var(--gray-200);
+    }
+
+    .theme-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      box-shadow: var(--shadow);
+      min-width: 200px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.2s;
+      z-index: 100;
+    }
+
+    .theme-dropdown.open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .theme-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      font-size: 0.9rem;
+      color: var(--text-primary);
+    }
+
+    .theme-option:hover {
+      background: var(--gray-100);
+    }
+
+    .theme-option.active {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .theme-color {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.1);
+    }
+
+    .theme-option:first-child {
+      border-radius: var(--card-radius) var(--card-radius) 0 0;
+    }
+
+    .theme-option:last-child {
+      border-radius: 0 0 var(--card-radius) var(--card-radius);
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px;
+      background: var(--gray-50);
+      border-radius: 8px;
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .user-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+
+    /* Main Layout */
+    .main {
+      display: flex;
+      height: calc(100vh - 64px);
+    }
+
+    /* Products Panel */
+    .products-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--gray-50);
+      overflow: hidden;
+    }
+
+    .categories {
+      display: flex;
+      gap: 8px;
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      overflow-x: auto;
+    }
+
+    .category-btn {
+      padding: 8px 20px;
+      border: none;
+      background: var(--gray-100);
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .category-btn:hover {
+      background: var(--gray-200);
+    }
+
+    .category-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .products-grid {
+      flex: 1;
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+      overflow-y: auto;
+      align-content: start;
+    }
+
+    .product-card {
+      background: var(--bg-card);
+      border-radius: var(--card-radius);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+      position: relative;
+    }
+
+    .product-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+      border-color: var(--primary);
+    }
+
+    .product-card:active {
+      transform: scale(0.98);
+    }
+
+    .product-image {
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--gray-100);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      margin-bottom: 12px;
+    }
+
+    .product-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--gray-800);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .product-sku {
+      font-size: 0.75rem;
+      color: var(--gray-400);
+      margin-bottom: 8px;
+    }
+
+    .product-price {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .product-promo {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--danger);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .product-stock {
+      font-size: 0.75rem;
+      color: var(--gray-500);
+      margin-top: 4px;
+    }
+
+    .product-stock.low {
+      color: var(--warning);
+    }
+
+    .product-stock.out {
+      color: var(--danger);
+    }
+
+    /* Cart Panel */
+    .cart-panel {
+      width: 420px;
+      background: var(--bg-card);
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border-color);
+    }
+
+    .cart-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .cart-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cart-count {
+      background: var(--primary);
+      color: white;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .customer-select {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .customer-select input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    .customer-select button {
+      padding: 10px 16px;
+      background: var(--gray-100);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .cart-items {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 24px;
+    }
+
+    .cart-empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--gray-400);
+    }
+
+    .cart-empty-icon {
+      font-size: 4rem;
+      margin-bottom: 16px;
+    }
+
+    .cart-item {
+      display: flex;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--gray-100);
+      position: relative;
+    }
+
+    .cart-item-image {
+      width: 50px;
+      height: 50px;
+      background: var(--gray-100);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .cart-item-details {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .cart-item-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--gray-800);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cart-item-price {
+      font-size: 0.85rem;
+      color: var(--gray-500);
+      margin-top: 2px;
+    }
+
+    .cart-item-promo {
+      font-size: 0.75rem;
+      color: var(--success);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .cart-item-qty {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .qty-btn {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--gray-200);
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .qty-btn:hover {
+      background: var(--gray-100);
+    }
+
+    .qty-value {
+      font-weight: 600;
+      min-width: 30px;
+      text-align: center;
+    }
+
+    .cart-item-subtotal {
+      text-align: right;
+      min-width: 80px;
+    }
+
+    .cart-item-subtotal-value {
+      font-weight: 700;
+      color: var(--gray-800);
+    }
+
+    .cart-item-remove {
+      position: absolute;
+      top: 14px;
+      right: 0;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      color: var(--gray-400);
+      cursor: pointer;
+      font-size: 1rem;
+      border-radius: 4px;
+    }
+
+    .cart-item-remove:hover {
+      background: var(--danger);
+      color: white;
+    }
+
+    /* Promotion Applied */
+    .promo-applied {
+      background: #ecfdf5;
+      border: 1px dashed var(--success);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 0 0 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .promo-applied-icon {
+      font-size: 1.25rem;
+    }
+
+    .promo-applied-text {
+      font-size: 0.85rem;
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    /* Cart Summary */
+    .cart-summary {
+      padding: 20px 24px;
+      background: var(--gray-50);
+      border-top: 1px solid var(--gray-200);
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+    }
+
+    .summary-row.discount {
+      color: var(--success);
+    }
+
+    .summary-row.total {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 2px solid var(--gray-200);
+    }
+
+    /* Payment Methods */
+    .payment-methods {
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .payment-label {
+      font-size: 0.8rem;
+      color: var(--gray-500);
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+
+    .payment-buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .payment-btn {
+      padding: 12px 8px;
+      border: 2px solid var(--gray-200);
+      background: white;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .payment-btn:hover {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .payment-btn.active {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .payment-btn-icon {
+      font-size: 1.25rem;
+    }
+
+    .payment-btn-text {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--gray-600);
+    }
+
+    /* Checkout Button */
+    .checkout-section {
+      padding: 16px 24px 24px;
+      background: var(--bg-card);
+    }
+
+    .checkout-btn {
+      width: 100%;
+      padding: 18px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--btn-radius);
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .checkout-btn:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .checkout-btn:disabled {
+      background: var(--gray-300);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .checkout-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .quick-action-btn {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--gray-200);
+      background: white;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-action-btn:hover {
+      background: var(--gray-50);
+      border-color: var(--gray-300);
+    }
+
+    .quick-action-btn.danger:hover {
+      background: #fef2f2;
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border-radius: var(--card-radius);
+      width: 90%;
+      max-width: 500px;
+      transform: scale(0.9);
+      transition: all 0.3s;
+    }
+
+    .modal-overlay.active .modal {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-close {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: var(--gray-100);
+      border-radius: var(--btn-radius);
+      cursor: pointer;
+      font-size: 1.25rem;
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border-radius: var(--btn-radius);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary {
+      background: var(--gray-100);
+      border: none;
+      color: var(--text-primary);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      border: none;
+      color: white;
+    }
+
+    .btn-success {
+      background: var(--success);
+      border: none;
+      color: white;
+    }
+
+    /* Payment Modal Content */
+    .payment-summary {
+      background: var(--gray-50);
+      border-radius: var(--card-radius);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .payment-total-label {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .payment-total-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .payment-input-group {
+      margin-bottom: 16px;
+    }
+
+    .payment-input-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .payment-input-group input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid var(--border-color);
+      border-radius: var(--btn-radius);
+      font-size: 1.25rem;
+      font-weight: 600;
+      text-align: right;
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+
+    .payment-input-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .change-display {
+      background: var(--success-light);
+      border-radius: var(--card-radius);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .change-label {
+      font-size: 1rem;
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .change-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--success);
+    }
+
+    /* Success Animation */
+    .success-modal .modal-body {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .success-icon {
+      font-size: 5rem;
+      margin-bottom: 20px;
+      animation: bounce 0.5s ease;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+    }
+
+    .success-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: 8px;
+    }
+
+    .success-message {
+      color: var(--gray-500);
+      margin-bottom: 24px;
+    }
+
+    .ticket-number {
+      background: var(--gray-100);
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--gray-700);
+      display: inline-block;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      top: 80px;
+      right: 24px;
+      z-index: 1001;
+    }
+
+    .toast {
+      background: var(--gray-800);
+      color: white;
+      padding: 14px 20px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideIn 0.3s ease;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    .toast.success {
+      background: var(--success);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Card Type Selector */
+    .card-type-selector {
+      display: flex;
+      gap: 10px;
+    }
+
+    .card-type-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid var(--border-color);
+      background: var(--bg-card);
+      border-radius: var(--btn-radius);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      transition: all 0.2s;
+    }
+
+    .card-type-btn:hover {
+      border-color: var(--primary);
+    }
+
+    .card-type-btn.active {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .form-select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid var(--border-color);
+      border-radius: var(--btn-radius);
+      font-size: 0.95rem;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .form-select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    /* QR Payment Styles */
+    .qr-container {
+      padding: 20px;
+    }
+
+    .qr-code {
+      background: white;
+      padding: 20px;
+      border-radius: var(--card-radius);
+      display: inline-block;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    .qr-instructions {
+      margin-top: 16px;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .qr-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 16px;
+      padding: 12px 20px;
+      background: var(--gray-100);
+      border-radius: var(--btn-radius);
+      color: var(--text-secondary);
+    }
+
+    .qr-status.success {
+      background: var(--success-light);
+      color: var(--success);
+    }
+
+    .qr-status-icon {
+      font-size: 1.2rem;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .qr-actions {
+      margin-top: 20px;
+    }
+
+    /* Payment Details in Success */
+    .payment-details {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: var(--gray-100);
+      border-radius: var(--btn-radius);
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      text-align: left;
+    }
+
+    .payment-details p {
+      margin: 4px 0;
+    }
+
+    /* Combo Badge */
+    .product-combo {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: var(--primary);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 3px 6px;
+      border-radius: 4px;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .cart-panel {
+        width: 360px;
+      }
+
+      .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      .header-center {
+        display: none;
+      }
+
+      .cart-panel {
+        position: fixed;
+        right: 0;
+        top: 64px;
+        height: calc(100vh - 64px);
+        width: 100%;
+        max-width: 400px;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 100;
+      }
+
+      .cart-panel.open {
+        transform: translateX(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">📦</div>
+      <span>Cianbox POS</span>
+    </div>
+
+    <div class="header-center">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Buscar productos por nombre, SKU o código de barras..." autocomplete="off">
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="theme-selector">
+        <button class="theme-btn" id="themeBtn" onclick="toggleThemeDropdown()">
+          <span id="currentThemeIcon">🎨</span>
+          <span id="currentThemeName">Moderno</span>
+          <span>▼</span>
+        </button>
+        <div class="theme-dropdown" id="themeDropdown">
+          <button class="theme-option active" data-theme="modern" onclick="setTheme('modern')">
+            <span class="theme-color" style="background: linear-gradient(135deg, #2563eb, #3b82f6);"></span>
+            <span>Moderno (Azul)</span>
+          </button>
+          <button class="theme-option" data-theme="dark" onclick="setTheme('dark')">
+            <span class="theme-color" style="background: linear-gradient(135deg, #1e293b, #334155);"></span>
+            <span>Oscuro</span>
+          </button>
+          <button class="theme-option" data-theme="nature" onclick="setTheme('nature')">
+            <span class="theme-color" style="background: linear-gradient(135deg, #059669, #10b981);"></span>
+            <span>Natural (Verde)</span>
+          </button>
+          <button class="theme-option" data-theme="retail" onclick="setTheme('retail')">
+            <span class="theme-color" style="background: linear-gradient(135deg, #ea580c, #f97316);"></span>
+            <span>Retail (Naranja)</span>
+          </button>
+          <button class="theme-option" data-theme="elegant" onclick="setTheme('elegant')">
+            <span class="theme-color" style="background: linear-gradient(135deg, #7c3aed, #a855f7);"></span>
+            <span>Elegante (Púrpura)</span>
+          </button>
+        </div>
+      </div>
+      <div class="user-info">
+        <div class="user-avatar">JD</div>
+        <span class="user-name">Juan Demo</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main">
+    <!-- Products Panel -->
+    <section class="products-panel">
+      <div class="categories">
+        <button class="category-btn active" data-category="all">Todos</button>
+        <button class="category-btn" data-category="bebidas">🥤 Bebidas</button>
+        <button class="category-btn" data-category="snacks">🍿 Snacks</button>
+        <button class="category-btn" data-category="lacteos">🥛 Lácteos</button>
+        <button class="category-btn" data-category="limpieza">🧹 Limpieza</button>
+        <button class="category-btn" data-category="panaderia">🥖 Panadería</button>
+        <button class="category-btn" data-category="carnes">🥩 Carnes</button>
+      </div>
+
+      <div class="products-grid" id="productsGrid">
+        <!-- Products will be rendered here -->
+      </div>
+    </section>
+
+    <!-- Cart Panel -->
+    <aside class="cart-panel" id="cartPanel">
+      <div class="cart-header">
+        <div class="cart-title">
+          🛒 Carrito
+          <span class="cart-count" id="cartCount">0</span>
+        </div>
+        <div class="customer-select">
+          <input type="text" placeholder="Cliente (opcional)">
+          <button>👤</button>
+        </div>
+      </div>
+
+      <div class="cart-items" id="cartItems">
+        <div class="cart-empty">
+          <div class="cart-empty-icon">🛒</div>
+          <p>El carrito está vacío</p>
+          <p style="font-size: 0.85rem; margin-top: 8px;">Agrega productos para comenzar</p>
+        </div>
+      </div>
+
+      <div id="promoApplied" style="display: none; padding: 0 24px;">
+        <div class="promo-applied">
+          <span class="promo-applied-icon">🎉</span>
+          <span class="promo-applied-text" id="promoText">Promoción aplicada</span>
+        </div>
+      </div>
+
+      <div class="cart-summary" id="cartSummary" style="display: none;">
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span id="subtotal">$0</span>
+        </div>
+        <div class="summary-row discount" id="discountRow" style="display: none;">
+          <span>Descuento</span>
+          <span id="discount">-$0</span>
+        </div>
+        <div class="summary-row total">
+          <span>Total</span>
+          <span id="total">$0</span>
+        </div>
+      </div>
+
+      <div class="payment-methods" id="paymentMethods" style="display: none;">
+        <div class="payment-label">MÉTODO DE PAGO</div>
+        <div class="payment-buttons">
+          <button class="payment-btn active" data-method="cash">
+            <span class="payment-btn-icon">💵</span>
+            <span class="payment-btn-text">Efectivo</span>
+          </button>
+          <button class="payment-btn" data-method="debit">
+            <span class="payment-btn-icon">💳</span>
+            <span class="payment-btn-text">Débito</span>
+          </button>
+          <button class="payment-btn" data-method="credit">
+            <span class="payment-btn-icon">💳</span>
+            <span class="payment-btn-text">Crédito</span>
+          </button>
+          <button class="payment-btn" data-method="qr">
+            <span class="payment-btn-icon">📱</span>
+            <span class="payment-btn-text">QR</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="checkout-section">
+        <button class="checkout-btn" id="checkoutBtn" disabled>
+          <span>💳</span>
+          <span>COBRAR $0</span>
+        </button>
+        <div class="quick-actions">
+          <button class="quick-action-btn" onclick="holdSale()">⏸️ Pausar</button>
+          <button class="quick-action-btn danger" onclick="clearCart()">🗑️ Limpiar</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Payment Modal -->
+  <div class="modal-overlay" id="paymentModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">💵 Pago en Efectivo</h2>
+        <button class="modal-close" onclick="closePaymentModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="payment-summary">
+          <div class="payment-total-label">Total a cobrar</div>
+          <div class="payment-total-value" id="modalTotal">$0</div>
+        </div>
+
+        <div class="payment-input-group">
+          <label>Monto recibido</label>
+          <input type="number" id="amountReceived" placeholder="0" oninput="calculateChange()">
+        </div>
+
+        <div class="change-display" id="changeDisplay" style="display: none;">
+          <span class="change-label">Vuelto</span>
+          <span class="change-value" id="changeAmount">$0</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closePaymentModal()">Cancelar</button>
+        <button class="btn btn-success" id="confirmPaymentBtn" onclick="confirmPayment()" disabled>
+          ✓ Confirmar Pago
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card Payment Modal -->
+  <div class="modal-overlay" id="cardModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">💳 Pago con Tarjeta</h2>
+        <button class="modal-close" onclick="closeCardModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="payment-summary">
+          <div class="payment-total-label">Total a cobrar</div>
+          <div class="payment-total-value" id="cardModalTotal">$0</div>
+        </div>
+
+        <div class="payment-input-group">
+          <label>Tipo de Tarjeta</label>
+          <div class="card-type-selector">
+            <button class="card-type-btn active" data-type="debit" onclick="selectCardType('debit')">
+              💳 Débito
+            </button>
+            <button class="card-type-btn" data-type="credit" onclick="selectCardType('credit')">
+              💳 Crédito
+            </button>
+          </div>
+        </div>
+
+        <div class="payment-input-group" id="installmentsGroup" style="display: none;">
+          <label>Cuotas</label>
+          <select id="installments" class="form-select">
+            <option value="1">1 cuota (sin interés)</option>
+            <option value="3">3 cuotas</option>
+            <option value="6">6 cuotas</option>
+            <option value="12">12 cuotas</option>
+            <option value="18">18 cuotas</option>
+          </select>
+        </div>
+
+        <div class="payment-input-group">
+          <label>N° de Cupón / Autorización</label>
+          <input type="text" id="couponNumber" placeholder="Ingrese número de cupón">
+        </div>
+
+        <div class="payment-input-group">
+          <label>Últimos 4 dígitos de la tarjeta</label>
+          <input type="text" id="lastDigits" placeholder="****" maxlength="4">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeCardModal()">Cancelar</button>
+        <button class="btn btn-success" onclick="confirmCardPayment()">
+          ✓ Confirmar Pago
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Payment Modal -->
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">📱 Pago con QR</h2>
+        <button class="modal-close" onclick="closeQrModal()">✕</button>
+      </div>
+      <div class="modal-body" style="text-align: center;">
+        <div class="payment-summary">
+          <div class="payment-total-label">Total a cobrar</div>
+          <div class="payment-total-value" id="qrModalTotal">$0</div>
+        </div>
+
+        <div class="qr-container">
+          <div class="qr-code" id="qrCode">
+            <!-- QR Code simulado -->
+            <svg viewBox="0 0 100 100" width="200" height="200">
+              <rect fill="white" width="100" height="100"/>
+              <g fill="black">
+                <!-- QR Pattern simulado -->
+                <rect x="10" y="10" width="25" height="25"/>
+                <rect x="65" y="10" width="25" height="25"/>
+                <rect x="10" y="65" width="25" height="25"/>
+                <rect x="15" y="15" width="15" height="15" fill="white"/>
+                <rect x="70" y="15" width="15" height="15" fill="white"/>
+                <rect x="15" y="70" width="15" height="15" fill="white"/>
+                <rect x="18" y="18" width="9" height="9"/>
+                <rect x="73" y="18" width="9" height="9"/>
+                <rect x="18" y="73" width="9" height="9"/>
+                <!-- Pattern aleatorio -->
+                <rect x="40" y="10" width="5" height="5"/>
+                <rect x="50" y="15" width="5" height="5"/>
+                <rect x="45" y="25" width="5" height="5"/>
+                <rect x="40" y="40" width="20" height="20"/>
+                <rect x="45" y="45" width="10" height="10" fill="white"/>
+                <rect x="10" y="45" width="5" height="5"/>
+                <rect x="20" y="50" width="5" height="5"/>
+                <rect x="85" y="45" width="5" height="5"/>
+                <rect x="75" y="55" width="5" height="5"/>
+                <rect x="45" y="70" width="5" height="5"/>
+                <rect x="55" y="80" width="5" height="5"/>
+                <rect x="70" y="70" width="5" height="5"/>
+                <rect x="80" y="80" width="5" height="5"/>
+              </g>
+            </svg>
+          </div>
+          <p class="qr-instructions">Escanea el código QR con tu app de pagos</p>
+          <div class="qr-status" id="qrStatus">
+            <span class="qr-status-icon">⏳</span>
+            <span>Esperando pago...</span>
+          </div>
+        </div>
+
+        <div class="qr-actions">
+          <button class="btn btn-secondary" onclick="simulateQrPayment()">
+            ✓ Simular Pago Recibido
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeQrModal()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Modal -->
+  <div class="modal-overlay" id="successModal">
+    <div class="modal success-modal">
+      <div class="modal-body">
+        <div class="success-icon">✅</div>
+        <div class="success-title">¡Venta Completada!</div>
+        <div class="success-message">La transacción se ha registrado correctamente</div>
+        <div class="ticket-number" id="ticketNumber">Ticket #0001</div>
+        <div class="payment-details" id="paymentDetails"></div>
+      </div>
+      <div class="modal-footer" style="justify-content: center;">
+        <button class="btn btn-secondary" onclick="closeSuccessModal()">🖨️ Imprimir</button>
+        <button class="btn btn-primary" onclick="newSale()">Nueva Venta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    // ==========================================
+    // DATOS DE PRODUCTOS (Simulados)
+    // ==========================================
+    const products = [
+      { id: 1, sku: 'BEB-001', name: 'Coca Cola 500ml', price: 1500, category: 'bebidas', icon: '🥤', stock: 48, promo: '2x1' },
+      { id: 2, sku: 'BEB-002', name: 'Sprite 500ml', price: 1400, category: 'bebidas', icon: '🥤', stock: 32 },
+      { id: 3, sku: 'BEB-003', name: 'Fanta 500ml', price: 1400, category: 'bebidas', icon: '🥤', stock: 28 },
+      { id: 4, sku: 'BEB-004', name: 'Agua Mineral 1L', price: 800, category: 'bebidas', icon: '💧', stock: 100 },
+      { id: 5, sku: 'SNK-001', name: 'Papas Lays 150g', price: 2200, category: 'snacks', icon: '🥔', stock: 24, promo: '2da 50%' },
+      { id: 6, sku: 'SNK-002', name: 'Doritos 150g', price: 2400, category: 'snacks', icon: '🌮', stock: 18 },
+      { id: 7, sku: 'SNK-003', name: 'Oreo 117g', price: 1800, category: 'snacks', icon: '🍪', stock: 36 },
+      { id: 8, sku: 'SNK-004', name: 'Chocolinas 250g', price: 2100, category: 'snacks', icon: '🍫', stock: 20 },
+      { id: 9, sku: 'LAC-001', name: 'Leche Entera 1L', price: 1200, category: 'lacteos', icon: '🥛', stock: 50 },
+      { id: 10, sku: 'LAC-002', name: 'Yogur Frutilla', price: 900, category: 'lacteos', icon: '🍓', stock: 30 },
+      { id: 11, sku: 'LAC-003', name: 'Queso Cremoso 1kg', price: 8500, category: 'lacteos', icon: '🧀', stock: 12 },
+      { id: 12, sku: 'LIM-001', name: 'Detergente 750ml', price: 3200, category: 'limpieza', icon: '🧴', stock: 25 },
+      { id: 13, sku: 'LIM-002', name: 'Lavandina 1L', price: 1500, category: 'limpieza', icon: '🧪', stock: 40 },
+      { id: 14, sku: 'PAN-001', name: 'Pan Lactal', price: 2800, category: 'panaderia', icon: '🍞', stock: 15 },
+      { id: 15, sku: 'PAN-002', name: 'Medialunas x6', price: 3500, category: 'panaderia', icon: '🥐', stock: 8, promo: '-20%' },
+      { id: 16, sku: 'CAR-001', name: 'Milanesas x4', price: 6500, category: 'carnes', icon: '🥩', stock: 10 },
+      { id: 17, sku: 'CAR-002', name: 'Hamburguesas x4', price: 5200, category: 'carnes', icon: '🍔', stock: 14 },
+      { id: 18, sku: 'BEB-005', name: 'Cerveza Quilmes 1L', price: 2800, category: 'bebidas', icon: '🍺', stock: 60 },
+      // COMBOS
+      { id: 100, sku: 'COMBO-001', name: 'Combo Snack', price: 4500, category: 'snacks', icon: '🎁', stock: 99, isCombo: true, comboItems: ['Papas Lays', 'Coca Cola 500ml', 'Oreo'], originalPrice: 5500 },
+      { id: 101, sku: 'COMBO-002', name: 'Combo Familiar', price: 12000, category: 'bebidas', icon: '🎁', stock: 99, isCombo: true, comboItems: ['Coca Cola 1.5L x2', 'Doritos x2', 'Papas Lays x2'], originalPrice: 15800 },
+      { id: 102, sku: 'COMBO-003', name: 'Desayuno Completo', price: 5800, category: 'panaderia', icon: '🎁', stock: 99, isCombo: true, comboItems: ['Medialunas x6', 'Leche 1L', 'Yogur'], originalPrice: 7600 },
+    ];
+
+    // ==========================================
+    // ESTADO DEL CARRITO
+    // ==========================================
+    let cart = [];
+    let selectedPaymentMethod = 'cash';
+    let ticketCounter = 1;
+
+    // ==========================================
+    // RENDERIZADO DE PRODUCTOS
+    // ==========================================
+    function renderProducts(filter = 'all', search = '') {
+      const grid = document.getElementById('productsGrid');
+      let filtered = products;
+
+      if (filter !== 'all') {
+        filtered = filtered.filter(p => p.category === filter);
+      }
+
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filtered = filtered.filter(p =>
+          p.name.toLowerCase().includes(searchLower) ||
+          p.sku.toLowerCase().includes(searchLower)
+        );
+      }
+
+      grid.innerHTML = filtered.map(product => `
+        <div class="product-card" onclick="addToCart(${product.id})">
+          ${product.isCombo ? `<div class="product-combo">COMBO</div>` : ''}
+          ${product.promo ? `<div class="product-promo">${product.promo}</div>` : ''}
+          <div class="product-image">${product.icon}</div>
+          <div class="product-name">${product.name}</div>
+          <div class="product-sku">${product.sku}</div>
+          ${product.isCombo ? `
+            <div class="product-price">
+              <span style="text-decoration: line-through; color: var(--gray-400); font-size: 0.85rem;">$${product.originalPrice.toLocaleString()}</span>
+              $${product.price.toLocaleString()}
+            </div>
+            <div class="product-stock" style="font-size: 0.7rem; color: var(--primary);">
+              ${product.comboItems.join(' + ')}
+            </div>
+          ` : `
+            <div class="product-price">$${product.price.toLocaleString()}</div>
+            <div class="product-stock ${product.stock < 10 ? (product.stock === 0 ? 'out' : 'low') : ''}">
+              Stock: ${product.stock}
+            </div>
+          `}
+        </div>
+      `).join('');
+    }
+
+    // ==========================================
+    // GESTIÓN DEL CARRITO
+    // ==========================================
+    function addToCart(productId) {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+
+      const existingItem = cart.find(item => item.id === productId);
+
+      if (existingItem) {
+        existingItem.qty += 1;
+      } else {
+        cart.push({ ...product, qty: 1 });
+      }
+
+      showToast(`${product.name} agregado`, 'success');
+      renderCart();
+    }
+
+    function updateQty(productId, delta) {
+      const item = cart.find(i => i.id === productId);
+      if (!item) return;
+
+      item.qty += delta;
+
+      if (item.qty <= 0) {
+        cart = cart.filter(i => i.id !== productId);
+      }
+
+      renderCart();
+    }
+
+    function removeFromCart(productId) {
+      cart = cart.filter(i => i.id !== productId);
+      renderCart();
+    }
+
+    function clearCart() {
+      cart = [];
+      renderCart();
+    }
+
+    function holdSale() {
+      if (cart.length === 0) return;
+      showToast('Venta pausada', 'success');
+    }
+
+    // ==========================================
+    // CÁLCULO DE PROMOCIONES
+    // ==========================================
+    function calculatePromotions() {
+      let totalDiscount = 0;
+      let promoMessages = [];
+
+      cart.forEach(item => {
+        item.discount = 0;
+        item.promoText = '';
+
+        if (item.promo === '2x1' && item.qty >= 2) {
+          const freeItems = Math.floor(item.qty / 2);
+          item.discount = freeItems * item.price;
+          item.promoText = `2x1: ${freeItems} gratis`;
+          promoMessages.push(`${item.name}: 2x1`);
+        }
+
+        if (item.promo === '2da 50%' && item.qty >= 2) {
+          const discountItems = Math.floor(item.qty / 2);
+          item.discount = discountItems * (item.price * 0.5);
+          item.promoText = `2da al 50%: -$${item.discount.toLocaleString()}`;
+          promoMessages.push(`${item.name}: 2da al 50%`);
+        }
+
+        if (item.promo === '-20%') {
+          item.discount = item.qty * item.price * 0.2;
+          item.promoText = `20% OFF: -$${item.discount.toLocaleString()}`;
+          promoMessages.push(`${item.name}: 20% OFF`);
+        }
+
+        totalDiscount += item.discount;
+      });
+
+      return { totalDiscount, promoMessages };
+    }
+
+    // ==========================================
+    // RENDERIZADO DEL CARRITO
+    // ==========================================
+    function renderCart() {
+      const cartItems = document.getElementById('cartItems');
+      const cartCount = document.getElementById('cartCount');
+      const cartSummary = document.getElementById('cartSummary');
+      const paymentMethods = document.getElementById('paymentMethods');
+      const checkoutBtn = document.getElementById('checkoutBtn');
+      const promoApplied = document.getElementById('promoApplied');
+
+      const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+      cartCount.textContent = totalItems;
+
+      if (cart.length === 0) {
+        cartItems.innerHTML = `
+          <div class="cart-empty">
+            <div class="cart-empty-icon">🛒</div>
+            <p>El carrito está vacío</p>
+            <p style="font-size: 0.85rem; margin-top: 8px;">Agrega productos para comenzar</p>
+          </div>
+        `;
+        cartSummary.style.display = 'none';
+        paymentMethods.style.display = 'none';
+        checkoutBtn.disabled = true;
+        checkoutBtn.innerHTML = '<span>💳</span><span>COBRAR $0</span>';
+        promoApplied.style.display = 'none';
+        return;
+      }
+
+      const { totalDiscount, promoMessages } = calculatePromotions();
+
+      cartItems.innerHTML = cart.map(item => {
+        const subtotal = (item.qty * item.price) - (item.discount || 0);
+        return `
+          <div class="cart-item">
+            <div class="cart-item-image">${item.icon}</div>
+            <div class="cart-item-details">
+              <div class="cart-item-name">${item.name}</div>
+              <div class="cart-item-price">$${item.price.toLocaleString()} c/u</div>
+              ${item.promoText ? `<div class="cart-item-promo">🎉 ${item.promoText}</div>` : ''}
+              <div class="cart-item-qty">
+                <button class="qty-btn" onclick="updateQty(${item.id}, -1)">−</button>
+                <span class="qty-value">${item.qty}</span>
+                <button class="qty-btn" onclick="updateQty(${item.id}, 1)">+</button>
+              </div>
+            </div>
+            <div class="cart-item-subtotal">
+              <div class="cart-item-subtotal-value">$${subtotal.toLocaleString()}</div>
+            </div>
+            <button class="cart-item-remove" onclick="removeFromCart(${item.id})">✕</button>
+          </div>
+        `;
+      }).join('');
+
+      const subtotal = cart.reduce((sum, item) => sum + (item.qty * item.price), 0);
+      const total = subtotal - totalDiscount;
+
+      document.getElementById('subtotal').textContent = `$${subtotal.toLocaleString()}`;
+      document.getElementById('discount').textContent = `-$${totalDiscount.toLocaleString()}`;
+      document.getElementById('discountRow').style.display = totalDiscount > 0 ? 'flex' : 'none';
+      document.getElementById('total').textContent = `$${total.toLocaleString()}`;
+
+      if (promoMessages.length > 0) {
+        promoApplied.style.display = 'block';
+        document.getElementById('promoText').textContent = promoMessages.join(' | ');
+      } else {
+        promoApplied.style.display = 'none';
+      }
+
+      cartSummary.style.display = 'block';
+      paymentMethods.style.display = 'block';
+      checkoutBtn.disabled = false;
+      checkoutBtn.innerHTML = `<span>💳</span><span>COBRAR $${total.toLocaleString()}</span>`;
+    }
+
+    // ==========================================
+    // PAGO Y CHECKOUT
+    // ==========================================
+    function getTotal() {
+      const { totalDiscount } = calculatePromotions();
+      const subtotal = cart.reduce((sum, item) => sum + (item.qty * item.price), 0);
+      return subtotal - totalDiscount;
+    }
+
+    function openPaymentModal() {
+      const total = getTotal();
+      document.getElementById('modalTotal').textContent = `$${total.toLocaleString()}`;
+      document.getElementById('amountReceived').value = '';
+      document.getElementById('changeDisplay').style.display = 'none';
+      document.getElementById('confirmPaymentBtn').disabled = true;
+      document.getElementById('paymentModal').classList.add('active');
+      document.getElementById('amountReceived').focus();
+    }
+
+    function closePaymentModal() {
+      document.getElementById('paymentModal').classList.remove('active');
+    }
+
+    function calculateChange() {
+      const total = getTotal();
+      const received = parseFloat(document.getElementById('amountReceived').value) || 0;
+      const change = received - total;
+
+      if (received >= total) {
+        document.getElementById('changeDisplay').style.display = 'flex';
+        document.getElementById('changeAmount').textContent = `$${change.toLocaleString()}`;
+        document.getElementById('confirmPaymentBtn').disabled = false;
+      } else {
+        document.getElementById('changeDisplay').style.display = 'none';
+        document.getElementById('confirmPaymentBtn').disabled = true;
+      }
+    }
+
+    function confirmPayment() {
+      const received = parseFloat(document.getElementById('amountReceived').value) || 0;
+      const total = getTotal();
+      const change = received - total;
+
+      closePaymentModal();
+
+      // Mostrar detalles en success modal
+      let details = `<p><strong>Método:</strong> Efectivo</p>`;
+      details += `<p><strong>Recibido:</strong> $${received.toLocaleString()}</p>`;
+      details += `<p><strong>Vuelto:</strong> $${change.toLocaleString()}</p>`;
+
+      document.getElementById('paymentDetails').innerHTML = details;
+      document.getElementById('ticketNumber').textContent = `Ticket #${String(ticketCounter).padStart(4, '0')}`;
+      document.getElementById('successModal').classList.add('active');
+      ticketCounter++;
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('successModal').classList.remove('active');
+    }
+
+    function newSale() {
+      closeSuccessModal();
+      cart = [];
+      document.getElementById('paymentDetails').innerHTML = '';
+      renderCart();
+      showToast('Nueva venta iniciada', 'success');
+    }
+
+    // ==========================================
+    // EVENTOS
+    // ==========================================
+
+    // Categorías
+    document.querySelectorAll('.category-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderProducts(btn.dataset.category, document.getElementById('searchInput').value);
+      });
+    });
+
+    // Búsqueda
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      const activeCategory = document.querySelector('.category-btn.active').dataset.category;
+      renderProducts(activeCategory, e.target.value);
+    });
+
+    // Métodos de pago
+    document.querySelectorAll('.payment-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.payment-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedPaymentMethod = btn.dataset.method;
+      });
+    });
+
+    // Checkout
+    document.getElementById('checkoutBtn').addEventListener('click', () => {
+      if (selectedPaymentMethod === 'cash') {
+        openPaymentModal();
+      } else if (selectedPaymentMethod === 'debit' || selectedPaymentMethod === 'credit') {
+        openCardModal(selectedPaymentMethod);
+      } else if (selectedPaymentMethod === 'qr') {
+        openQrModal();
+      }
+    });
+
+    // ==========================================
+    // MODAL DE TARJETA
+    // ==========================================
+    let selectedCardType = 'debit';
+
+    function openCardModal(type) {
+      const total = getTotal();
+      document.getElementById('cardModalTotal').textContent = `$${total.toLocaleString()}`;
+      document.getElementById('couponNumber').value = '';
+      document.getElementById('lastDigits').value = '';
+      selectedCardType = type;
+
+      // Resetear selección
+      document.querySelectorAll('.card-type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+      });
+
+      // Mostrar/ocultar cuotas
+      document.getElementById('installmentsGroup').style.display = type === 'credit' ? 'block' : 'none';
+
+      document.getElementById('cardModal').classList.add('active');
+    }
+
+    function closeCardModal() {
+      document.getElementById('cardModal').classList.remove('active');
+    }
+
+    function selectCardType(type) {
+      selectedCardType = type;
+      document.querySelectorAll('.card-type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+      });
+      document.getElementById('installmentsGroup').style.display = type === 'credit' ? 'block' : 'none';
+    }
+
+    function confirmCardPayment() {
+      const coupon = document.getElementById('couponNumber').value;
+      const lastDigits = document.getElementById('lastDigits').value;
+      const installments = selectedCardType === 'credit' ? document.getElementById('installments').value : 1;
+
+      closeCardModal();
+
+      // Mostrar detalles en success modal
+      const total = getTotal();
+      let details = `<p><strong>Método:</strong> Tarjeta de ${selectedCardType === 'credit' ? 'Crédito' : 'Débito'}</p>`;
+      if (installments > 1) {
+        details += `<p><strong>Cuotas:</strong> ${installments}x $${Math.ceil(total / installments).toLocaleString()}</p>`;
+      }
+      if (coupon) details += `<p><strong>Cupón:</strong> ${coupon}</p>`;
+      if (lastDigits) details += `<p><strong>Tarjeta:</strong> ****${lastDigits}</p>`;
+
+      document.getElementById('paymentDetails').innerHTML = details;
+      document.getElementById('ticketNumber').textContent = `Ticket #${String(ticketCounter).padStart(4, '0')}`;
+      document.getElementById('successModal').classList.add('active');
+      ticketCounter++;
+    }
+
+    // ==========================================
+    // MODAL DE QR
+    // ==========================================
+    function openQrModal() {
+      const total = getTotal();
+      document.getElementById('qrModalTotal').textContent = `$${total.toLocaleString()}`;
+      document.getElementById('qrStatus').className = 'qr-status';
+      document.getElementById('qrStatus').innerHTML = '<span class="qr-status-icon">⏳</span><span>Esperando pago...</span>';
+      document.getElementById('qrModal').classList.add('active');
+    }
+
+    function closeQrModal() {
+      document.getElementById('qrModal').classList.remove('active');
+    }
+
+    function simulateQrPayment() {
+      const statusEl = document.getElementById('qrStatus');
+      statusEl.className = 'qr-status success';
+      statusEl.innerHTML = '<span class="qr-status-icon">✅</span><span>¡Pago recibido!</span>';
+
+      setTimeout(() => {
+        closeQrModal();
+        document.getElementById('paymentDetails').innerHTML = '<p><strong>Método:</strong> Pago QR</p><p><strong>Estado:</strong> Confirmado</p>';
+        document.getElementById('ticketNumber').textContent = `Ticket #${String(ticketCounter).padStart(4, '0')}`;
+        document.getElementById('successModal').classList.add('active');
+        ticketCounter++;
+      }, 1000);
+    }
+
+    // Enter en monto recibido
+    document.getElementById('amountReceived').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !document.getElementById('confirmPaymentBtn').disabled) {
+        confirmPayment();
+      }
+    });
+
+    // Toast notifications
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>✓</span><span>${message}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.remove();
+      }, 2000);
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // F2 - Focus search
+      if (e.key === 'F2') {
+        e.preventDefault();
+        document.getElementById('searchInput').focus();
+      }
+      // F4 - Clear cart
+      if (e.key === 'F4') {
+        e.preventDefault();
+        clearCart();
+      }
+      // F12 - Checkout
+      if (e.key === 'F12' && cart.length > 0) {
+        e.preventDefault();
+        document.getElementById('checkoutBtn').click();
+      }
+      // Escape - Close modals
+      if (e.key === 'Escape') {
+        closePaymentModal();
+        closeCardModal();
+        closeQrModal();
+        closeSuccessModal();
+      }
+    });
+
+    // ==========================================
+    // SELECTOR DE TEMAS
+    // ==========================================
+    const themes = {
+      modern: { name: 'Moderno', icon: '🔵' },
+      dark: { name: 'Oscuro', icon: '🌙' },
+      nature: { name: 'Natural', icon: '🌿' },
+      retail: { name: 'Retail', icon: '🟠' },
+      elegant: { name: 'Elegante', icon: '💜' }
+    };
+
+    function toggleThemeDropdown() {
+      const dropdown = document.getElementById('themeDropdown');
+      dropdown.classList.toggle('open');
+    }
+
+    function setTheme(themeName) {
+      // Cambiar tema en HTML
+      document.documentElement.setAttribute('data-theme', themeName);
+
+      // Actualizar botón
+      document.getElementById('currentThemeName').textContent = themes[themeName].name;
+      document.getElementById('currentThemeIcon').textContent = themes[themeName].icon;
+
+      // Actualizar opciones activas
+      document.querySelectorAll('.theme-option').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.theme === themeName);
+      });
+
+      // Cerrar dropdown
+      document.getElementById('themeDropdown').classList.remove('open');
+
+      // Guardar preferencia
+      localStorage.setItem('pos-theme', themeName);
+
+      // Mostrar toast
+      showToast(`Tema "${themes[themeName].name}" aplicado`, 'success');
+    }
+
+    // Cerrar dropdown al hacer clic fuera
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.theme-selector')) {
+        document.getElementById('themeDropdown').classList.remove('open');
+      }
+    });
+
+    // Cargar tema guardado
+    function loadSavedTheme() {
+      const savedTheme = localStorage.getItem('pos-theme') || 'modern';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      document.getElementById('currentThemeName').textContent = themes[savedTheme].name;
+      document.getElementById('currentThemeIcon').textContent = themes[savedTheme].icon;
+      document.querySelectorAll('.theme-option').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.theme === savedTheme);
+      });
+    }
+
+    // ==========================================
+    // INICIALIZACIÓN
+    // ==========================================
+    loadSavedTheme();
+    renderProducts();
+  </script>
+</body>
+</html>

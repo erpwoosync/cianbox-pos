@@ -1,0 +1,231 @@
+/**
+ * Cianbox POS - Backend API
+ * Servidor Express con autenticación JWT y multi-tenant
+ */
+
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import dotenv from 'dotenv';
+
+// Cargar variables de entorno
+dotenv.config();
+
+// Importar rutas
+import authRoutes from './routes/auth.js';
+import productsRoutes from './routes/products.js';
+import salesRoutes from './routes/sales.js';
+import promotionsRoutes from './routes/promotions.js';
+import cianboxRoutes from './routes/cianbox.js';
+import agencyRoutes from './routes/agency.js';
+
+// Importar utilidades
+import { ApiError } from './utils/errors.js';
+
+// Configuración
+const PORT = process.env.PORT || 3000;
+const CORS_ORIGINS = process.env.CORS_ORIGINS?.split(',') || [
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+// Crear aplicación Express
+const app = express();
+const httpServer = createServer(app);
+
+// Configurar Socket.IO para tiempo real
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: CORS_ORIGINS,
+    methods: ['GET', 'POST'],
+  },
+});
+
+// Middleware de seguridad
+app.use(helmet());
+
+// Configurar CORS
+app.use(
+  cors({
+    origin: CORS_ORIGINS,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+// Parsear JSON
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Agregar io a request para uso en rutas
+app.use((req: Request & { io?: SocketIOServer }, _res, next) => {
+  req.io = io;
+  next();
+});
+
+// Logging de requests en desarrollo
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, _res, next) => {
+    console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+    next();
+  });
+}
+
+// Health check
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+  });
+});
+
+// Montar rutas API
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productsRoutes);
+app.use('/api/sales', salesRoutes);
+app.use('/api/promotions', promotionsRoutes);
+app.use('/api/cianbox', cianboxRoutes);
+app.use('/api/agency', agencyRoutes); // Super admin / gestión de DB servers
+
+// Ruta 404
+app.use((_req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: 'Ruta no encontrada',
+    },
+  });
+});
+
+// Manejador global de errores
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Error:', err);
+
+  // Error conocido de la API
+  if (err instanceof ApiError) {
+    return res.status(err.statusCode).json(err.toJSON());
+  }
+
+  // Error de Prisma
+  if (err.name === 'PrismaClientKnownRequestError') {
+    const prismaError = err as unknown as { code: string; meta?: { target?: string[] } };
+
+    if (prismaError.code === 'P2002') {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'DUPLICATE_ENTRY',
+          message: 'Ya existe un registro con esos datos',
+          details: prismaError.meta?.target,
+        },
+      });
+    }
+
+    if (prismaError.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Registro no encontrado',
+        },
+      });
+    }
+  }
+
+  // Error de validación de Zod
+  if (err.name === 'ZodError') {
+    return res.status(422).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Error de validación',
+        details: err,
+      },
+    });
+  }
+
+  // Error genérico
+  const statusCode = 500;
+  const message =
+    process.env.NODE_ENV === 'development'
+      ? err.message
+      : 'Error interno del servidor';
+
+  res.status(statusCode).json({
+    success: false,
+    error: {
+      code: 'INTERNAL_ERROR',
+      message,
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    },
+  });
+});
+
+// Configurar Socket.IO
+io.on('connection', (socket) => {
+  console.log(`Socket conectado: ${socket.id}`);
+
+  // Unirse a sala del tenant
+  socket.on('join:tenant', (tenantId: string) => {
+    socket.join(`tenant:${tenantId}`);
+    console.log(`Socket ${socket.id} unido a tenant:${tenantId}`);
+  });
+
+  // Unirse a sala de punto de venta
+  socket.on('join:pos', (posId: string) => {
+    socket.join(`pos:${posId}`);
+    console.log(`Socket ${socket.id} unido a pos:${posId}`);
+  });
+
+  // Notificar nueva venta
+  socket.on('sale:created', (data: { tenantId: string; sale: unknown }) => {
+    io.to(`tenant:${data.tenantId}`).emit('sale:new', data.sale);
+  });
+
+  // Notificar actualización de stock
+  socket.on('stock:updated', (data: { tenantId: string; product: unknown }) => {
+    io.to(`tenant:${data.tenantId}`).emit('stock:change', data.product);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`Socket desconectado: ${socket.id}`);
+  });
+});
+
+// Iniciar servidor
+httpServer.listen(PORT, () => {
+  console.log(`
+╔════════════════════════════════════════════════════════╗
+║                                                        ║
+║   🛒 Cianbox POS Backend                               ║
+║                                                        ║
+║   Servidor corriendo en: http://localhost:${PORT}        ║
+║   Entorno: ${process.env.NODE_ENV || 'development'}                             ║
+║                                                        ║
+╚════════════════════════════════════════════════════════╝
+  `);
+});
+
+// Manejo de señales de cierre
+process.on('SIGTERM', () => {
+  console.log('SIGTERM recibido. Cerrando servidor...');
+  httpServer.close(() => {
+    console.log('Servidor cerrado');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT recibido. Cerrando servidor...');
+  httpServer.close(() => {
+    console.log('Servidor cerrado');
+    process.exit(0);
+  });
+});
+
+export { app, httpServer, io };

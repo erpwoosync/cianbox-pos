@@ -1,0 +1,865 @@
+// Warehouse Picking - Multi-tenant Schema
+// =========================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// NIVEL AGENCIA (Global - Super Admins)
+// ============================================
+
+model AgencyUser {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  passwordHash String
+  name         String
+  avatar       String?
+  status       AgencyUserStatus @default(ACTIVE)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  // Relaciones
+  orderEvents  OrderEvent[]
+
+  @@map("agency_users")
+}
+
+enum AgencyUserStatus {
+  ACTIVE
+  DISABLED
+}
+
+// Configuración global de la agencia (singleton - solo 1 registro)
+model AgencySettings {
+  id                    String   @id @default("default")
+  // Branding por aplicación
+  backofficeAppName     String   @default("PickFlow")
+  operariosAppName      String   @default("PickFlow")
+  meliPickingAppName    String   @default("PickFlow MELI")
+  logo                  String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("agency_settings")
+}
+
+// ============================================
+// NIVEL PLATAFORMA (Multi-tenant)
+// ============================================
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  plan      Plan     @default(FREE)
+  status    TenantStatus @default(TRIAL)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Branding - marca blanca por aplicación (opcional, override de AgencySettings)
+  backofficeAppName     String?
+  operariosAppName      String?
+  meliPickingAppName    String?
+
+  // Configuracion picking MELI
+  meliRequireTableOnStart    Boolean @default(false)
+  meliRequireTableOnEnd      Boolean @default(false)
+  meliEnableTableControl     Boolean @default(false)
+
+  // Relaciones
+  users             User[]
+  roles             Role[]
+  cianboxConnection CianboxConnection?
+  warehouses        Warehouse[]
+  orderStatuses     OrderStatus[]
+  categories        Category[]
+  brands            Brand[]
+  products          Product[]
+  orders            Order[]
+  pickingSessions   PickingSession[]
+  orderEvents       OrderEvent[]
+  meliSales         MeliSale[]
+  messages              Message[]
+  authorizationRequests AuthorizationRequest[]
+  notifications         Notification[]
+
+  @@map("tenants")
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  tenantId     String
+  email        String
+  passwordHash String
+  name         String
+  avatar       String?
+  status       UserStatus @default(ACTIVE)
+  roleId       String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Campos para estrategias de asignación
+  zone         String?    // Zona de trabajo (A, B, C, etc.)
+  skills       String[]   @default([]) // Habilidades: ["fragil", "pesado", "refrigerado"]
+  maxOrders    Int        @default(5)  // Máximo de pedidos simultáneos
+  lastAssignedAt DateTime? // Última vez que se le asignó un pedido (para round-robin)
+
+  // Relaciones
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role            Role             @relation(fields: [roleId], references: [id])
+  assignedOrders  Order[]          @relation("AssignedUser")
+  pickingSessions PickingSession[]
+  controlSessions ControlSession[]
+  pickingLogs     PickingLog[]
+  controlLogs     ControlLog[]
+  orderEvents     OrderEvent[]
+  assignedMeliSales MeliSale[]     @relation("MeliSaleAssignedUser")
+
+  @@unique([tenantId, email])
+  @@index([tenantId, zone])
+  @@map("users")
+
+  // Relación con sesiones
+  sessions        UserSession[]
+
+  // Relaciones de mensajería
+  sentMessages      Message[]              @relation("SentMessages")
+  receivedMessages  Message[]              @relation("ReceivedMessages")
+  requestedAuths    AuthorizationRequest[] @relation("RequestedAuths")
+  approvedAuths     AuthorizationRequest[] @relation("ApprovedAuths")
+  notifications     Notification[]
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false) // admin, supervisor, operario
+  permissions String[] // Array de códigos de permisos
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+// ============================================
+// SESIONES DE USUARIO (Tracking de login/logout)
+// ============================================
+
+model UserSession {
+  id           String           @id @default(cuid())
+  tenantId     String
+  userId       String
+  deviceInfo   String?          // Navegador, SO, dispositivo
+  ipAddress    String?
+  status       SessionStatus    @default(ACTIVE)
+  loginAt      DateTime         @default(now())
+  logoutAt     DateTime?
+  lastActivityAt DateTime       @default(now())
+  durationMinutes Int?          // Duración total en minutos (calculado al cerrar)
+
+  // Relaciones
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([tenantId, status])
+  @@index([tenantId, loginAt])
+  @@map("user_sessions")
+}
+
+enum SessionStatus {
+  ACTIVE        // Sesión activa
+  CLOSED        // Cerrada por logout
+  EXPIRED       // Expirada por inactividad
+  FORCED_CLOSE  // Cerrada forzosamente (otra sesión abierta)
+}
+
+// ============================================
+// NIVEL CUENTA/TENANT
+// ============================================
+
+model CianboxConnection {
+  id           String   @id @default(cuid())
+  tenantId     String   @unique
+  cuenta       String
+  appName      String
+  appCode      String
+  user         String
+  password     String   // Encriptado
+  proxyUrl     String?
+  syncPageSize Int      @default(20) // Productos por página en sync (max 200)
+  isActive     Boolean  @default(true)
+  lastSync     DateTime?
+  syncStatus   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("cianbox_connections")
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  address   String?
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tables Table[]
+
+  @@unique([tenantId, name])
+  @@map("warehouses")
+}
+
+model Table {
+  id          String      @id @default(cuid())
+  warehouseId String
+  code        String      // TBL-001
+  zone        String?
+  status      TableStatus @default(AVAILABLE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relaciones
+  warehouse       Warehouse        @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  orders          Order[]
+  pickingSessions PickingSession[]
+  meliSales       MeliSale[]
+
+  @@unique([warehouseId, code])
+  @@map("tables")
+}
+
+enum TableStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+}
+
+model OrderStatus {
+  id              String   @id @default(cuid())
+  tenantId        String
+  name            String
+  color           String   @default("#6B7280")
+  icon            String?
+  cianboxStatusId Int?     // Mapeo a estado de Cianbox
+  isActive        Boolean  @default(true)  // Vigente en Cianbox
+  isInitial       Boolean  @default(false)
+  isFinal         Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relaciones
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([tenantId, name])
+  @@map("order_statuses")
+}
+
+// ============================================
+// CATÁLOGO DE PRODUCTOS
+// ============================================
+
+model Category {
+  id               String    @id @default(cuid())
+  tenantId         String
+  cianboxCategoryId Int      // ID en Cianbox
+  name             String
+  parentId         String?   // Categoría padre (jerarquía)
+  isActive         Boolean   @default(true)
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relaciones
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@unique([tenantId, cianboxCategoryId])
+  @@index([tenantId, parentId])
+  @@map("categories")
+}
+
+model Brand {
+  id             String    @id @default(cuid())
+  tenantId       String
+  cianboxBrandId Int       // ID en Cianbox
+  name           String
+  isActive       Boolean   @default(true)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relaciones
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([tenantId, cianboxBrandId])
+  @@map("brands")
+}
+
+model Product {
+  id               String    @id @default(cuid())
+  tenantId         String
+  cianboxProductId Int?      // ID en Cianbox
+  sku              String?   // Código interno (puede ser null si no existe en Cianbox)
+  name             String
+  description      String?
+  ean              String?
+  location         String?   // Ubicación como texto libre (R1-F1-C1)
+  imageUrl         String?
+  stock            Int?      // Stock disponible
+  price            Decimal?  @db.Decimal(12, 2)
+  categoryId       String?   // Relación con Category local
+  brandId          String?   // Relación con Brand local
+  isActive         Boolean   @default(true)
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relaciones
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category   Category?   @relation(fields: [categoryId], references: [id])
+  brand      Brand?      @relation(fields: [brandId], references: [id])
+  orderItems OrderItem[]
+  meliSales  MeliSale[]
+
+  @@unique([tenantId, sku])
+  @@unique([tenantId, cianboxProductId])
+  @@index([tenantId, ean])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, brandId])
+  @@map("products")
+}
+
+model Order {
+  id             String        @id @default(cuid())
+  tenantId       String
+  cianboxOrderId Int?          // ID en Cianbox
+  orderNumber    String?       @map("order_number") // Número de pedido (ej: 00000093)
+  externalId     String?       // ID de ML, ecommerce, etc.
+  clientName     String
+  clientAddress  String?
+  channel        OrderChannel  @default(DIRECTO)
+  priority       OrderPriority @default(MEDIA)
+  slaDate        DateTime?
+  statusId       String
+  assignedUserId String?
+  linkedTableId  String?
+  notes          String?
+  metadata         Json          @default("{}")
+  skippedByUserIds String[]      @default([])  // Usuarios que saltaron este pedido sin pickear
+  syncedAt         DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // Relaciones
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  status          OrderStatus      @relation(fields: [statusId], references: [id])
+  assignedUser    User?            @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  linkedTable     Table?           @relation(fields: [linkedTableId], references: [id])
+  items           OrderItem[]
+  pickingSessions PickingSession[]
+  events          OrderEvent[]
+  messages              Message[]
+  authorizationRequests AuthorizationRequest[]
+
+  @@unique([tenantId, cianboxOrderId])
+  @@index([tenantId, statusId])
+  @@index([tenantId, assignedUserId])
+  @@map("orders")
+}
+
+enum OrderChannel {
+  ECOMMERCE
+  ML
+  DIRECTO
+  B2B
+}
+
+enum OrderPriority {
+  ALTA
+  MEDIA
+  BAJA
+}
+
+model OrderItem {
+  id               String         @id @default(cuid())
+  orderId          String
+  productId        String?
+  cianboxItemId    Int?
+  sku              String?        // Puede ser null si el producto no tiene código interno
+  name             String
+  ean              String?
+  location         String?        // Override de ubicación
+  quantityRequired Int
+  quantityPicked   Int            @default(0)
+  status           OrderItemStatus @default(PENDIENTE)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  // Relaciones
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product?     @relation(fields: [productId], references: [id])
+  pickingLogs PickingLog[]
+  controlLogs ControlLog[]
+  events      OrderEvent[]
+
+  @@map("order_items")
+}
+
+enum OrderItemStatus {
+  PENDIENTE
+  EN_PROGRESO
+  COMPLETADA
+  EXCEPCION
+}
+
+// ============================================
+// SESIONES Y AUDITORÍA
+// ============================================
+
+model PickingSession {
+  id         String               @id @default(cuid())
+  tenantId   String
+  orderId    String
+  userId     String
+  tableId    String?
+  status     PickingSessionStatus @default(ACTIVE)
+  startedAt  DateTime             @default(now())
+  finishedAt DateTime?
+  notes      String?
+
+  // Relaciones
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id])
+  table          Table?          @relation(fields: [tableId], references: [id])
+  logs           PickingLog[]
+  controlSession ControlSession?
+
+  @@map("picking_sessions")
+}
+
+enum PickingSessionStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model PickingLog {
+  id              String           @id @default(cuid())
+  sessionId       String
+  orderItemId     String?
+  userId          String
+  action          PickingLogAction
+  scannedValue    String?
+  expectedValue   String?
+  quantityBefore  Int?
+  quantityAfter   Int?
+  notes           String?
+  createdAt       DateTime         @default(now())
+
+  // Relaciones
+  session   PickingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  orderItem OrderItem?     @relation(fields: [orderItemId], references: [id])
+  user      User           @relation(fields: [userId], references: [id])
+
+  @@map("picking_logs")
+}
+
+enum PickingLogAction {
+  SESSION_START
+  SESSION_END
+  TABLE_LINKED
+  SCAN_OK
+  SCAN_FAIL
+  QTY_ADJUST
+  ITEM_COMPLETE
+  EXCEPTION
+}
+
+model ControlSession {
+  id               String               @id @default(cuid())
+  pickingSessionId String               @unique
+  userId           String
+  status           ControlSessionStatus @default(ACTIVE)
+  startedAt        DateTime             @default(now())
+  finishedAt       DateTime?
+  notes            String?
+
+  // Relaciones
+  pickingSession PickingSession @relation(fields: [pickingSessionId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id])
+  logs           ControlLog[]
+
+  @@map("control_sessions")
+}
+
+enum ControlSessionStatus {
+  ACTIVE
+  COMPLETED
+  WITH_EXCEPTIONS
+}
+
+model ControlLog {
+  id               String           @id @default(cuid())
+  controlSessionId String
+  orderItemId      String?
+  userId           String
+  action           ControlLogAction
+  quantityVerified Int?
+  notes            String?
+  createdAt        DateTime         @default(now())
+
+  // Relaciones
+  controlSession ControlSession @relation(fields: [controlSessionId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem?     @relation(fields: [orderItemId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
+
+  @@map("control_logs")
+}
+
+enum ControlLogAction {
+  SESSION_START
+  SESSION_END
+  VERIFIED
+  EXCEPTION
+  BYPASS
+}
+
+// ============================================
+// EVENTOS Y TIMELINE (Para KPIs y auditoría)
+// ============================================
+
+model OrderEvent {
+  id          String         @id @default(cuid())
+  tenantId    String
+  orderId     String
+  orderItemId String?
+  userId      String?        // Puede ser null si es AgencyUser
+  agencyUserId String?       // Si el evento fue por un AgencyUser
+  eventType   OrderEventType
+  eventData   Json           @default("{}")  // Datos adicionales del evento
+  createdAt   DateTime       @default(now())
+
+  // Relaciones
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem?  @relation(fields: [orderItemId], references: [id])
+  user      User?       @relation(fields: [userId], references: [id])
+  agencyUser AgencyUser? @relation(fields: [agencyUserId], references: [id])
+
+  @@index([tenantId, orderId])
+  @@index([tenantId, userId])
+  @@index([tenantId, createdAt])
+  @@map("order_events")
+}
+
+// ============================================
+// VENTAS MERCADOLIBRE (Separado de Orders)
+// ============================================
+
+model MeliSale {
+  id                String          @id @default(cuid())
+  tenantId          String
+
+  // IDs de MercadoLibre
+  cianboxMeliId     Int             // ID interno en Cianbox
+  idVentaMl         String?         // ID de venta en ML
+  idEnvioMl         String?         // ID de envío en ML
+  idPackMl          String?         // ID de pack en ML
+  idPublicacionMl   String?         // ID de publicación en ML
+
+  // Datos del comprador
+  compradorNombre   String          // razon
+  compradorEmail    String?
+  compradorTelefono String?
+
+  // Dirección de envío
+  direccion         String?
+  localidad         String?
+  provincia         String?
+  codigoPostal      String?
+
+  // Fechas
+  fechaCreacion     DateTime
+  fechaCierre       DateTime?
+  fechaVencimiento  DateTime?
+
+  // Datos de la venta
+  cantidad          Int             @default(1)
+  precioUnitario    Decimal         @db.Decimal(12, 2)
+  total             Decimal         @db.Decimal(12, 2)
+  comision          Decimal?        @db.Decimal(12, 2)
+  impuesto          Decimal?        @db.Decimal(12, 2)
+  costoEnvio        Decimal?        @db.Decimal(12, 2)
+
+  // Estado de la venta
+  cobrado           Boolean         @default(false)
+  despachado        Boolean         @default(false)
+  recibido          Boolean         @default(false)
+  completado        Boolean         @default(false)
+  cancelada         Boolean         @default(false)
+  vigente           Boolean         @default(true)
+
+  // Logística
+  logistica         MeliLogistica   @default(ME2)
+  trackingNumber    String?
+
+  // Datos de cuenta ML
+  cuentaMlId        String?         // ID de cuenta de ML
+  cuentaMlNombre    String?         // Nombre de cuenta ML
+
+  // Producto (detalle simple - desnormalizado de ML)
+  productoTitulo    String?
+  productoSku       String?
+  productoVariante  String?
+
+  // Relación con producto del catálogo
+  productId         String?         // Vinculación con producto local
+  cianboxProductId  Int?            // ID producto en Cianbox (extraído de productoVariante)
+
+  // Campos para picking
+  pickingStatus      String?        @default("PENDIENTE") // PENDIENTE, EN_PROGRESO, COMPLETADA, EXCEPCION
+  assignedUserId     String?
+  quantityPicked     Int            @default(0)
+  pickingStartedAt   DateTime?
+  pickingCompletedAt DateTime?
+  linkedTableId      String?
+
+  // Metadata adicional
+  metadata          Json            @default("{}")
+
+  // Sync
+  lastSyncedAt      DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relaciones
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product           Product?        @relation(fields: [productId], references: [id])
+  assignedUser      User?           @relation("MeliSaleAssignedUser", fields: [assignedUserId], references: [id])
+  linkedTable       Table?          @relation(fields: [linkedTableId], references: [id])
+
+  @@unique([tenantId, cianboxMeliId])
+  @@index([tenantId, productId])
+  @@index([tenantId, cianboxProductId])
+  @@index([tenantId, fechaCreacion])
+  // Índice optimizado para endpoint /available (ventas pendientes de picking)
+  @@index([tenantId, cobrado, despachado, cancelada, vigente, pickingStatus, assignedUserId])
+  // Índice optimizado para endpoint /my-sales
+  @@index([tenantId, assignedUserId, despachado, cancelada])
+  @@map("meli_sales")
+}
+
+enum MeliLogistica {
+  ME2           // Mercado Envíos Full
+  ME1           // Mercado Envíos
+  CROSS_DOCKING // Cross Docking
+  DROP_OFF      // Drop Off
+  CUSTOM        // Envío personalizado
+}
+
+enum OrderEventType {
+  // Picking
+  PICKING_STARTED       // Usuario inició picking del pedido
+  PICKING_ITEM_SCANNED  // Item escaneado correctamente
+  PICKING_ITEM_COMPLETED // Item completado
+  PICKING_ITEM_EXCEPTION // Item marcado con excepción
+  PICKING_PAUSED        // Picking pausado
+  PICKING_RESUMED       // Picking retomado
+  PICKING_COMPLETED     // Picking finalizado
+
+  // Control
+  CONTROL_STARTED       // Control iniciado
+  CONTROL_ITEM_VERIFIED // Item verificado en control
+  CONTROL_ITEM_EXCEPTION // Excepción en control
+  CONTROL_COMPLETED     // Control finalizado
+
+  // Mesa
+  TABLE_LINKED          // Mesa vinculada al pedido
+  TABLE_UNLINKED        // Mesa desvinculada
+
+  // Estados
+  STATUS_CHANGED        // Cambio de estado del pedido
+  ORDER_ASSIGNED        // Pedido asignado a usuario
+  ORDER_UNASSIGNED      // Pedido desasignado
+
+  // Admin
+  PICKING_RESET         // Picking reiniciado por admin
+}
+
+// ============================================
+// MENSAJERÍA INTERNA
+// ============================================
+
+model Message {
+  id            String          @id @default(cuid())
+  tenantId      String
+  senderId      String
+  recipientId   String?         // null = broadcast a rol
+  recipientRole String?         // 'OPERARIO', 'SUPERVISOR', 'ALL'
+  orderId       String?         // Contexto opcional
+  type          MessageType     @default(DIRECT)
+  subject       String?
+  content       String
+  priority      MessagePriority @default(NORMAL)
+  isRead        Boolean         @default(false)
+  readAt        DateTime?
+  createdAt     DateTime        @default(now())
+
+  // Relaciones
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sender    User   @relation("SentMessages", fields: [senderId], references: [id])
+  recipient User?  @relation("ReceivedMessages", fields: [recipientId], references: [id])
+  order     Order? @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId, recipientId, isRead])
+  @@index([tenantId, createdAt])
+  @@map("messages")
+}
+
+enum MessageType {
+  DIRECT      // 1 a 1
+  BROADCAST   // A todos de un rol
+  ORDER_CHAT  // Chat sobre pedido específico
+  SYSTEM      // Sistema automático
+}
+
+enum MessagePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// ============================================
+// SOLICITUDES DE AUTORIZACIÓN
+// ============================================
+
+model AuthorizationRequest {
+  id              String              @id @default(cuid())
+  tenantId        String
+  requesterId     String
+  approverId      String?
+  orderId         String?
+  orderItemId     String?
+  type            AuthorizationType
+  title           String
+  description     String
+  imageUrl        String?
+  status          AuthorizationStatus @default(PENDING)
+  responseMessage String?
+  requestedAt     DateTime            @default(now())
+  respondedAt     DateTime?
+  expiresAt       DateTime?
+
+  // Relaciones
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester User   @relation("RequestedAuths", fields: [requesterId], references: [id])
+  approver  User?  @relation("ApprovedAuths", fields: [approverId], references: [id])
+  order     Order? @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, requesterId])
+  @@map("authorization_requests")
+}
+
+enum AuthorizationType {
+  QUANTITY_MISMATCH    // Cantidad no coincide
+  STOCK_UNAVAILABLE    // Sin stock
+  PRODUCT_DAMAGED      // Producto dañado
+  WRONG_PRODUCT        // Producto equivocado
+  PRICE_OVERRIDE       // Cambio de precio
+  SPECIAL_HANDLING     // Manejo especial
+  OTHER                // Otro
+}
+
+enum AuthorizationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+// ============================================
+// NOTIFICACIONES
+// ============================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  tenantId  String
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  data      Json             @default("{}")
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  // Relaciones
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, userId, isRead])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  MESSAGE_RECEIVED
+  AUTH_REQUEST_RECEIVED
+  AUTH_REQUEST_APPROVED
+  AUTH_REQUEST_REJECTED
+  ORDER_ASSIGNED
+  ORDER_REASSIGNED
+  ORDER_CANCELLED
+  SYSTEM_ALERT
+}
