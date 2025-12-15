@@ -1,0 +1,63 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Backend API
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./apps/backend
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: ./apps/backend
+        run: npx prisma generate
+
+      - name: Build
+        working-directory: ./apps/backend
+        run: npm run build
+
+      - name: Deploy to server
+        run: |
+          # Copy built files to deployment directory
+          sudo rsync -av --delete \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            ./apps/backend/ /var/www/cianbox-pos/apps/backend/
+
+          # Install production dependencies
+          cd /var/www/cianbox-pos/apps/backend
+          sudo npm ci --omit=dev
+
+          # Generate Prisma client in production
+          sudo npx prisma generate
+
+          # Run database migrations (if any)
+          sudo npx prisma db push --skip-generate
+
+          # Restart PM2 process
+          sudo pm2 restart cianbox-pos-api || sudo pm2 start ecosystem.config.cjs
+          sudo pm2 save
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl -f http://localhost:3001/health || exit 1
+          echo "Backend deployed successfully!"

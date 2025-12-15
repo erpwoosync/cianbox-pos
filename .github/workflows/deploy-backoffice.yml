@@ -1,0 +1,52 @@
+name: Deploy Client Backoffice
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/backoffice/**'
+      - '.github/workflows/deploy-backoffice.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Client Backoffice
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./apps/backoffice
+        run: npm ci
+
+      - name: Build
+        working-directory: ./apps/backoffice
+        env:
+          VITE_API_URL: /api
+        run: npm run build
+
+      - name: Deploy
+        run: |
+          sudo mkdir -p /var/www/cianbox-pos/apps/backoffice/dist
+          sudo rsync -av --delete \
+            ./apps/backoffice/dist/ /var/www/cianbox-pos/apps/backoffice/dist/
+
+      - name: Configure nginx
+        run: |
+          if [ ! -f /etc/nginx/sites-available/cianbox-pos-backoffice ]; then
+            sudo cp ./deploy/nginx-backoffice.conf /etc/nginx/sites-available/cianbox-pos-backoffice 2>/dev/null || true
+            sudo ln -sf /etc/nginx/sites-available/cianbox-pos-backoffice /etc/nginx/sites-enabled/ 2>/dev/null || true
+            sudo nginx -t && sudo systemctl reload nginx 2>/dev/null || true
+          fi
+
+      - name: Deployment complete
+        run: |
+          echo "Client Backoffice deployed successfully!"
+          echo "Available at http://172.16.1.61:8082"

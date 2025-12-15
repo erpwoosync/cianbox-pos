@@ -1,0 +1,44 @@
+name: Deploy POS Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/frontend/**'
+      - '.github/workflows/deploy-pos.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy POS Frontend
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./apps/frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: ./apps/frontend
+        env:
+          VITE_API_URL: /api
+        run: npm run build
+
+      - name: Deploy
+        run: |
+          sudo mkdir -p /var/www/cianbox-pos/apps/frontend/dist
+          sudo rsync -av --delete \
+            ./apps/frontend/dist/ /var/www/cianbox-pos/apps/frontend/dist/
+
+      - name: Deployment complete
+        run: |
+          echo "POS Frontend deployed successfully!"
+          echo "Available at http://172.16.1.61"
