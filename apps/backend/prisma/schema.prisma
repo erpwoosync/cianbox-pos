@@ -459,7 +459,6 @@ model Product {
   promotionProducts PromotionProduct[]
   comboItems       ComboItem[]
 
-  @@unique([tenantId, sku])
   @@unique([tenantId, cianboxProductId])
   @@index([tenantId, barcode])
   @@index([tenantId, categoryId])
@@ -574,7 +573,7 @@ model Customer {
   sales     Sale[]
 
   @@unique([tenantId, cianboxCustomerId])
-  @@unique([tenantId, taxId])
+  @@index([tenantId, taxId])
   @@index([tenantId, name])
   @@index([tenantId, email])
   @@map("customers")
