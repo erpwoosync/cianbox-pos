@@ -140,7 +140,8 @@ export class CianboxService {
 
   constructor(connection: CianboxConnection) {
     this.connection = connection;
-    this.baseUrl = `https://${connection.cuenta}.cianbox.org/api/v2`;
+    // URL formato: https://cianbox.org/{empresa}/api/v2
+    this.baseUrl = `https://cianbox.org/${connection.cuenta}/api/v2`;
   }
 
   /**
@@ -182,8 +183,8 @@ export class CianboxService {
       };
     }
 
-    // Construir URL de la API
-    const baseUrl = `https://${connection.cuenta}/api/v2`;
+    // Construir URL de la API: https://cianbox.org/{empresa}/api/v2
+    const baseUrl = `https://cianbox.org/${connection.cuenta}/api/v2`;
 
     try {
       const response = await fetch(`${baseUrl}/auth/credentials`, {

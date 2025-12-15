@@ -443,24 +443,24 @@ export default function TenantDetail() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Cuenta Cianbox
+                      Empresa Cianbox <span className="text-red-500">*</span>
                     </label>
                     <div className="flex">
                       <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-sm">
-                        https://
+                        https://cianbox.org/
                       </span>
                       <input
                         type="text"
                         value={cianboxForm.cuenta}
                         onChange={(e) =>
-                          setCianboxForm({ ...cianboxForm, cuenta: e.target.value })
+                          setCianboxForm({ ...cianboxForm, cuenta: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })
                         }
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                        placeholder="mitienda.cianbox.com"
+                        placeholder="miempresa"
                       />
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Subdominio de tu cuenta en Cianbox
+                      Nombre de tu empresa en Cianbox (sin espacios ni caracteres especiales)
                     </p>
                   </div>
 
