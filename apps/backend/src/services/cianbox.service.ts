@@ -22,12 +22,9 @@ interface CianboxAuthResponse {
 interface CianboxPaginatedResponse<T> {
   status: string;
   body: T[];
-  paging?: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
+  // Paginación de Cianbox viene en la raíz de la respuesta
+  page?: number;
+  total_pages?: number;
 }
 
 // Campos reales de la API de Cianbox para productos
@@ -123,30 +120,33 @@ interface CianboxBranch {
   vigente: boolean;    // isActive
 }
 
+// Campos reales de la API de Cianbox para clientes
 interface CianboxCustomer {
   id: number;
-  customerType: string;
-  taxId: string;
-  taxIdType: string;
-  taxCategory: string;
-  name: string;
-  tradeName: string;
-  firstName: string;
-  lastName: string;
+  updated: string;
+  razon: string;              // nombre del cliente
+  condicion: string;          // condición fiscal (CF, RI, etc.)
+  tipo_documento: string;     // DNI, CUIT, etc.
+  numero_documento: string;   // número de documento
+  domicilio: string;          // dirección
+  id_localidad: number;
+  localidad: string;          // ciudad
+  provincia: string;          // estado
+  telefono: string;
+  celular: string;
   email: string;
-  phone: string;
-  mobile: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-  priceListId: number;
-  creditLimit: number;
-  creditBalance: number;
-  paymentTermDays: number;
-  globalDiscount: number;
-  isActive: boolean;
+  ctacte: boolean;            // tiene cuenta corriente
+  plazo: number;              // plazo de pago en días
+  limite: number;             // límite de crédito
+  saldo: number;              // saldo cuenta corriente
+  descuento: number;          // descuento global
+  listas_precio: number[];    // IDs de listas de precio
+  observaciones: string;
+  usuarios: object[];
+  id_categoria: number;
+  vendedor: string;
+  estado: string;
+  vigente: boolean;           // isActive
 }
 
 /**
@@ -597,15 +597,15 @@ export class CianboxService {
         `${endpoint}?page=${page}&limit=${limit}`
       );
 
-      console.log(`[Cianbox] Response status: ${response.status}, items: ${response.body?.length || 0}`);
+      console.log(`[Cianbox] Response status: ${response.status}, items: ${response.body?.length || 0}, page: ${response.page || 1}/${response.total_pages || 1}`);
 
       if (response.body && Array.isArray(response.body)) {
         allData.push(...response.body);
       }
 
-      // Si hay paginación, verificar si hay más páginas
-      if (response.paging) {
-        hasMore = page < response.paging.pages;
+      // Verificar si hay más páginas usando total_pages de Cianbox
+      if (response.total_pages && response.total_pages > 1) {
+        hasMore = page < response.total_pages;
       } else {
         // Si no hay paginación, asumir que vino todo en una página
         hasMore = false;
@@ -1061,23 +1061,52 @@ export class CianboxService {
 
   /**
    * Sincroniza clientes desde Cianbox
+   * API devuelve: { id, razon, condicion, tipo_documento, numero_documento, etc. }
    */
   async syncCustomers(tenantId: string): Promise<number> {
     const customers = await this.getCustomers();
     let synced = 0;
 
+    console.log(`[Cianbox] Sincronizando ${customers.length} clientes`);
+
     for (const customer of customers) {
-      // Buscar lista de precios asignada
+      // Buscar primera lista de precios asignada
       let priceListId: string | null = null;
-      if (customer.priceListId) {
+      if (customer.listas_precio && customer.listas_precio.length > 0) {
         const priceList = await prisma.priceList.findFirst({
           where: {
             tenantId,
-            cianboxPriceListId: customer.priceListId,
+            cianboxPriceListId: customer.listas_precio[0],
           },
         });
         priceListId = priceList?.id || null;
       }
+
+      // Mapear condición fiscal a tipo de cliente
+      const customerType = this.mapCondicionToCustomerType(customer.condicion);
+
+      // Mapear campos de Cianbox a nuestro modelo
+      const customerData = {
+        customerType,
+        taxId: customer.numero_documento || null,
+        taxIdType: customer.tipo_documento || null,
+        taxCategory: customer.condicion || null,
+        name: customer.razon || `Cliente ${customer.id}`,
+        email: customer.email || null,
+        phone: customer.telefono || null,
+        mobile: customer.celular || null,
+        address: customer.domicilio || null,
+        city: customer.localidad || null,
+        state: customer.provincia || null,
+        priceListId,
+        creditLimit: customer.limite || 0,
+        creditBalance: customer.saldo || 0,
+        paymentTermDays: customer.plazo || 0,
+        globalDiscount: customer.descuento || 0,
+        isActive: customer.vigente ?? true,
+        lastSyncedAt: new Date(),
+        cianboxData: customer as unknown as object,
+      };
 
       await prisma.customer.upsert({
         where: {
@@ -1086,59 +1115,11 @@ export class CianboxService {
             cianboxCustomerId: customer.id,
           },
         },
-        update: {
-          customerType: customer.customerType as 'CONSUMER' | 'INDIVIDUAL' | 'BUSINESS' | 'GOVERNMENT' | 'RESELLER',
-          taxId: customer.taxId,
-          taxIdType: customer.taxIdType,
-          taxCategory: customer.taxCategory,
-          name: customer.name,
-          tradeName: customer.tradeName,
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          email: customer.email,
-          phone: customer.phone,
-          mobile: customer.mobile,
-          address: customer.address,
-          city: customer.city,
-          state: customer.state,
-          zipCode: customer.zipCode,
-          country: customer.country,
-          priceListId,
-          creditLimit: customer.creditLimit,
-          creditBalance: customer.creditBalance,
-          paymentTermDays: customer.paymentTermDays,
-          globalDiscount: customer.globalDiscount,
-          isActive: customer.isActive,
-          lastSyncedAt: new Date(),
-          cianboxData: customer as unknown as object,
-        },
+        update: customerData,
         create: {
           tenantId,
           cianboxCustomerId: customer.id,
-          customerType: customer.customerType as 'CONSUMER' | 'INDIVIDUAL' | 'BUSINESS' | 'GOVERNMENT' | 'RESELLER',
-          taxId: customer.taxId,
-          taxIdType: customer.taxIdType,
-          taxCategory: customer.taxCategory,
-          name: customer.name,
-          tradeName: customer.tradeName,
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          email: customer.email,
-          phone: customer.phone,
-          mobile: customer.mobile,
-          address: customer.address,
-          city: customer.city,
-          state: customer.state,
-          zipCode: customer.zipCode,
-          country: customer.country,
-          priceListId,
-          creditLimit: customer.creditLimit,
-          creditBalance: customer.creditBalance,
-          paymentTermDays: customer.paymentTermDays,
-          globalDiscount: customer.globalDiscount,
-          isActive: customer.isActive,
-          lastSyncedAt: new Date(),
-          cianboxData: customer as unknown as object,
+          ...customerData,
         },
       });
 
@@ -1146,6 +1127,28 @@ export class CianboxService {
     }
 
     return synced;
+  }
+
+  /**
+   * Mapea condición fiscal de Cianbox a tipo de cliente
+   */
+  private mapCondicionToCustomerType(condicion: string): 'CONSUMER' | 'INDIVIDUAL' | 'BUSINESS' | 'GOVERNMENT' | 'RESELLER' {
+    switch (condicion?.toUpperCase()) {
+      case 'CF':
+      case 'CONSUMIDOR FINAL':
+        return 'CONSUMER';
+      case 'RI':
+      case 'RESPONSABLE INSCRIPTO':
+        return 'BUSINESS';
+      case 'MO':
+      case 'MONOTRIBUTO':
+        return 'INDIVIDUAL';
+      case 'EX':
+      case 'EXENTO':
+        return 'BUSINESS';
+      default:
+        return 'CONSUMER';
+    }
   }
 
   // =============================================
