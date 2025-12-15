@@ -1134,4 +1134,97 @@ router.delete(
   }
 );
 
+// =============================================
+// CIANBOX TOKENS MANAGEMENT
+// =============================================
+
+/**
+ * POST /api/agency/cianbox/refresh-tokens
+ * Ejecutar refresh de todos los tokens de Cianbox manualmente
+ */
+router.post(
+  '/cianbox/refresh-tokens',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await CianboxService.refreshAllTokens();
+
+      res.json({
+        success: true,
+        message: `Refresh completado: ${result.refreshed} actualizados, ${result.failed} fallidos`,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/cianbox/token-status
+ * Ver estado de tokens de todas las conexiones Cianbox
+ */
+router.get(
+  '/cianbox/token-status',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const connections = await prisma.cianboxConnection.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          cuenta: true,
+          isActive: true,
+          tokenExpiresAt: true,
+          lastSync: true,
+          syncStatus: true,
+          tenant: { select: { id: true, name: true, slug: true } },
+        },
+      });
+
+      const now = new Date();
+      const statuses = connections.map((conn) => {
+        const expiresAt = conn.tokenExpiresAt;
+        let tokenStatus = 'unknown';
+        let hoursRemaining = 0;
+
+        if (expiresAt) {
+          hoursRemaining = Math.round((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60));
+          if (hoursRemaining > 2) {
+            tokenStatus = 'valid';
+          } else if (hoursRemaining > 0) {
+            tokenStatus = 'expiring_soon';
+          } else {
+            tokenStatus = 'expired';
+          }
+        }
+
+        return {
+          tenantId: conn.tenant?.id,
+          tenantName: conn.tenant?.name,
+          cuenta: conn.cuenta,
+          tokenStatus,
+          hoursRemaining,
+          expiresAt,
+          lastSync: conn.lastSync,
+          syncStatus: conn.syncStatus,
+        };
+      });
+
+      res.json({
+        success: true,
+        data: {
+          total: statuses.length,
+          valid: statuses.filter((s) => s.tokenStatus === 'valid').length,
+          expiringSoon: statuses.filter((s) => s.tokenStatus === 'expiring_soon').length,
+          expired: statuses.filter((s) => s.tokenStatus === 'expired').length,
+          connections: statuses,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

@@ -9,6 +9,7 @@ import helmet from 'helmet';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
+import cron from 'node-cron';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -20,6 +21,9 @@ import salesRoutes from './routes/sales.js';
 import promotionsRoutes from './routes/promotions.js';
 import cianboxRoutes from './routes/cianbox.js';
 import agencyRoutes from './routes/agency.js';
+
+// Importar servicios
+import CianboxService from './services/cianbox.service.js';
 
 // Importar utilidades
 import { ApiError } from './utils/errors.js';
@@ -197,6 +201,24 @@ io.on('connection', (socket) => {
   });
 });
 
+// =============================================
+// CRON JOBS
+// =============================================
+
+// Refrescar tokens de Cianbox cada hora
+// El token de acceso vence cada 24 horas, refrescamos antes
+cron.schedule('0 * * * *', async () => {
+  console.log(`[Cron] ${new Date().toISOString()} - Iniciando refresh de tokens Cianbox...`);
+  try {
+    const result = await CianboxService.refreshAllTokens();
+    console.log(`[Cron] Token refresh completado: ${result.refreshed} actualizados, ${result.failed} fallidos`);
+  } catch (error) {
+    console.error('[Cron] Error en refresh de tokens:', error);
+  }
+});
+
+console.log('[Cron] Cianbox token refresh programado (cada hora)');
+
 // Iniciar servidor
 httpServer.listen(PORT, () => {
   console.log(`
@@ -206,6 +228,7 @@ httpServer.listen(PORT, () => {
 ║                                                        ║
 ║   Servidor corriendo en: http://localhost:${PORT}        ║
 ║   Entorno: ${process.env.NODE_ENV || 'development'}                             ║
+║   Cron: Token refresh cada hora                        ║
 ║                                                        ║
 ╚════════════════════════════════════════════════════════╝
   `);

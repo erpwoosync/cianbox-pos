@@ -286,28 +286,188 @@ export class CianboxService {
   }
 
   /**
+   * Refresca tokens de todas las conexiones activas
+   * Se ejecuta desde un cron job para mantener tokens vigentes
+   */
+  static async refreshAllTokens(): Promise<{
+    total: number;
+    refreshed: number;
+    failed: number;
+    errors: string[];
+  }> {
+    const connections = await prisma.cianboxConnection.findMany({
+      where: {
+        isActive: true,
+        refreshToken: { not: null },
+      },
+      include: {
+        tenant: { select: { name: true, slug: true } },
+      },
+    });
+
+    const results = {
+      total: connections.length,
+      refreshed: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    for (const connection of connections) {
+      try {
+        // Verificar si el token expira en las próximas 2 horas
+        const twoHoursFromNow = new Date();
+        twoHoursFromNow.setHours(twoHoursFromNow.getHours() + 2);
+
+        if (connection.tokenExpiresAt && connection.tokenExpiresAt > twoHoursFromNow) {
+          // Token aún válido por más de 2 horas, no refrescar
+          continue;
+        }
+
+        console.log(`[Cianbox] Refreshing token for tenant: ${connection.tenant?.name || connection.tenantId}`);
+
+        const baseUrl = `https://cianbox.org/${connection.cuenta}/api/v2`;
+        const formData = new URLSearchParams();
+        formData.append('refresh_token', connection.refreshToken!);
+
+        const response = await fetch(`${baseUrl}/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString(),
+        });
+
+        const data = await response.json() as {
+          status: string;
+          body?: { access_token: string; expires_in: number };
+          statusMessage?: string;
+        };
+
+        if (data.status === 'ok' && data.body?.access_token) {
+          const expiresAt = new Date();
+          expiresAt.setSeconds(expiresAt.getSeconds() + (data.body.expires_in || 86400) - 300);
+
+          await prisma.cianboxConnection.update({
+            where: { id: connection.id },
+            data: {
+              accessToken: data.body.access_token,
+              tokenExpiresAt: expiresAt,
+            },
+          });
+
+          results.refreshed++;
+          console.log(`[Cianbox] Token refreshed for tenant: ${connection.tenant?.name || connection.tenantId}`);
+        } else {
+          results.failed++;
+          const error = `${connection.tenant?.name || connection.tenantId}: ${data.statusMessage || 'Error desconocido'}`;
+          results.errors.push(error);
+          console.error(`[Cianbox] Failed to refresh token: ${error}`);
+        }
+      } catch (error) {
+        results.failed++;
+        const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+        results.errors.push(`${connection.tenant?.name || connection.tenantId}: ${errorMsg}`);
+        console.error(`[Cianbox] Error refreshing token:`, error);
+      }
+    }
+
+    console.log(`[Cianbox] Token refresh completed: ${results.refreshed} refreshed, ${results.failed} failed`);
+    return results;
+  }
+
+  /**
    * Obtiene un token de acceso válido
-   * Si el token actual está expirado, lo renueva
+   * Si el token actual está expirado, intenta refrescar primero, luego re-autenticar
    */
   private async getAccessToken(): Promise<string> {
-    // Verificar si el token actual es válido
+    // Verificar si el token actual es válido (con 5 min de margen)
+    const fiveMinutesFromNow = new Date();
+    fiveMinutesFromNow.setMinutes(fiveMinutesFromNow.getMinutes() + 5);
+
     if (
       this.connection.accessToken &&
       this.connection.tokenExpiresAt &&
-      this.connection.tokenExpiresAt > new Date()
+      this.connection.tokenExpiresAt > fiveMinutesFromNow
     ) {
       return this.connection.accessToken;
     }
 
-    // Renovar token
+    // Intentar refrescar con refresh_token primero
+    if (this.connection.refreshToken) {
+      try {
+        const newToken = await this.refreshToken();
+        return newToken;
+      } catch (error) {
+        console.log(`[Cianbox] Refresh token failed, will re-authenticate:`, error);
+      }
+    }
+
+    // Si no hay refresh_token o falló, re-autenticar
     const newToken = await this.authenticate();
     return newToken;
   }
 
   /**
-   * Autentica con Cianbox y obtiene nuevo token
+   * Refresca el access_token usando el refresh_token
+   */
+  private async refreshToken(): Promise<string> {
+    if (!this.connection.refreshToken) {
+      throw new CianboxError('No hay refresh token disponible');
+    }
+
+    console.log(`[Cianbox] Refreshing access token...`);
+
+    const formData = new URLSearchParams();
+    formData.append('refresh_token', this.connection.refreshToken);
+
+    const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString(),
+    });
+
+    if (!response.ok) {
+      throw new CianboxError(`Error al refrescar token: ${response.status}`);
+    }
+
+    const data = await response.json() as {
+      status: string;
+      body?: { access_token: string; expires_in: number };
+      statusMessage?: string;
+    };
+
+    if (data.status !== 'ok' || !data.body?.access_token) {
+      throw new CianboxError(data.statusMessage || 'Error al refrescar token');
+    }
+
+    // Calcular fecha de expiración (restamos 5 minutos de margen)
+    const expiresAt = new Date();
+    expiresAt.setSeconds(expiresAt.getSeconds() + (data.body.expires_in || 86400) - 300);
+
+    // Actualizar conexión con nuevo token
+    await prisma.cianboxConnection.update({
+      where: { id: this.connection.id },
+      data: {
+        accessToken: data.body.access_token,
+        tokenExpiresAt: expiresAt,
+      },
+    });
+
+    this.connection.accessToken = data.body.access_token;
+    this.connection.tokenExpiresAt = expiresAt;
+
+    console.log(`[Cianbox] Access token refreshed, expires at: ${expiresAt.toISOString()}`);
+    return data.body.access_token;
+  }
+
+  /**
+   * Autentica con Cianbox y obtiene nuevo token (usa credenciales)
    */
   private async authenticate(): Promise<string> {
+    console.log(`[Cianbox] Authenticating with credentials...`);
+
     // Usar form-urlencoded como requiere Cianbox
     const formData = new URLSearchParams();
     formData.append('app_name', this.connection.appName);
@@ -350,8 +510,10 @@ export class CianboxService {
     });
 
     this.connection.accessToken = data.body.access_token;
+    this.connection.refreshToken = data.body.refresh_token;
     this.connection.tokenExpiresAt = expiresAt;
 
+    console.log(`[Cianbox] Authenticated, token expires at: ${expiresAt.toISOString()}`);
     return data.body.access_token;
   }
 
