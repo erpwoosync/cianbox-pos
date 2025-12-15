@@ -28,8 +28,31 @@ import {
   Pencil,
   Trash2,
   X,
+  Shield,
+  UserCircle,
+  Mail,
+  Check,
 } from 'lucide-react';
-import { tenantsApi, connectionsApi, catalogApi, Category, Brand, Product, PriceList, Branch, PointOfSale, CreatePointOfSaleDto } from '../services/api';
+import {
+  tenantsApi,
+  connectionsApi,
+  catalogApi,
+  tenantRolesApi,
+  tenantUsersApi,
+  permissionsApi,
+  Category,
+  Brand,
+  Product,
+  PriceList,
+  Branch,
+  PointOfSale,
+  CreatePointOfSaleDto,
+  Role,
+  TenantUser,
+  CreateRoleDto,
+  CreateTenantUserDto,
+  Permission,
+} from '../services/api';
 
 interface CianboxConnection {
   id: string;
@@ -110,6 +133,39 @@ export default function TenantDetail() {
     isActive: true,
   });
 
+  // Roles y Usuarios
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+
+  // Roles Modal
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [savingRole, setSavingRole] = useState(false);
+  const [deletingRole, setDeletingRole] = useState<string | null>(null);
+  const [roleForm, setRoleForm] = useState<CreateRoleDto>({
+    name: '',
+    description: '',
+    permissions: [],
+  });
+
+  // Users Modal
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<TenantUser | null>(null);
+  const [savingUser, setSavingUser] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
+  const [showUserPassword, setShowUserPassword] = useState(false);
+  const [userForm, setUserForm] = useState<CreateTenantUserDto & { confirmPassword?: string }>({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    name: '',
+    roleId: '',
+    branchId: '',
+    pin: '',
+    status: 'ACTIVE',
+  });
+
   // Form data para datos generales del tenant
   const [generalForm, setGeneralForm] = useState({
     name: '',
@@ -174,7 +230,7 @@ export default function TenantDetail() {
   };
 
   // Cargar catálogo cuando se cambia al tab correspondiente
-  const loadCatalog = async (type: 'categories' | 'brands' | 'products' | 'branches' | 'priceLists' | 'pointsOfSale') => {
+  const loadCatalog = async (type: 'categories' | 'brands' | 'products' | 'branches' | 'priceLists' | 'pointsOfSale' | 'roles' | 'users') => {
     if (!id) return;
     setLoadingCatalog(true);
     try {
@@ -203,6 +259,23 @@ export default function TenantDetail() {
         setPointsOfSale(posData);
         if (branches.length === 0) setBranches(branchesData);
         if (priceLists.length === 0) setPriceLists(priceListsData);
+      } else if (type === 'roles') {
+        const [rolesData, permsData] = await Promise.all([
+          tenantRolesApi.getByTenant(id),
+          permissions.length === 0 ? permissionsApi.getAll() : Promise.resolve(permissions),
+        ]);
+        setRoles(rolesData);
+        if (permissions.length === 0) setPermissions(permsData);
+      } else if (type === 'users') {
+        // Cargar también roles y branches si no están cargados (para el modal)
+        const [usersData, rolesData, branchesData] = await Promise.all([
+          tenantUsersApi.getByTenant(id),
+          roles.length === 0 ? tenantRolesApi.getByTenant(id) : Promise.resolve(roles),
+          branches.length === 0 ? catalogApi.getBranches(id) : Promise.resolve(branches),
+        ]);
+        setTenantUsers(usersData);
+        if (roles.length === 0) setRoles(rolesData);
+        if (branches.length === 0) setBranches(branchesData);
       }
     } catch (error) {
       console.error(`Error loading ${type}:`, error);
@@ -226,6 +299,10 @@ export default function TenantDetail() {
       loadCatalog('priceLists');
     } else if (activeTab === 'pointsOfSale') {
       loadCatalog('pointsOfSale');
+    } else if (activeTab === 'roles') {
+      loadCatalog('roles');
+    } else if (activeTab === 'users') {
+      loadCatalog('users');
     }
   }, [activeTab]);
 
@@ -309,6 +386,154 @@ export default function TenantDetail() {
       showMessage('error', err.response?.data?.error?.message || 'Error al eliminar');
     } finally {
       setDeletingPos(null);
+    }
+  };
+
+  // Funciones de Roles
+  const permissionsByCategory = permissions.reduce((acc, perm) => {
+    if (!acc[perm.category]) acc[perm.category] = [];
+    acc[perm.category].push(perm);
+    return acc;
+  }, {} as Record<string, Permission[]>);
+
+  const openCreateRoleModal = () => {
+    setEditingRole(null);
+    setRoleForm({ name: '', description: '', permissions: [] });
+    setShowRoleModal(true);
+  };
+
+  const openEditRoleModal = (role: Role) => {
+    setEditingRole(role);
+    setRoleForm({ name: role.name, description: role.description || '', permissions: role.permissions || [] });
+    setShowRoleModal(true);
+  };
+
+  const closeRoleModal = () => {
+    setShowRoleModal(false);
+    setEditingRole(null);
+    setRoleForm({ name: '', description: '', permissions: [] });
+  };
+
+  const toggleRolePermission = (code: string) => {
+    setRoleForm(prev => ({
+      ...prev,
+      permissions: prev.permissions.includes(code)
+        ? prev.permissions.filter(p => p !== code)
+        : [...prev.permissions, code],
+    }));
+  };
+
+  const handleSaveRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setSavingRole(true);
+    try {
+      if (editingRole) {
+        await tenantRolesApi.update(id, editingRole.id, roleForm);
+      } else {
+        await tenantRolesApi.create(id, roleForm);
+      }
+      closeRoleModal();
+      showMessage('success', editingRole ? 'Rol actualizado' : 'Rol creado');
+      setRoles([]);
+      loadCatalog('roles');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } } };
+      showMessage('error', err.response?.data?.error?.message || 'Error al guardar');
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
+  const handleDeleteRole = async (role: Role) => {
+    if (!id) return;
+    if (!confirm(`¿Eliminar el rol "${role.name}"?`)) return;
+    setDeletingRole(role.id);
+    try {
+      await tenantRolesApi.delete(id, role.id);
+      showMessage('success', 'Rol eliminado');
+      setRoles([]);
+      loadCatalog('roles');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } } };
+      showMessage('error', err.response?.data?.error?.message || 'Error al eliminar');
+    } finally {
+      setDeletingRole(null);
+    }
+  };
+
+  // Funciones de Usuarios
+  const openCreateUserModal = () => {
+    setEditingUser(null);
+    setUserForm({ email: '', password: '', confirmPassword: '', name: '', roleId: roles[0]?.id || '', branchId: '', pin: '', status: 'ACTIVE' });
+    setShowUserPassword(false);
+    setShowUserModal(true);
+  };
+
+  const openEditUserModal = (user: TenantUser) => {
+    setEditingUser(user);
+    setUserForm({ email: user.email, password: '', confirmPassword: '', name: user.name, roleId: user.roleId, branchId: user.branchId || '', pin: '', status: user.status });
+    setShowUserPassword(false);
+    setShowUserModal(true);
+  };
+
+  const closeUserModal = () => {
+    setShowUserModal(false);
+    setEditingUser(null);
+    setUserForm({ email: '', password: '', confirmPassword: '', name: '', roleId: '', branchId: '', pin: '', status: 'ACTIVE' });
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    if (!editingUser && userForm.password !== userForm.confirmPassword) {
+      showMessage('error', 'Las contrasenas no coinciden');
+      return;
+    }
+    setSavingUser(true);
+    try {
+      // Build data object based on whether we're editing or creating
+      const dataToSend = {
+        email: userForm.email,
+        name: userForm.name,
+        roleId: userForm.roleId,
+        ...(userForm.password && { password: userForm.password }),
+        ...(userForm.branchId && { branchId: userForm.branchId }),
+        ...(userForm.pin && { pin: userForm.pin }),
+        status: userForm.status,
+      };
+
+      if (editingUser) {
+        await tenantUsersApi.update(id, editingUser.id, dataToSend);
+      } else {
+        await tenantUsersApi.create(id, { ...dataToSend, password: userForm.password });
+      }
+      closeUserModal();
+      showMessage('success', editingUser ? 'Usuario actualizado' : 'Usuario creado');
+      setTenantUsers([]);
+      loadCatalog('users');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } } };
+      showMessage('error', err.response?.data?.error?.message || 'Error al guardar');
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: TenantUser) => {
+    if (!id) return;
+    if (!confirm(`¿Eliminar el usuario "${user.name}"?`)) return;
+    setDeletingUser(user.id);
+    try {
+      await tenantUsersApi.delete(id, user.id);
+      showMessage('success', 'Usuario eliminado');
+      setTenantUsers([]);
+      loadCatalog('users');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } } };
+      showMessage('error', err.response?.data?.error?.message || 'Error al eliminar');
+    } finally {
+      setDeletingUser(null);
     }
   };
 
@@ -589,6 +814,8 @@ export default function TenantDetail() {
               { id: 'categories', label: 'Categorías', icon: FolderTree },
               { id: 'brands', label: 'Marcas', icon: Tags },
               { id: 'products', label: 'Productos', icon: Package },
+              { id: 'roles', label: 'Roles', icon: Shield },
+              { id: 'users', label: 'Usuarios', icon: UserCircle },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1547,6 +1774,245 @@ export default function TenantDetail() {
               </div>
             </div>
           )}
+
+          {/* Tab Roles */}
+          {activeTab === 'roles' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Roles del Tenant</h3>
+                <button
+                  onClick={openCreateRoleModal}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                >
+                  <Plus size={16} />
+                  Nuevo Rol
+                </button>
+              </div>
+
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : roles.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay roles configurados. Crea uno para comenzar.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Rol
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Descripción
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Permisos
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Usuarios
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Acciones
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {roles.map((role) => (
+                        <tr key={role.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <Shield size={20} className="text-blue-600" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{role.name}</p>
+                                {role.isSystem && (
+                                  <span className="text-xs text-blue-600">Sistema</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {role.description || '-'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                              {role.permissions?.includes('*') ? 'Todos' : role.permissions?.length || 0}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                              {role._count?.users || 0}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => openEditRoleModal(role)}
+                                disabled={role.isSystem}
+                                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={role.isSystem ? 'Rol de sistema' : 'Editar'}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRole(role)}
+                                disabled={deletingRole === role.id || role.isSystem}
+                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={role.isSystem ? 'Rol de sistema' : 'Eliminar'}
+                              >
+                                {deletingRole === role.id ? (
+                                  <RefreshCw size={16} className="animate-spin" />
+                                ) : (
+                                  <Trash2 size={16} />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-4 text-sm text-gray-500">
+                Total: {roles.length} roles
+              </div>
+            </div>
+          )}
+
+          {/* Tab Usuarios */}
+          {activeTab === 'users' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Usuarios del Tenant</h3>
+                <button
+                  onClick={openCreateUserModal}
+                  className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors text-sm"
+                >
+                  <Plus size={16} />
+                  Nuevo Usuario
+                </button>
+              </div>
+
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : tenantUsers.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay usuarios configurados. Crea uno para comenzar.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Usuario
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Email
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Rol
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Sucursal
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Estado
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          Acciones
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {tenantUsers.map((user) => (
+                        <tr key={user.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                <UserCircle size={20} className="text-green-600" />
+                              </div>
+                              <span className="font-medium text-gray-900">{user.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Mail size={14} />
+                              {user.email}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Shield size={14} className="text-blue-500" />
+                              <span className="text-sm text-gray-700">{user.role?.name || '-'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {user.branch ? (
+                              <div className="flex items-center gap-2">
+                                <Store size={14} className="text-orange-500" />
+                                <span className="text-sm text-gray-700">{user.branch.name}</span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">Todas</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                user.status === 'ACTIVE'
+                                  ? 'bg-green-100 text-green-700'
+                                  : user.status === 'INVITED'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}
+                            >
+                              {user.status === 'ACTIVE' ? 'Activo' : user.status === 'INVITED' ? 'Invitado' : 'Deshabilitado'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => openEditUserModal(user)}
+                                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                title="Editar"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(user)}
+                                disabled={deletingUser === user.id}
+                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                                title="Eliminar"
+                              >
+                                {deletingUser === user.id ? (
+                                  <RefreshCw size={16} className="animate-spin" />
+                                ) : (
+                                  <Trash2 size={16} />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-4 text-sm text-gray-500">
+                Total: {tenantUsers.length} usuarios
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1677,6 +2143,285 @@ export default function TenantDetail() {
                 >
                   {savingPos && <RefreshCw size={16} className="animate-spin" />}
                   {editingPos ? 'Guardar' : 'Crear'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Rol */}
+      {showRoleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {editingRole ? 'Editar Rol' : 'Nuevo Rol'}
+              </h2>
+              <button
+                onClick={closeRoleModal}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRole} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre *
+                </label>
+                <input
+                  type="text"
+                  value={roleForm.name}
+                  onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                  required
+                  placeholder="Ej: Cajero, Supervisor, Admin"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descripción
+                </label>
+                <textarea
+                  value={roleForm.description}
+                  onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+                  rows={2}
+                  placeholder="Descripción del rol..."
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Permisos
+                </label>
+                <div className="border rounded-lg p-3 max-h-64 overflow-y-auto space-y-4">
+                  {Object.entries(permissionsByCategory).map(([category, perms]) => (
+                    <div key={category}>
+                      <h4 className="font-medium text-gray-800 mb-2 capitalize">{category}</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {perms.map((perm) => (
+                          <label
+                            key={perm.code}
+                            className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={roleForm.permissions.includes(perm.code)}
+                              onChange={() => toggleRolePermission(perm.code)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <div>
+                              <span className="text-sm text-gray-900">{perm.name}</span>
+                              <span className="block text-xs text-gray-500">{perm.code}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Seleccionados: {roleForm.permissions.length} permisos
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeRoleModal}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingRole}
+                  className="flex-1 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingRole && <RefreshCw size={16} className="animate-spin" />}
+                  {editingRole ? 'Guardar' : 'Crear'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Usuario */}
+      {showUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}
+              </h2>
+              <button
+                onClick={closeUserModal}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUser} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre *
+                </label>
+                <input
+                  type="text"
+                  value={userForm.name}
+                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                  required
+                  placeholder="Nombre completo"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                  required
+                  placeholder="usuario@ejemplo.com"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Contraseña {editingUser ? '(dejar vacío para mantener)' : '*'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showUserPassword ? 'text' : 'password'}
+                    value={userForm.password}
+                    onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                    required={!editingUser}
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 pr-10 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowUserPassword(!showUserPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showUserPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {!editingUser && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirmar Contraseña *
+                  </label>
+                  <input
+                    type={showUserPassword ? 'text' : 'password'}
+                    value={userForm.confirmPassword}
+                    onChange={(e) => setUserForm({ ...userForm, confirmPassword: e.target.value })}
+                    required={!editingUser}
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rol *
+                </label>
+                <select
+                  value={userForm.roleId}
+                  onChange={(e) => setUserForm({ ...userForm, roleId: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                  <option value="">Seleccionar rol...</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sucursal
+                </label>
+                <select
+                  value={userForm.branchId || ''}
+                  onChange={(e) => setUserForm({ ...userForm, branchId: e.target.value || undefined })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                  <option value="">Todas las sucursales</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Si no selecciona sucursal, el usuario tendrá acceso a todas
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  PIN (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={userForm.pin || ''}
+                  onChange={(e) => setUserForm({ ...userForm, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                  placeholder="1234"
+                  maxLength={6}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  PIN numérico para acceso rápido en POS (4-6 dígitos)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Estado
+                </label>
+                <select
+                  value={userForm.status}
+                  onChange={(e) => setUserForm({ ...userForm, status: e.target.value as 'ACTIVE' | 'INVITED' | 'DISABLED' })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                  <option value="ACTIVE">Activo</option>
+                  <option value="INVITED">Invitado</option>
+                  <option value="DISABLED">Deshabilitado</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeUserModal}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingUser}
+                  className="flex-1 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingUser && <RefreshCw size={16} className="animate-spin" />}
+                  {editingUser ? 'Guardar' : 'Crear'}
                 </button>
               </div>
             </form>

@@ -378,4 +378,126 @@ export interface UpdatePointOfSaleDto {
   isActive?: boolean;
 }
 
+// Permissions API
+export const permissionsApi = {
+  getAll: async () => {
+    const response = await api.get('/agency/permissions');
+    return response.data.data;
+  },
+};
+
+// Tenant Roles API
+export const tenantRolesApi = {
+  getByTenant: async (tenantId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/roles`);
+    return response.data.data;
+  },
+  getById: async (tenantId: string, roleId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/roles/${roleId}`);
+    return response.data.data;
+  },
+  create: async (tenantId: string, data: CreateRoleDto) => {
+    const response = await api.post(`/agency/tenants/${tenantId}/roles`, data);
+    return response.data.data;
+  },
+  update: async (tenantId: string, roleId: string, data: UpdateRoleDto) => {
+    const response = await api.put(`/agency/tenants/${tenantId}/roles/${roleId}`, data);
+    return response.data.data;
+  },
+  delete: async (tenantId: string, roleId: string) => {
+    const response = await api.delete(`/agency/tenants/${tenantId}/roles/${roleId}`);
+    return response.data;
+  },
+};
+
+// Tenant Users API
+export const tenantUsersApi = {
+  getByTenant: async (tenantId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/users`);
+    return response.data.data;
+  },
+  getById: async (tenantId: string, userId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/users/${userId}`);
+    return response.data.data;
+  },
+  create: async (tenantId: string, data: CreateTenantUserDto) => {
+    const response = await api.post(`/agency/tenants/${tenantId}/users`, data);
+    return response.data.data;
+  },
+  update: async (tenantId: string, userId: string, data: UpdateTenantUserDto) => {
+    const response = await api.put(`/agency/tenants/${tenantId}/users/${userId}`, data);
+    return response.data.data;
+  },
+  delete: async (tenantId: string, userId: string) => {
+    const response = await api.delete(`/agency/tenants/${tenantId}/users/${userId}`);
+    return response.data;
+  },
+};
+
+// Permission Types
+export interface Permission {
+  code: string;
+  name: string;
+  category: string;
+}
+
+// Role Types
+export interface Role {
+  id: string;
+  name: string;
+  description?: string;
+  isSystem: boolean;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+  _count?: { users: number };
+}
+
+export interface CreateRoleDto {
+  name: string;
+  description?: string;
+  permissions: string[];
+}
+
+export interface UpdateRoleDto {
+  name?: string;
+  description?: string;
+  permissions?: string[];
+}
+
+// Tenant User Types
+export interface TenantUser {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string;
+  status: 'ACTIVE' | 'INVITED' | 'DISABLED';
+  roleId: string;
+  branchId?: string;
+  createdAt: string;
+  updatedAt: string;
+  role?: { id: string; name: string; permissions?: string[] };
+  branch?: { id: string; name: string; code: string };
+}
+
+export interface CreateTenantUserDto {
+  email: string;
+  password: string;
+  name: string;
+  roleId: string;
+  branchId?: string;
+  pin?: string;
+  status?: 'ACTIVE' | 'INVITED' | 'DISABLED';
+}
+
+export interface UpdateTenantUserDto {
+  email?: string;
+  password?: string;
+  name?: string;
+  roleId?: string;
+  branchId?: string | null;
+  pin?: string | null;
+  status?: 'ACTIVE' | 'INVITED' | 'DISABLED';
+}
+
 export default api;

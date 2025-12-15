@@ -16,6 +16,8 @@ import {
   Store,
   ListOrdered,
   Monitor,
+  Shield,
+  Users,
 } from 'lucide-react';
 
 const menuItems = [
@@ -23,11 +25,13 @@ const menuItems = [
   { path: '/branches', label: 'Sucursales', icon: Store },
   { path: '/price-lists', label: 'Listas de Precio', icon: ListOrdered },
   { path: '/points-of-sale', label: 'Puntos de Venta', icon: Monitor },
-  { path: '/categories', label: 'Categorías', icon: FolderTree },
+  { path: '/categories', label: 'Categorias', icon: FolderTree },
   { path: '/brands', label: 'Marcas', icon: Tags },
   { path: '/products', label: 'Productos', icon: Package },
   { path: '/prices', label: 'Precios', icon: DollarSign },
   { path: '/stock', label: 'Stock', icon: Warehouse },
+  { path: '/roles', label: 'Roles', icon: Shield },
+  { path: '/users', label: 'Usuarios', icon: Users },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

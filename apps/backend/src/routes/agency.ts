@@ -1810,4 +1810,620 @@ router.delete(
   }
 );
 
+// =============================================
+// ROLES DE TENANT
+// =============================================
+
+// Lista de permisos disponibles en el sistema
+const AVAILABLE_PERMISSIONS = [
+  // POS
+  { code: 'pos:sell', name: 'Vender', category: 'POS' },
+  { code: 'pos:discount', name: 'Aplicar descuentos', category: 'POS' },
+  { code: 'pos:void', name: 'Anular ventas', category: 'POS' },
+  { code: 'pos:refund', name: 'Hacer devoluciones', category: 'POS' },
+  { code: 'pos:cash_drawer', name: 'Abrir caja registradora', category: 'POS' },
+  { code: 'pos:close_shift', name: 'Cerrar turno', category: 'POS' },
+  // Inventario
+  { code: 'inventory:view', name: 'Ver inventario', category: 'Inventario' },
+  { code: 'inventory:edit', name: 'Editar productos', category: 'Inventario' },
+  { code: 'stock:view', name: 'Ver stock', category: 'Stock' },
+  { code: 'stock:adjust', name: 'Ajustar stock', category: 'Stock' },
+  { code: 'stock:write', name: 'Modificar stock', category: 'Stock' },
+  // Reportes
+  { code: 'reports:sales', name: 'Ver reportes de ventas', category: 'Reportes' },
+  { code: 'reports:inventory', name: 'Ver reportes de inventario', category: 'Reportes' },
+  { code: 'reports:financial', name: 'Ver reportes financieros', category: 'Reportes' },
+  // Administración
+  { code: 'admin:users', name: 'Gestionar usuarios', category: 'Administración' },
+  { code: 'admin:roles', name: 'Gestionar roles', category: 'Administración' },
+  { code: 'admin:settings', name: 'Configuración general', category: 'Administración' },
+  { code: 'pos:write', name: 'Gestionar puntos de venta', category: 'Administración' },
+  { code: 'pos:delete', name: 'Eliminar puntos de venta', category: 'Administración' },
+  // Acceso total
+  { code: '*', name: 'Acceso total (superadmin)', category: 'Sistema' },
+];
+
+/**
+ * GET /api/agency/permissions
+ * Obtener lista de permisos disponibles
+ */
+router.get('/permissions', agencyAuth, async (_req: AgencyAuthRequest, res: Response) => {
+  res.json({
+    success: true,
+    data: AVAILABLE_PERMISSIONS,
+  });
+});
+
+const roleCreateSchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido'),
+  description: z.string().optional(),
+  permissions: z.array(z.string()).min(1, 'Debe asignar al menos un permiso'),
+});
+
+const roleUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  permissions: z.array(z.string()).min(1).optional(),
+});
+
+/**
+ * GET /api/agency/tenants/:id/roles
+ * Listar roles de un tenant
+ */
+router.get(
+  '/tenants/:id/roles',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const roles = await prisma.role.findMany({
+        where: { tenantId: req.params.id },
+        include: {
+          _count: { select: { users: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      res.json({
+        success: true,
+        data: roles,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/roles/:roleId
+ * Obtener rol por ID
+ */
+router.get(
+  '/tenants/:id/roles/:roleId',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const role = await prisma.role.findFirst({
+        where: { id: req.params.roleId, tenantId: req.params.id },
+        include: {
+          _count: { select: { users: true } },
+          users: {
+            select: { id: true, name: true, email: true, status: true },
+          },
+        },
+      });
+
+      if (!role) {
+        throw ApiError.notFound('Rol no encontrado');
+      }
+
+      res.json({
+        success: true,
+        data: role,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/roles
+ * Crear rol para un tenant
+ */
+router.post(
+  '/tenants/:id/roles',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.params.id;
+
+      const validation = roleCreateSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const { name, description, permissions } = validation.data;
+
+      // Verificar que no exista otro rol con el mismo nombre
+      const existing = await prisma.role.findFirst({
+        where: { tenantId, name },
+      });
+
+      if (existing) {
+        throw ApiError.conflict('Ya existe un rol con ese nombre');
+      }
+
+      const role = await prisma.role.create({
+        data: {
+          tenantId,
+          name,
+          description,
+          permissions,
+          isSystem: false,
+        },
+        include: {
+          _count: { select: { users: true } },
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: role,
+        message: 'Rol creado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/agency/tenants/:id/roles/:roleId
+ * Actualizar rol de un tenant
+ */
+router.put(
+  '/tenants/:id/roles/:roleId',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.params.id;
+      const roleId = req.params.roleId;
+
+      const validation = roleUpdateSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const existing = await prisma.role.findFirst({
+        where: { id: roleId, tenantId },
+      });
+
+      if (!existing) {
+        throw ApiError.notFound('Rol no encontrado');
+      }
+
+      // No permitir modificar roles del sistema
+      if (existing.isSystem) {
+        throw ApiError.forbidden('No se pueden modificar roles del sistema');
+      }
+
+      const { name, description, permissions } = validation.data;
+
+      // Verificar nombre único si se cambia
+      if (name && name !== existing.name) {
+        const duplicate = await prisma.role.findFirst({
+          where: { tenantId, name, id: { not: roleId } },
+        });
+
+        if (duplicate) {
+          throw ApiError.conflict('Ya existe un rol con ese nombre');
+        }
+      }
+
+      const role = await prisma.role.update({
+        where: { id: roleId },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(permissions && { permissions }),
+        },
+        include: {
+          _count: { select: { users: true } },
+        },
+      });
+
+      res.json({
+        success: true,
+        data: role,
+        message: 'Rol actualizado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/agency/tenants/:id/roles/:roleId
+ * Eliminar rol de un tenant
+ */
+router.delete(
+  '/tenants/:id/roles/:roleId',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.params.id;
+      const roleId = req.params.roleId;
+
+      const existing = await prisma.role.findFirst({
+        where: { id: roleId, tenantId },
+        include: { _count: { select: { users: true } } },
+      });
+
+      if (!existing) {
+        throw ApiError.notFound('Rol no encontrado');
+      }
+
+      // No permitir eliminar roles del sistema
+      if (existing.isSystem) {
+        throw ApiError.forbidden('No se pueden eliminar roles del sistema');
+      }
+
+      // Verificar que no tenga usuarios asignados
+      if (existing._count.users > 0) {
+        throw ApiError.badRequest(`No se puede eliminar: tiene ${existing._count.users} usuarios asignados`);
+      }
+
+      await prisma.role.delete({
+        where: { id: roleId },
+      });
+
+      res.json({
+        success: true,
+        message: 'Rol eliminado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// =============================================
+// USUARIOS DE TENANT
+// =============================================
+
+const tenantUserCreateSchema = z.object({
+  email: z.string().email('Email inválido'),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+  name: z.string().min(1, 'El nombre es requerido'),
+  roleId: z.string().min(1, 'El rol es requerido'),
+  branchId: z.string().optional(),
+  pin: z.string().length(4, 'El PIN debe tener 4 dígitos').optional(),
+  status: z.enum(['ACTIVE', 'INVITED', 'DISABLED']).optional().default('ACTIVE'),
+});
+
+const tenantUserUpdateSchema = z.object({
+  email: z.string().email('Email inválido').optional(),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
+  name: z.string().min(1).optional(),
+  roleId: z.string().min(1).optional(),
+  branchId: z.string().nullable().optional(),
+  pin: z.string().length(4, 'El PIN debe tener 4 dígitos').nullable().optional(),
+  status: z.enum(['ACTIVE', 'INVITED', 'DISABLED']).optional(),
+});
+
+/**
+ * GET /api/agency/tenants/:id/users
+ * Listar usuarios de un tenant
+ */
+router.get(
+  '/tenants/:id/users',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const users = await prisma.user.findMany({
+        where: { tenantId: req.params.id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          avatar: true,
+          status: true,
+          roleId: true,
+          branchId: true,
+          createdAt: true,
+          updatedAt: true,
+          role: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true, code: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      res.json({
+        success: true,
+        data: users,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/agency/tenants/:id/users/:userId
+ * Obtener usuario por ID
+ */
+router.get(
+  '/tenants/:id/users/:userId',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const user = await prisma.user.findFirst({
+        where: { id: req.params.userId, tenantId: req.params.id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          avatar: true,
+          status: true,
+          roleId: true,
+          branchId: true,
+          createdAt: true,
+          updatedAt: true,
+          role: { select: { id: true, name: true, permissions: true } },
+          branch: { select: { id: true, name: true, code: true } },
+        },
+      });
+
+      if (!user) {
+        throw ApiError.notFound('Usuario no encontrado');
+      }
+
+      res.json({
+        success: true,
+        data: user,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/users
+ * Crear usuario para un tenant
+ */
+router.post(
+  '/tenants/:id/users',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.params.id;
+
+      const validation = tenantUserCreateSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const { email, password, name, roleId, branchId, pin, status } = validation.data;
+
+      // Verificar que no exista otro usuario con el mismo email en el tenant
+      const existing = await prisma.user.findFirst({
+        where: { tenantId, email },
+      });
+
+      if (existing) {
+        throw ApiError.conflict('Ya existe un usuario con ese email');
+      }
+
+      // Verificar que el rol pertenece al tenant
+      const role = await prisma.role.findFirst({
+        where: { id: roleId, tenantId },
+      });
+
+      if (!role) {
+        throw ApiError.notFound('Rol no encontrado');
+      }
+
+      // Verificar que la sucursal pertenece al tenant (si se especifica)
+      if (branchId) {
+        const branch = await prisma.branch.findFirst({
+          where: { id: branchId, tenantId },
+        });
+
+        if (!branch) {
+          throw ApiError.notFound('Sucursal no encontrada');
+        }
+      }
+
+      // Hash de la contraseña
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      const user = await prisma.user.create({
+        data: {
+          tenantId,
+          email,
+          passwordHash,
+          name,
+          roleId,
+          branchId,
+          pin,
+          status,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          status: true,
+          roleId: true,
+          branchId: true,
+          createdAt: true,
+          role: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true, code: true } },
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: user,
+        message: 'Usuario creado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/agency/tenants/:id/users/:userId
+ * Actualizar usuario de un tenant
+ */
+router.put(
+  '/tenants/:id/users/:userId',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.params.id;
+      const userId = req.params.userId;
+
+      const validation = tenantUserUpdateSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const existing = await prisma.user.findFirst({
+        where: { id: userId, tenantId },
+      });
+
+      if (!existing) {
+        throw ApiError.notFound('Usuario no encontrado');
+      }
+
+      const { email, password, name, roleId, branchId, pin, status } = validation.data;
+
+      // Verificar email único si se cambia
+      if (email && email !== existing.email) {
+        const duplicate = await prisma.user.findFirst({
+          where: { tenantId, email, id: { not: userId } },
+        });
+
+        if (duplicate) {
+          throw ApiError.conflict('Ya existe un usuario con ese email');
+        }
+      }
+
+      // Verificar rol si se cambia
+      if (roleId && roleId !== existing.roleId) {
+        const role = await prisma.role.findFirst({
+          where: { id: roleId, tenantId },
+        });
+
+        if (!role) {
+          throw ApiError.notFound('Rol no encontrado');
+        }
+      }
+
+      // Verificar sucursal si se cambia
+      if (branchId && branchId !== existing.branchId) {
+        const branch = await prisma.branch.findFirst({
+          where: { id: branchId, tenantId },
+        });
+
+        if (!branch) {
+          throw ApiError.notFound('Sucursal no encontrada');
+        }
+      }
+
+      // Preparar datos de actualización
+      const updateData: Record<string, unknown> = {};
+
+      if (email) updateData.email = email;
+      if (password) updateData.passwordHash = await bcrypt.hash(password, 10);
+      if (name) updateData.name = name;
+      if (roleId) updateData.roleId = roleId;
+      if (branchId !== undefined) updateData.branchId = branchId;
+      if (pin !== undefined) updateData.pin = pin;
+      if (status) updateData.status = status;
+
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          status: true,
+          roleId: true,
+          branchId: true,
+          createdAt: true,
+          updatedAt: true,
+          role: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true, code: true } },
+        },
+      });
+
+      res.json({
+        success: true,
+        data: user,
+        message: 'Usuario actualizado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/agency/tenants/:id/users/:userId
+ * Eliminar usuario de un tenant
+ */
+router.delete(
+  '/tenants/:id/users/:userId',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.params.id;
+      const userId = req.params.userId;
+
+      const existing = await prisma.user.findFirst({
+        where: { id: userId, tenantId },
+      });
+
+      if (!existing) {
+        throw ApiError.notFound('Usuario no encontrado');
+      }
+
+      // Verificar que no tenga ventas asociadas
+      const salesCount = await prisma.sale.count({
+        where: { userId },
+      });
+
+      if (salesCount > 0) {
+        // En lugar de eliminar, desactivar el usuario
+        await prisma.user.update({
+          where: { id: userId },
+          data: { status: 'DISABLED' },
+        });
+
+        res.json({
+          success: true,
+          message: 'Usuario desactivado (tiene ventas asociadas)',
+        });
+        return;
+      }
+
+      await prisma.user.delete({
+        where: { id: userId },
+      });
+
+      res.json({
+        success: true,
+        message: 'Usuario eliminado',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

@@ -292,4 +292,127 @@ export interface UpdatePointOfSaleDto {
   isActive?: boolean;
 }
 
+// Permissions API
+export const permissionsApi = {
+  getAll: async () => {
+    const response = await api.get('/backoffice/permissions');
+    return response.data.data;
+  },
+};
+
+// Roles API
+export const rolesApi = {
+  getAll: async () => {
+    const response = await api.get('/backoffice/roles');
+    return response.data.data;
+  },
+  getById: async (id: string) => {
+    const response = await api.get(`/backoffice/roles/${id}`);
+    return response.data.data;
+  },
+  create: async (data: CreateRoleDto) => {
+    const response = await api.post('/backoffice/roles', data);
+    return response.data.data;
+  },
+  update: async (id: string, data: UpdateRoleDto) => {
+    const response = await api.put(`/backoffice/roles/${id}`, data);
+    return response.data.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/backoffice/roles/${id}`);
+    return response.data;
+  },
+};
+
+// Users API
+export const usersApi = {
+  getAll: async () => {
+    const response = await api.get('/backoffice/users');
+    return response.data.data;
+  },
+  getById: async (id: string) => {
+    const response = await api.get(`/backoffice/users/${id}`);
+    return response.data.data;
+  },
+  create: async (data: CreateUserDto) => {
+    const response = await api.post('/backoffice/users', data);
+    return response.data.data;
+  },
+  update: async (id: string, data: UpdateUserDto) => {
+    const response = await api.put(`/backoffice/users/${id}`, data);
+    return response.data.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/backoffice/users/${id}`);
+    return response.data;
+  },
+};
+
+// Permission Types
+export interface Permission {
+  code: string;
+  name: string;
+  category: string;
+}
+
+// Role Types
+export interface Role {
+  id: string;
+  name: string;
+  description?: string;
+  isSystem: boolean;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+  _count?: { users: number };
+  users?: User[];
+}
+
+export interface CreateRoleDto {
+  name: string;
+  description?: string;
+  permissions: string[];
+}
+
+export interface UpdateRoleDto {
+  name?: string;
+  description?: string;
+  permissions?: string[];
+}
+
+// User Types
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string;
+  status: 'ACTIVE' | 'INVITED' | 'DISABLED';
+  roleId: string;
+  branchId?: string;
+  createdAt: string;
+  updatedAt: string;
+  role?: { id: string; name: string; permissions?: string[] };
+  branch?: { id: string; name: string; code: string };
+}
+
+export interface CreateUserDto {
+  email: string;
+  password: string;
+  name: string;
+  roleId: string;
+  branchId?: string;
+  pin?: string;
+  status?: 'ACTIVE' | 'INVITED' | 'DISABLED';
+}
+
+export interface UpdateUserDto {
+  email?: string;
+  password?: string;
+  name?: string;
+  roleId?: string;
+  branchId?: string | null;
+  pin?: string | null;
+  status?: 'ACTIVE' | 'INVITED' | 'DISABLED';
+}
+
 export default api;
