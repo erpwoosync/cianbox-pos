@@ -277,6 +277,9 @@ export default function POS() {
           taxRate: Number(item.product.taxRate || 21),
           promotionId: item.promotionId,
           promotionName: item.promotionName,
+          // IDs para sincronización con Cianbox
+          priceListId: selectedPOS.priceList?.id || null,
+          branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         })),
         payments: [
           {

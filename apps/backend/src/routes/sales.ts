@@ -24,6 +24,8 @@ const saleItemSchema = z.object({
   taxRate: z.number().default(21),
   promotionId: z.string().optional(),
   promotionName: z.string().optional(),
+  priceListId: z.string().optional(), // ID de lista de precios usada
+  branchId: z.string().optional(), // ID de sucursal (heredado de la venta)
 });
 
 const paymentSchema = z.object({
@@ -237,6 +239,9 @@ router.post(
                 taxAmount: item.taxAmount,
                 promotionId: item.promotionId,
                 promotionName: item.promotionName,
+                // IDs para sincronización con Cianbox
+                priceListId: item.priceListId || pos.priceListId, // Usar del item o del POS
+                branchId: item.branchId || data.branchId, // Usar del item o de la venta
               })),
             },
             payments: {

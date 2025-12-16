@@ -279,6 +279,7 @@ model Branch {
   productStock ProductStock[]
   users        User[]
   sales        Sale[]
+  saleItems    SaleItem[]
   cashRegisters CashRegister[]
 
   @@unique([tenantId, code])
@@ -386,6 +387,7 @@ model PriceList {
   prices       ProductPrice[]
   pointsOfSale PointOfSale[]
   customers    Customer[]
+  saleItems    SaleItem[]
 
   @@unique([tenantId, cianboxPriceListId])
   @@map("price_lists")
@@ -826,6 +828,10 @@ model SaleItem {
   taxRate       Decimal  @default(21) @db.Decimal(5, 2)
   taxAmount     Decimal  @default(0) @db.Decimal(12, 2)
 
+  // IDs para sincronización con Cianbox
+  priceListId   String?  // Lista de precios usada en esta venta
+  branchId      String?  // Sucursal donde se realizó la venta
+
   // Promoción aplicada
   promotionId   String?
   promotionName String?  // Nombre de la promoción aplicada
@@ -840,6 +846,8 @@ model SaleItem {
   product   Product?   @relation(fields: [productId], references: [id])
   combo     Combo?     @relation(fields: [comboId], references: [id])
   promotion Promotion? @relation(fields: [promotionId], references: [id])
+  priceList PriceList? @relation(fields: [priceListId], references: [id])
+  branch    Branch?    @relation(fields: [branchId], references: [id])
 
   @@index([saleId])
   @@index([productId])
