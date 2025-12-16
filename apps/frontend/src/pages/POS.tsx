@@ -271,19 +271,19 @@ export default function POS() {
           productCode: item.product.sku,
           productName: item.product.name,
           productBarcode: item.product.barcode,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          taxRate: item.product.taxRate || 21,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          discount: Number(item.discount || 0),
+          taxRate: Number(item.product.taxRate || 21),
           promotionId: item.promotionId,
           promotionName: item.promotionName,
         })),
         payments: [
           {
             method: selectedPaymentMethod,
-            amount: total,
+            amount: Number(total),
             amountTendered:
-              selectedPaymentMethod === 'CASH' ? tenderedAmount : undefined,
+              selectedPaymentMethod === 'CASH' ? Number(tenderedAmount) : undefined,
           },
         ],
       };
