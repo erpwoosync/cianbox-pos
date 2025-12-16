@@ -14,6 +14,9 @@ import {
   X,
   Check,
   Loader2,
+  WifiOff,
+  Wifi,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService } from '../services/api';
@@ -107,7 +110,40 @@ interface PointOfSale {
 
 type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR';
 
+interface SaleData {
+  branchId: string;
+  pointOfSaleId: string;
+  items: Array<{
+    productId: string;
+    productCode: string;
+    productName: string;
+    productBarcode: string;
+    quantity: number;
+    unitPrice: number;
+    unitPriceNet: number;
+    discount: number;
+    taxRate: number;
+    promotionId?: string;
+    promotionName?: string;
+    priceListId: string | null;
+    branchId: string;
+  }>;
+  payments: Array<{
+    method: PaymentMethod;
+    amount: number;
+    amountTendered?: number;
+  }>;
+}
+
+interface PendingSale {
+  id: string;
+  saleData: SaleData;
+  createdAt: string;
+  attempts: number;
+}
+
 const STORAGE_KEY = 'pos_tickets';
+const PENDING_SALES_KEY = 'pos_pending_sales';
 
 export default function POS() {
   const navigate = useNavigate();
@@ -142,6 +178,11 @@ export default function POS() {
   const [amountTendered, setAmountTendered] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Estado offline/online
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+
   // Cargar tickets desde localStorage al montar
   useEffect(() => {
     const savedTickets = localStorage.getItem(STORAGE_KEY);
@@ -161,6 +202,42 @@ export default function POS() {
       createNewTicket();
     }
   }, []);
+
+  // Cargar ventas pendientes desde localStorage al montar
+  useEffect(() => {
+    const savedPendingSales = localStorage.getItem(PENDING_SALES_KEY);
+    if (savedPendingSales) {
+      try {
+        const parsed: PendingSale[] = JSON.parse(savedPendingSales);
+        setPendingSales(parsed);
+      } catch (error) {
+        console.error('Error loading pending sales from localStorage:', error);
+      }
+    }
+  }, []);
+
+  // Detectar cambios de estado online/offline
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[POS] Conexión restaurada');
+      setIsOnline(true);
+      // Auto-sincronizar ventas pendientes
+      syncPendingSales();
+    };
+
+    const handleOffline = () => {
+      console.log('[POS] Sin conexión');
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [pendingSales]);
 
   // Guardar tickets en localStorage cada vez que cambien
   useEffect(() => {
@@ -365,6 +442,53 @@ export default function POS() {
   const tenderedAmount = parseFloat(amountTendered) || 0;
   const change = tenderedAmount - total;
 
+  // Sincronizar ventas pendientes
+  const syncPendingSales = async () => {
+    if (isSyncing || pendingSales.length === 0 || !isOnline) {
+      return;
+    }
+
+    setIsSyncing(true);
+    console.log(`[POS] Sincronizando ${pendingSales.length} ventas pendientes...`);
+
+    const remaining: PendingSale[] = [];
+
+    for (const pendingSale of pendingSales) {
+      try {
+        const response = await salesService.create(pendingSale.saleData);
+        if (response.success) {
+          console.log(`[POS] Venta pendiente ${pendingSale.id} sincronizada`);
+        } else {
+          // Si falla, reintentar más tarde
+          remaining.push({
+            ...pendingSale,
+            attempts: pendingSale.attempts + 1,
+          });
+        }
+      } catch (error) {
+        console.error(`[POS] Error sincronizando venta ${pendingSale.id}:`, error);
+        // Guardar para reintentar (máximo 5 intentos)
+        if (pendingSale.attempts < 5) {
+          remaining.push({
+            ...pendingSale,
+            attempts: pendingSale.attempts + 1,
+          });
+        }
+      }
+    }
+
+    // Actualizar lista de pendientes
+    setPendingSales(remaining);
+    localStorage.setItem(PENDING_SALES_KEY, JSON.stringify(remaining));
+    setIsSyncing(false);
+
+    if (remaining.length === 0) {
+      console.log('[POS] Todas las ventas pendientes han sido sincronizadas');
+    } else {
+      console.log(`[POS] Quedan ${remaining.length} ventas pendientes`);
+    }
+  };
+
   // Procesar venta
   const processSale = async () => {
     if (cart.length === 0) return;
@@ -405,6 +529,30 @@ export default function POS() {
         ],
       };
 
+      // Si está offline, encolar la venta
+      if (!isOnline) {
+        const pendingSale: PendingSale = {
+          id: generateId(),
+          saleData,
+          createdAt: new Date().toISOString(),
+          attempts: 0,
+        };
+
+        const updatedPending = [...pendingSales, pendingSale];
+        setPendingSales(updatedPending);
+        localStorage.setItem(PENDING_SALES_KEY, JSON.stringify(updatedPending));
+
+        // Eliminar ticket completado y mostrar confirmación
+        if (currentTicketId) {
+          deleteTicket(currentTicketId);
+        }
+        setShowPayment(false);
+        setAmountTendered('');
+        alert('Venta guardada. Se sincronizará cuando vuelva la conexión.');
+        return;
+      }
+
+      // Si está online, procesar normalmente
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -415,6 +563,11 @@ export default function POS() {
         setShowPayment(false);
         setAmountTendered('');
         alert(`Venta #${response.data.saleNumber} registrada correctamente`);
+
+        // Intentar sincronizar ventas pendientes si hay
+        if (pendingSales.length > 0) {
+          syncPendingSales();
+        }
       }
     } catch (error) {
       console.error('Error procesando venta:', error);
@@ -511,6 +664,44 @@ export default function POS() {
           </div>
 
           <div className="text-right flex items-center gap-4">
+            {/* Indicador de conexión y sincronización */}
+            {!isOnline ? (
+              <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-sm">
+                <WifiOff className="w-4 h-4" />
+                <span>Sin conexión</span>
+                {pendingSales.length > 0 && (
+                  <span className="bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                    {pendingSales.length} pendientes
+                  </span>
+                )}
+              </div>
+            ) : (
+              <>
+                {isSyncing && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Sincronizando...</span>
+                  </div>
+                )}
+                {!isSyncing && pendingSales.length > 0 && (
+                  <button
+                    onClick={syncPendingSales}
+                    className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200"
+                    title="Sincronizar ventas pendientes"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>{pendingSales.length} pendientes</span>
+                  </button>
+                )}
+                {!isSyncing && pendingSales.length === 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm">
+                    <Wifi className="w-4 h-4" />
+                    <span>Conectado</span>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* Indicador de POS */}
             <button
               onClick={() => pointsOfSale.length > 1 && setShowPOSSelector(true)}
