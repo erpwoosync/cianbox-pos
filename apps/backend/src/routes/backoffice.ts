@@ -1465,7 +1465,15 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
       include: {
         items: {
           include: {
-            product: { select: { id: true, name: true, sku: true } },
+            product: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                cianboxProductId: true,
+                taxRate: true,
+              },
+            },
             combo: { select: { id: true, name: true, code: true } },
             promotion: { select: { id: true, name: true, code: true } },
           },

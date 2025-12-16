@@ -26,6 +26,7 @@ interface SaleItem {
   productBarcode?: string;
   quantity: number;
   unitPrice: number;
+  unitPriceNet?: number;
   discount: number;
   subtotal: number;
   taxRate: number;
@@ -36,6 +37,8 @@ interface SaleItem {
     id: string;
     name: string;
     sku: string;
+    cianboxProductId?: number;
+    taxRate?: number;
   };
 }
 
@@ -297,8 +300,10 @@ export default function SaleDetail() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">ID Cianbox</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Unit.</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Alícuota</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Descuento</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
               </tr>
@@ -320,8 +325,27 @@ export default function SaleDetail() {
                       )}
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="text-sm font-mono text-gray-700">
+                      {item.product?.cianboxProductId || '-'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right text-gray-900">{item.quantity}</td>
-                  <td className="px-4 py-3 text-right text-gray-900">{formatCurrency(item.unitPrice)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {formatCurrency(item.unitPrice)}
+                    </div>
+                    {item.unitPriceNet && (
+                      <div className="text-xs text-gray-500">
+                        Neto: {formatCurrency(item.unitPriceNet)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {item.taxRate}%
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right text-gray-900">
                     {item.discount > 0 ? formatCurrency(item.discount) : '-'}
                   </td>
