@@ -14,6 +14,8 @@ import PriceLists from './pages/PriceLists';
 import PointsOfSale from './pages/PointsOfSale';
 import Roles from './pages/Roles';
 import Users from './pages/Users';
+import Sales from './pages/Sales';
+import SaleDetail from './pages/SaleDetail';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -51,6 +53,8 @@ export default function App() {
                 <Route path="/stock" element={<Stock />} />
                 <Route path="/roles" element={<Roles />} />
                 <Route path="/users" element={<Users />} />
+                <Route path="/sales" element={<Sales />} />
+                <Route path="/sales/:id" element={<SaleDetail />} />
               </Routes>
             </Layout>
           </PrivateRoute>

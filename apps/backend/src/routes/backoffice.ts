@@ -1391,4 +1391,104 @@ router.delete(
   }
 );
 
+// =============================================
+// SALES (Ventas)
+// =============================================
+
+// Listar ventas
+router.get('/sales', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { page = '1', pageSize = '20', status, dateFrom, dateTo } = req.query;
+
+    const skip = (parseInt(page as string) - 1) * parseInt(pageSize as string);
+    const take = parseInt(pageSize as string);
+
+    const where: Record<string, unknown> = { tenantId };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (dateFrom || dateTo) {
+      where.saleDate = {};
+      if (dateFrom) {
+        (where.saleDate as Record<string, Date>).gte = new Date(dateFrom as string);
+      }
+      if (dateTo) {
+        const endDate = new Date(dateTo as string);
+        endDate.setHours(23, 59, 59, 999);
+        (where.saleDate as Record<string, Date>).lte = endDate;
+      }
+    }
+
+    const [sales, total] = await Promise.all([
+      prisma.sale.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true } },
+          branch: { select: { id: true, code: true, name: true } },
+          pointOfSale: { select: { id: true, code: true, name: true } },
+          user: { select: { id: true, name: true } },
+          _count: { select: { items: true, payments: true } },
+        },
+        skip,
+        take,
+        orderBy: { saleDate: 'desc' },
+      }),
+      prisma.sale.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: sales,
+      pagination: {
+        page: parseInt(page as string),
+        pageSize: parseInt(pageSize as string),
+        total,
+        totalPages: Math.ceil(total / parseInt(pageSize as string)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Obtener venta por ID
+router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+
+    const sale = await prisma.sale.findFirst({
+      where: { id, tenantId },
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true } },
+            combo: { select: { id: true, name: true, code: true } },
+            promotion: { select: { id: true, name: true, code: true } },
+          },
+        },
+        payments: true,
+        customer: true,
+        branch: true,
+        pointOfSale: true,
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    if (!sale) {
+      throw new ApiError(404, 'NOT_FOUND', 'Venta no encontrada');
+    }
+
+    res.json({
+      success: true,
+      data: sale,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
