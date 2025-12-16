@@ -81,6 +81,16 @@ interface CartItem {
   promotionName?: string;
 }
 
+interface Ticket {
+  id: string;
+  number: number;
+  name: string;
+  items: CartItem[];
+  createdAt: string;
+  customerId?: string;
+  customerName?: string;
+}
+
 interface Category {
   id: string;
   name: string;
@@ -97,12 +107,20 @@ interface PointOfSale {
 
 type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR';
 
+const STORAGE_KEY = 'pos_tickets';
+
 export default function POS() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  // Estado del carrito
-  const [cart, setCart] = useState<CartItem[]>([]);
+  // Estado de tickets (múltiples ventas en paralelo)
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [currentTicketId, setCurrentTicketId] = useState<string | null>(null);
+  const [showTicketList, setShowTicketList] = useState(false);
+
+  // Estado del carrito (computed from current ticket)
+  const cart = tickets.find((t) => t.id === currentTicketId)?.items || [];
+
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -123,6 +141,33 @@ export default function POS() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('CASH');
   const [amountTendered, setAmountTendered] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Cargar tickets desde localStorage al montar
+  useEffect(() => {
+    const savedTickets = localStorage.getItem(STORAGE_KEY);
+    if (savedTickets) {
+      try {
+        const parsed: Ticket[] = JSON.parse(savedTickets);
+        setTickets(parsed);
+        // Auto-seleccionar el último ticket
+        if (parsed.length > 0) {
+          setCurrentTicketId(parsed[parsed.length - 1].id);
+        }
+      } catch (error) {
+        console.error('Error loading tickets from localStorage:', error);
+      }
+    } else {
+      // Crear primer ticket si no hay ninguno
+      createNewTicket();
+    }
+  }, []);
+
+  // Guardar tickets en localStorage cada vez que cambien
+  useEffect(() => {
+    if (tickets.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+    }
+  }, [tickets]);
 
   // Cargar categorías y productos
   useEffect(() => {
@@ -170,6 +215,53 @@ export default function POS() {
     }
   };
 
+  // Gestión de tickets
+  const createNewTicket = () => {
+    const newTicket: Ticket = {
+      id: generateId(),
+      number: tickets.length + 1,
+      name: `Ticket #${tickets.length + 1}`,
+      items: [],
+      createdAt: new Date().toISOString(),
+    };
+    setTickets((prev) => [...prev, newTicket]);
+    setCurrentTicketId(newTicket.id);
+    setShowTicketList(false);
+  };
+
+  const switchTicket = (ticketId: string) => {
+    setCurrentTicketId(ticketId);
+    setShowTicketList(false);
+  };
+
+  const deleteTicket = (ticketId: string) => {
+    setTickets((prev) => {
+      const filtered = prev.filter((t) => t.id !== ticketId);
+      // Si eliminamos el ticket actual, seleccionar otro
+      if (ticketId === currentTicketId) {
+        const remaining = filtered.length > 0 ? filtered[filtered.length - 1].id : null;
+        setCurrentTicketId(remaining);
+        // Si no quedan tickets, crear uno nuevo
+        if (!remaining) {
+          setTimeout(createNewTicket, 0);
+        }
+      }
+      return filtered;
+    });
+  };
+
+  // Actualizar items del ticket actual
+  const updateCart = (updater: (items: CartItem[]) => CartItem[]) => {
+    if (!currentTicketId) return;
+    setTickets((prev) =>
+      prev.map((ticket) =>
+        ticket.id === currentTicketId
+          ? { ...ticket, items: updater(ticket.items) }
+          : ticket
+      )
+    );
+  };
+
   // Búsqueda de productos
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
@@ -205,7 +297,7 @@ export default function POS() {
 
   // Agregar producto al carrito
   const addToCart = (product: Product) => {
-    setCart((prev) => {
+    updateCart((prev) => {
       const existingIndex = prev.findIndex(
         (item) => item.product.id === product.id
       );
@@ -241,7 +333,7 @@ export default function POS() {
 
   // Actualizar cantidad
   const updateQuantity = (itemId: string, delta: number) => {
-    setCart((prev) =>
+    updateCart((prev) =>
       prev
         .map((item) => {
           if (item.id === itemId) {
@@ -260,7 +352,7 @@ export default function POS() {
 
   // Eliminar item
   const removeItem = (itemId: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== itemId));
+    updateCart((prev) => prev.filter((item) => item.id !== itemId));
   };
 
   // Calcular totales
@@ -316,8 +408,10 @@ export default function POS() {
       const response = await salesService.create(saleData);
 
       if (response.success) {
-        // Limpiar carrito y mostrar confirmación
-        setCart([]);
+        // Eliminar ticket completado y mostrar confirmación
+        if (currentTicketId) {
+          deleteTicket(currentTicketId);
+        }
         setShowPayment(false);
         setAmountTendered('');
         alert(`Venta #${response.data.saleNumber} registrada correctamente`);
@@ -536,6 +630,66 @@ export default function POS() {
 
       {/* Panel derecho - Carrito */}
       <div className="flex flex-col h-screen bg-white border-l">
+        {/* Selector de tickets */}
+        <div className="p-3 border-b bg-gray-50">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTicketList(!showTicketList)}
+              className="flex-1 flex items-center justify-between px-3 py-2 bg-white border rounded-lg hover:bg-gray-50"
+            >
+              <span className="text-sm font-medium">
+                {tickets.find((t) => t.id === currentTicketId)?.name || 'Seleccionar ticket'}
+              </span>
+              <span className="text-xs text-gray-500">
+                ({tickets.length} {tickets.length === 1 ? 'ticket' : 'tickets'})
+              </span>
+            </button>
+            <button
+              onClick={createNewTicket}
+              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
+              title="Nuevo ticket"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Lista de tickets */}
+          {showTicketList && (
+            <div className="mt-2 max-h-64 overflow-y-auto bg-white border rounded-lg shadow-lg">
+              {tickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  className={`p-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer ${
+                    ticket.id === currentTicketId ? 'bg-blue-50' : ''
+                  }`}
+                  onClick={() => switchTicket(ticket.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{ticket.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {ticket.items.length} items - {new Date(ticket.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    {tickets.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTicket(ticket.id);
+                        }}
+                        className="p-1 text-red-600 hover:bg-red-100 rounded"
+                        title="Eliminar ticket"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Header del carrito */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
@@ -550,7 +704,7 @@ export default function POS() {
             </h2>
             {cart.length > 0 && (
               <button
-                onClick={() => setCart([])}
+                onClick={() => updateCart(() => [])}
                 className="text-sm text-red-600 hover:text-red-700"
               >
                 Vaciar
