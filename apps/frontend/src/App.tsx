@@ -3,6 +3,7 @@ import { useAuthStore } from './context/authStore';
 
 // Layout
 import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
 import Login from './pages/Login';
@@ -15,8 +16,8 @@ import Sales from './pages/Sales';
 import Sync from './pages/Sync';
 import Settings from './pages/Settings';
 
-// Protected Route wrapper
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+// Auth wrapper - only checks if user is logged in
+function AuthRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   if (!isAuthenticated) {
@@ -35,19 +36,83 @@ export default function App() {
       {/* Protected routes with Layout */}
       <Route
         element={
-          <ProtectedRoute>
+          <AuthRoute>
             <Layout />
-          </ProtectedRoute>
+          </AuthRoute>
         }
       >
+        {/* Dashboard - todos pueden acceder */}
         <Route path="/" element={<Dashboard />} />
-        <Route path="/pos" element={<POS />} />
-        <Route path="/productos" element={<Products />} />
-        <Route path="/categorias" element={<Categories />} />
-        <Route path="/usuarios" element={<Users />} />
-        <Route path="/ventas" element={<Sales />} />
-        <Route path="/sync" element={<Sync />} />
-        <Route path="/configuracion" element={<Settings />} />
+
+        {/* POS - requiere permiso pos:sell */}
+        <Route
+          path="/pos"
+          element={
+            <ProtectedRoute permissions={['pos:sell']}>
+              <POS />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Productos - requiere permisos de inventario */}
+        <Route
+          path="/productos"
+          element={
+            <ProtectedRoute permissions={['admin:products', 'inventory:view', 'inventory:edit']}>
+              <Products />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Categorías - requiere permisos de inventario */}
+        <Route
+          path="/categorias"
+          element={
+            <ProtectedRoute permissions={['admin:products', 'inventory:view', 'inventory:edit']}>
+              <Categories />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Usuarios - requiere admin:users */}
+        <Route
+          path="/usuarios"
+          element={
+            <ProtectedRoute permissions={['admin:users']}>
+              <Users />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Ventas - requiere permisos de reportes */}
+        <Route
+          path="/ventas"
+          element={
+            <ProtectedRoute permissions={['reports:sales', 'pos:view_reports']}>
+              <Sales />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Sincronización - requiere admin:settings */}
+        <Route
+          path="/sync"
+          element={
+            <ProtectedRoute permissions={['admin:settings']}>
+              <Sync />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Configuración - requiere admin:settings */}
+        <Route
+          path="/configuracion"
+          element={
+            <ProtectedRoute permissions={['admin:settings']}>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
       {/* Fallback */}
