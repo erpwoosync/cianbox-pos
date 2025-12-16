@@ -90,6 +90,24 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// API root
+app.get('/api', (_req, res) => {
+  res.json({
+    success: true,
+    message: 'Cianbox POS API',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      products: '/api/products',
+      sales: '/api/sales',
+      promotions: '/api/promotions',
+      cianbox: '/api/cianbox',
+      agency: '/api/agency',
+      backoffice: '/api/backoffice',
+    },
+  });
+});
+
 // Montar rutas API
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productsRoutes);
