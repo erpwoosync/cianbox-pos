@@ -305,6 +305,11 @@ export default function POS() {
     ? products.filter((p) => p.category?.id === selectedCategory)
     : products;
 
+  // Filtrar categorías que tienen productos
+  const categoriesWithProducts = categories.filter((cat) =>
+    products.some((p) => p.category?.id === cat.id)
+  );
+
   return (
     <div className="pos-layout">
       {/* Modal selector de Punto de Venta */}
@@ -446,7 +451,7 @@ export default function POS() {
           >
             Todos
           </button>
-          {categories.map((cat) => (
+          {categoriesWithProducts.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}

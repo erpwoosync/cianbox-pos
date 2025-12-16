@@ -170,11 +170,22 @@ button:focus {
   grid-template-columns: 1fr 380px;
   height: 100vh;
   overflow: hidden;
+  width: 100%;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .pos-layout {
     grid-template-columns: 1fr;
+  }
+
+  .pos-layout > div:last-child {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .pos-layout {
+    grid-template-columns: 1fr 380px;
   }
 }
 
