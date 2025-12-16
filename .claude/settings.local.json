@@ -26,7 +26,9 @@
       "Bash(timeout 90 bash:*)",
       "Bash(timeout 60 bash:*)",
       "Bash(timeout 45 bash -c \"echo ''Esperando...''; sleep 35; echo ''Listo''\")",
-      "Bash(timeout 50 bash:*)"
+      "Bash(timeout 50 bash:*)",
+      "WebFetch(domain:cianbox-pos.ews-cdn.link)",
+      "WebFetch(domain:cianbox-pos-point.ews-cdn.link)"
     ]
   }
 }

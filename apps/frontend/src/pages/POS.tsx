@@ -196,10 +196,28 @@ export default function POS() {
         }
       } catch (error) {
         console.error('Error loading tickets from localStorage:', error);
+        // Si hay error, crear ticket inicial
+        const initialTicket: Ticket = {
+          id: generateId(),
+          number: 1,
+          name: 'Ticket #1',
+          items: [],
+          createdAt: new Date().toISOString(),
+        };
+        setTickets([initialTicket]);
+        setCurrentTicketId(initialTicket.id);
       }
     } else {
-      // Crear primer ticket si no hay ninguno
-      createNewTicket();
+      // Crear primer ticket si no hay ninguno guardado
+      const initialTicket: Ticket = {
+        id: generateId(),
+        number: 1,
+        name: 'Ticket #1',
+        items: [],
+        createdAt: new Date().toISOString(),
+      };
+      setTickets([initialTicket]);
+      setCurrentTicketId(initialTicket.id);
     }
   }, []);
 
@@ -241,9 +259,8 @@ export default function POS() {
 
   // Guardar tickets en localStorage cada vez que cambien
   useEffect(() => {
-    if (tickets.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-    }
+    // Siempre sincronizar con localStorage, incluso si está vacío
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
   }, [tickets]);
 
   // Cargar categorías y productos
@@ -314,15 +331,25 @@ export default function POS() {
   const deleteTicket = (ticketId: string) => {
     setTickets((prev) => {
       const filtered = prev.filter((t) => t.id !== ticketId);
-      // Si eliminamos el ticket actual, seleccionar otro
-      if (ticketId === currentTicketId) {
-        const remaining = filtered.length > 0 ? filtered[filtered.length - 1].id : null;
-        setCurrentTicketId(remaining);
-        // Si no quedan tickets, crear uno nuevo
-        if (!remaining) {
-          setTimeout(createNewTicket, 0);
-        }
+
+      // Si no quedan tickets, crear uno nuevo inmediatamente
+      if (filtered.length === 0) {
+        const newTicket: Ticket = {
+          id: generateId(),
+          number: 1,
+          name: 'Ticket #1',
+          items: [],
+          createdAt: new Date().toISOString(),
+        };
+        setCurrentTicketId(newTicket.id);
+        return [newTicket];
       }
+
+      // Si eliminamos el ticket actual, seleccionar el último de los que quedan
+      if (ticketId === currentTicketId) {
+        setCurrentTicketId(filtered[filtered.length - 1].id);
+      }
+
       return filtered;
     });
   };
