@@ -149,9 +149,48 @@ export default function POS() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  // Estado de tickets (múltiples ventas en paralelo)
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [currentTicketId, setCurrentTicketId] = useState<string | null>(null);
+  // Estado de tickets (múltiples ventas en paralelo) - lazy initialization desde localStorage
+  const [tickets, setTickets] = useState<Ticket[]>(() => {
+    try {
+      const savedTickets = localStorage.getItem(STORAGE_KEY);
+      if (savedTickets) {
+        const parsed: Ticket[] = JSON.parse(savedTickets);
+        if (parsed.length > 0) {
+          console.log('[POS] Tickets cargados desde localStorage:', parsed.length);
+          return parsed;
+        }
+      }
+    } catch (error) {
+      console.error('[POS] Error loading tickets from localStorage:', error);
+    }
+    // Si no hay tickets guardados, crear uno inicial
+    const initialTicket: Ticket = {
+      id: generateId(),
+      number: 1,
+      name: 'Ticket #1',
+      items: [],
+      createdAt: new Date().toISOString(),
+    };
+    console.log('[POS] Creando ticket inicial');
+    return [initialTicket];
+  });
+
+  const [currentTicketId, setCurrentTicketId] = useState<string | null>(() => {
+    // Auto-seleccionar el último ticket disponible
+    try {
+      const savedTickets = localStorage.getItem(STORAGE_KEY);
+      if (savedTickets) {
+        const parsed: Ticket[] = JSON.parse(savedTickets);
+        if (parsed.length > 0) {
+          return parsed[parsed.length - 1].id;
+        }
+      }
+    } catch (error) {
+      console.error('[POS] Error loading currentTicketId:', error);
+    }
+    return null;
+  });
+
   const [showTicketList, setShowTicketList] = useState(false);
 
   // Estado del carrito (computed from current ticket)
@@ -182,39 +221,6 @@ export default function POS() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
-
-  // Flag para controlar cuando empezar a guardar automáticamente
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Cargar tickets desde localStorage al montar
-  useEffect(() => {
-    const savedTickets = localStorage.getItem(STORAGE_KEY);
-    if (savedTickets) {
-      try {
-        const parsed: Ticket[] = JSON.parse(savedTickets);
-        if (parsed.length > 0) {
-          setTickets(parsed);
-          setCurrentTicketId(parsed[parsed.length - 1].id);
-          setIsInitialized(true);
-          return;
-        }
-      } catch (error) {
-        console.error('Error loading tickets from localStorage:', error);
-      }
-    }
-
-    // Si no hay tickets guardados o hubo error, crear ticket inicial
-    const initialTicket: Ticket = {
-      id: generateId(),
-      number: 1,
-      name: 'Ticket #1',
-      items: [],
-      createdAt: new Date().toISOString(),
-    };
-    setTickets([initialTicket]);
-    setCurrentTicketId(initialTicket.id);
-    setIsInitialized(true);
-  }, []);
 
   // Cargar ventas pendientes desde localStorage al montar
   useEffect(() => {
@@ -252,13 +258,11 @@ export default function POS() {
     };
   }, [pendingSales]);
 
-  // Guardar tickets en localStorage cada vez que cambien (solo después de inicializar)
+  // Guardar tickets en localStorage cada vez que cambien
   useEffect(() => {
-    if (isInitialized) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-      console.log('[POS] Tickets guardados en localStorage:', tickets.length);
-    }
-  }, [tickets, isInitialized]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+    console.log('[POS] Tickets guardados en localStorage:', tickets.length);
+  }, [tickets]);
 
   // Cargar categorías y productos
   useEffect(() => {

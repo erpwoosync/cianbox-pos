@@ -1,5 +1,5 @@
 // Service Worker para modo offline del POS
-const CACHE_NAME = 'cianbox-pos-v1';
+const CACHE_NAME = 'cianbox-pos-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Archivos a cachear para funcionamiento offline
