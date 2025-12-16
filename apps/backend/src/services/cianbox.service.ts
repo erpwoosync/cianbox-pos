@@ -730,6 +730,7 @@ export class CianboxService {
               },
               update: {
                 price: precio.final_calculado,
+                priceNet: precio.neto_calculado || precio.neto || null,
                 cost: product.costo_final_calculado || product.costo || 0,
                 updatedAt: new Date(),
               },
@@ -737,6 +738,7 @@ export class CianboxService {
                 productId: savedProduct.id,
                 priceListId: priceList.id,
                 price: precio.final_calculado,
+                priceNet: precio.neto_calculado || precio.neto || null,
                 cost: product.costo_final_calculado || product.costo || 0,
               },
             });

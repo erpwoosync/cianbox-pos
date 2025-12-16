@@ -28,7 +28,12 @@ interface Product {
   basePrice?: number;
   taxRate?: number;
   category?: { id: string; name: string };
-  prices?: Array<{ priceListId: string; price: number; priceList?: { id: string; name: string } }>;
+  prices?: Array<{
+    priceListId: string;
+    price: number;
+    priceNet?: number;
+    priceList?: { id: string; name: string }
+  }>;
 }
 
 // Helper para generar IDs únicos
@@ -51,11 +56,25 @@ const getProductPrice = (product: Product): number => {
   return 0;
 };
 
+// Helper para obtener el precio neto (sin IVA) del producto
+const getProductPriceNet = (product: Product): number => {
+  // Buscar en prices (primer precio disponible)
+  if (product.prices && product.prices.length > 0 && product.prices[0].priceNet != null) {
+    const priceNet = Number(product.prices[0].priceNet);
+    if (!isNaN(priceNet)) return priceNet;
+  }
+  // Si no hay priceNet, calcular desde price y taxRate
+  const price = getProductPrice(product);
+  const taxRate = product.taxRate || 21;
+  return price / (1 + taxRate / 100);
+};
+
 interface CartItem {
   id: string;
   product: Product;
   quantity: number;
   unitPrice: number;
+  unitPriceNet: number;
   discount: number;
   subtotal: number;
   promotionId?: string;
@@ -201,6 +220,7 @@ export default function POS() {
       }
 
       const price = getProductPrice(product);
+      const priceNet = getProductPriceNet(product);
       return [
         ...prev,
         {
@@ -208,6 +228,7 @@ export default function POS() {
           product,
           quantity: 1,
           unitPrice: price,
+          unitPriceNet: priceNet,
           discount: 0,
           subtotal: price,
         },
@@ -273,6 +294,7 @@ export default function POS() {
           productBarcode: item.product.barcode,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
+          unitPriceNet: Number(item.unitPriceNet),
           discount: Number(item.discount || 0),
           taxRate: Number(item.product.taxRate || 21),
           promotionId: item.promotionId,

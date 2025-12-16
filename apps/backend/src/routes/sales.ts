@@ -19,7 +19,8 @@ const saleItemSchema = z.object({
   productName: z.string(),
   productBarcode: z.string().optional(),
   quantity: z.number().positive(),
-  unitPrice: z.number().min(0),
+  unitPrice: z.number().min(0), // Precio CON IVA
+  unitPriceNet: z.number().min(0).optional(), // Precio SIN IVA
   discount: z.number().min(0).default(0),
   taxRate: z.number().default(21),
   promotionId: z.string().optional(),
@@ -225,24 +226,33 @@ router.post(
             status: 'COMPLETED',
             notes: data.notes,
             items: {
-              create: itemsWithCalculations.map((item) => ({
-                productId: item.productId,
-                comboId: item.comboId,
-                productCode: item.productCode,
-                productName: item.productName,
-                productBarcode: item.productBarcode,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                discount: item.discount,
-                subtotal: item.subtotal,
-                taxRate: item.taxRate,
-                taxAmount: item.taxAmount,
-                promotionId: item.promotionId,
-                promotionName: item.promotionName,
-                // IDs para sincronización con Cianbox
-                priceListId: item.priceListId || pos.priceListId, // Usar del item o del POS
-                branchId: item.branchId || data.branchId, // Usar del item o de la venta
-              })),
+              create: itemsWithCalculations.map((item) => {
+                // Calcular precio neto si no viene del frontend
+                const unitPriceNet = item.unitPriceNet ||
+                  new Prisma.Decimal(item.unitPrice)
+                    .dividedBy(new Prisma.Decimal(1).plus(new Prisma.Decimal(item.taxRate).dividedBy(100)))
+                    .toNumber();
+
+                return {
+                  productId: item.productId,
+                  comboId: item.comboId,
+                  productCode: item.productCode,
+                  productName: item.productName,
+                  productBarcode: item.productBarcode,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  unitPriceNet,
+                  discount: item.discount,
+                  subtotal: item.subtotal,
+                  taxRate: item.taxRate,
+                  taxAmount: item.taxAmount,
+                  promotionId: item.promotionId,
+                  promotionName: item.promotionName,
+                  // IDs para sincronización con Cianbox
+                  priceListId: item.priceListId || pos.priceListId, // Usar del item o del POS
+                  branchId: item.branchId || data.branchId, // Usar del item o de la venta
+                };
+              }),
             },
             payments: {
               create: data.payments.map((payment) => ({
