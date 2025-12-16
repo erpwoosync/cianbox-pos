@@ -183,42 +183,37 @@ export default function POS() {
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Flag para controlar cuando empezar a guardar automáticamente
+  const [isInitialized, setIsInitialized] = useState(false);
+
   // Cargar tickets desde localStorage al montar
   useEffect(() => {
     const savedTickets = localStorage.getItem(STORAGE_KEY);
     if (savedTickets) {
       try {
         const parsed: Ticket[] = JSON.parse(savedTickets);
-        setTickets(parsed);
-        // Auto-seleccionar el último ticket
         if (parsed.length > 0) {
+          setTickets(parsed);
           setCurrentTicketId(parsed[parsed.length - 1].id);
+          setIsInitialized(true);
+          return;
         }
       } catch (error) {
         console.error('Error loading tickets from localStorage:', error);
-        // Si hay error, crear ticket inicial
-        const initialTicket: Ticket = {
-          id: generateId(),
-          number: 1,
-          name: 'Ticket #1',
-          items: [],
-          createdAt: new Date().toISOString(),
-        };
-        setTickets([initialTicket]);
-        setCurrentTicketId(initialTicket.id);
       }
-    } else {
-      // Crear primer ticket si no hay ninguno guardado
-      const initialTicket: Ticket = {
-        id: generateId(),
-        number: 1,
-        name: 'Ticket #1',
-        items: [],
-        createdAt: new Date().toISOString(),
-      };
-      setTickets([initialTicket]);
-      setCurrentTicketId(initialTicket.id);
     }
+
+    // Si no hay tickets guardados o hubo error, crear ticket inicial
+    const initialTicket: Ticket = {
+      id: generateId(),
+      number: 1,
+      name: 'Ticket #1',
+      items: [],
+      createdAt: new Date().toISOString(),
+    };
+    setTickets([initialTicket]);
+    setCurrentTicketId(initialTicket.id);
+    setIsInitialized(true);
   }, []);
 
   // Cargar ventas pendientes desde localStorage al montar
@@ -257,11 +252,13 @@ export default function POS() {
     };
   }, [pendingSales]);
 
-  // Guardar tickets en localStorage cada vez que cambien
+  // Guardar tickets en localStorage cada vez que cambien (solo después de inicializar)
   useEffect(() => {
-    // Siempre sincronizar con localStorage, incluso si está vacío
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-  }, [tickets]);
+    if (isInitialized) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+      console.log('[POS] Tickets guardados en localStorage:', tickets.length);
+    }
+  }, [tickets, isInitialized]);
 
   // Cargar categorías y productos
   useEffect(() => {
