@@ -31,6 +31,11 @@ interface Product {
   prices?: Array<{ priceListId: string; price: number; priceList?: { id: string; name: string } }>;
 }
 
+// Helper para generar IDs únicos
+const generateId = () => {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 // Helper para obtener el precio del producto
 const getProductPrice = (product: Product): number => {
   // Primero intentar basePrice
@@ -199,7 +204,7 @@ export default function POS() {
       return [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: generateId(),
           product,
           quantity: 1,
           unitPrice: price,
