@@ -11,6 +11,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { salesService } from '../services/api';
+import { useAuthStore } from '../context/authStore';
 
 interface DailySummary {
   totalSales: number;
@@ -21,6 +22,7 @@ interface DailySummary {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [summary, setSummary] = useState<DailySummary>({
     totalSales: 0,
     totalAmount: 0,
@@ -91,6 +93,7 @@ export default function Dashboard() {
       icon: ShoppingCart,
       path: '/pos',
       color: 'bg-emerald-600 hover:bg-emerald-700',
+      permissions: ['pos:sell'],
     },
     {
       label: 'Productos',
@@ -98,6 +101,7 @@ export default function Dashboard() {
       icon: Package,
       path: '/productos',
       color: 'bg-blue-600 hover:bg-blue-700',
+      permissions: ['admin:products', 'inventory:view', 'inventory:edit'],
     },
     {
       label: 'Ventas',
@@ -105,6 +109,7 @@ export default function Dashboard() {
       icon: BarChart3,
       path: '/ventas',
       color: 'bg-purple-600 hover:bg-purple-700',
+      permissions: ['reports:sales', 'pos:view_reports'],
     },
     {
       label: 'Usuarios',
@@ -112,8 +117,24 @@ export default function Dashboard() {
       icon: Users,
       path: '/usuarios',
       color: 'bg-orange-600 hover:bg-orange-700',
+      permissions: ['admin:users'],
     },
   ];
+
+  // Helper para verificar si el usuario tiene alguno de los permisos requeridos
+  const hasAnyPermission = (userPermissions: string[], requiredPermissions: string[]): boolean => {
+    // Si no hay permisos requeridos, todos tienen acceso
+    if (!requiredPermissions || requiredPermissions.length === 0) return true;
+    // Si el usuario tiene '*', tiene acceso a todo
+    if (userPermissions.includes('*')) return true;
+    // Verificar si tiene alguno de los permisos requeridos
+    return requiredPermissions.some(perm => userPermissions.includes(perm));
+  };
+
+  // Filtrar acciones rápidas según permisos del usuario
+  const allowedQuickActions = quickActions.filter((action) =>
+    hasAnyPermission(user?.role?.permissions || [], action.permissions)
+  );
 
   return (
     <div className="space-y-6">
@@ -167,7 +188,7 @@ export default function Dashboard() {
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Acceso rápido</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {quickActions.map((action) => (
+          {allowedQuickActions.map((action) => (
             <button
               key={action.label}
               onClick={() => navigate(action.path)}
