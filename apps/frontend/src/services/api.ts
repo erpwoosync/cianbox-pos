@@ -239,6 +239,21 @@ export const promotionsService = {
   },
 };
 
+// Servicios de Puntos de Venta
+export const pointsOfSaleService = {
+  list: async (branchId?: string) => {
+    const response = await api.get('/backoffice/points-of-sale', {
+      params: branchId ? { branchId } : undefined,
+    });
+    return response.data;
+  },
+
+  get: async (id: string) => {
+    const response = await api.get(`/backoffice/points-of-sale/${id}`);
+    return response.data;
+  },
+};
+
 // Servicios de Cianbox
 export const cianboxService = {
   getConnection: async () => {

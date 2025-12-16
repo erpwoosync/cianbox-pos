@@ -18,15 +18,25 @@ import {
 import { useAuthStore } from '../context/authStore';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Punto de Venta', href: '/pos', icon: ShoppingCart },
-  { name: 'Productos', href: '/productos', icon: Package },
-  { name: 'Categorías', href: '/categorias', icon: Tags },
-  { name: 'Usuarios', href: '/usuarios', icon: Users },
-  { name: 'Ventas', href: '/ventas', icon: BarChart3 },
-  { name: 'Sincronización', href: '/sync', icon: RefreshCw },
-  { name: 'Configuración', href: '/configuracion', icon: Settings },
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard, permissions: [] }, // Todos ven dashboard
+  { name: 'Punto de Venta', href: '/pos', icon: ShoppingCart, permissions: ['pos:sell'] },
+  { name: 'Productos', href: '/productos', icon: Package, permissions: ['admin:products', 'inventory:view', 'inventory:edit'] },
+  { name: 'Categorías', href: '/categorias', icon: Tags, permissions: ['admin:products', 'inventory:view', 'inventory:edit'] },
+  { name: 'Usuarios', href: '/usuarios', icon: Users, permissions: ['admin:users'] },
+  { name: 'Ventas', href: '/ventas', icon: BarChart3, permissions: ['reports:sales', 'pos:view_reports'] },
+  { name: 'Sincronización', href: '/sync', icon: RefreshCw, permissions: ['admin:settings'] },
+  { name: 'Configuración', href: '/configuracion', icon: Settings, permissions: ['admin:settings'] },
 ];
+
+// Helper para verificar si el usuario tiene alguno de los permisos requeridos
+const hasAnyPermission = (userPermissions: string[], requiredPermissions: string[]): boolean => {
+  // Si no hay permisos requeridos, todos tienen acceso
+  if (requiredPermissions.length === 0) return true;
+  // Si el usuario tiene '*', tiene acceso a todo
+  if (userPermissions.includes('*')) return true;
+  // Verificar si tiene alguno de los permisos requeridos
+  return requiredPermissions.some(perm => userPermissions.includes(perm));
+};
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -79,23 +89,25 @@ export default function Layout() {
 
         {/* Navigation */}
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-          {navigation.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.href}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`
-              }
-            >
-              <item.icon className="w-5 h-5" />
-              {item.name}
-            </NavLink>
-          ))}
+          {navigation
+            .filter((item) => hasAnyPermission(user?.role?.permissions || [], item.permissions))
+            .map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-emerald-600 text-white'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <item.icon className="w-5 h-5" />
+                {item.name}
+              </NavLink>
+            ))}
         </nav>
 
         {/* User section */}

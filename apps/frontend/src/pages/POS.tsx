@@ -16,7 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService } from '../services/api';
+import { productsService, salesService, pointsOfSaleService } from '../services/api';
 
 interface Product {
   id: string;
@@ -62,6 +62,15 @@ interface Category {
   name: string;
 }
 
+interface PointOfSale {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  branch?: { id: string; name: string };
+  priceList?: { id: string; name: string; currency: string };
+}
+
 type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR';
 
 export default function POS() {
@@ -80,6 +89,11 @@ export default function POS() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
+  // Estado de punto de venta
+  const [pointsOfSale, setPointsOfSale] = useState<PointOfSale[]>([]);
+  const [selectedPOS, setSelectedPOS] = useState<PointOfSale | null>(null);
+  const [showPOSSelector, setShowPOSSelector] = useState(false);
+
   // Estado del pago
   const [showPayment, setShowPayment] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('CASH');
@@ -93,9 +107,10 @@ export default function POS() {
 
   const loadInitialData = async () => {
     try {
-      const [categoriesRes, productsRes] = await Promise.all([
+      const [categoriesRes, productsRes, posRes] = await Promise.all([
         productsService.getCategories(),
         productsService.list({ pageSize: 100 }),
+        pointsOfSaleService.list(),
       ]);
 
       if (categoriesRes.success) {
@@ -104,6 +119,25 @@ export default function POS() {
 
       if (productsRes.success) {
         setProducts(productsRes.data);
+      }
+
+      if (posRes.success) {
+        // Filtrar puntos de venta activos de la sucursal del usuario
+        const userBranchId = user?.branch?.id;
+        const activePOS = posRes.data.filter(
+          (pos: PointOfSale) => pos.isActive && (!userBranchId || pos.branch?.id === userBranchId)
+        );
+        setPointsOfSale(activePOS);
+
+        // Auto-seleccionar si solo hay uno
+        if (activePOS.length === 1) {
+          setSelectedPOS(activePOS[0]);
+        } else if (activePOS.length > 1) {
+          // Mostrar selector si hay múltiples
+          setShowPOSSelector(true);
+        } else if (activePOS.length === 0) {
+          alert('No hay puntos de venta configurados para esta sucursal');
+        }
       }
     } catch (error) {
       console.error('Error cargando datos:', error);
@@ -217,11 +251,16 @@ export default function POS() {
   const processSale = async () => {
     if (cart.length === 0) return;
 
+    if (!selectedPOS) {
+      setShowPOSSelector(true);
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const saleData = {
-        branchId: user?.branch?.id || '',
-        pointOfSaleId: 'default-pos', // TODO: obtener del contexto
+        branchId: selectedPOS.branch?.id || user?.branch?.id || '',
+        pointOfSaleId: selectedPOS.id,
         items: cart.map((item) => ({
           productId: item.product.id,
           productCode: item.product.sku,
@@ -268,6 +307,54 @@ export default function POS() {
 
   return (
     <div className="pos-layout">
+      {/* Modal selector de Punto de Venta */}
+      {showPOSSelector && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold mb-4">Seleccionar Punto de Venta</h3>
+            <div className="space-y-2">
+              {pointsOfSale.map((pos) => (
+                <button
+                  key={pos.id}
+                  onClick={() => {
+                    setSelectedPOS(pos);
+                    setShowPOSSelector(false);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
+                    selectedPOS?.id === pos.id
+                      ? 'border-primary-600 bg-primary-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <p className="font-medium">{pos.name}</p>
+                  <p className="text-sm text-gray-500">
+                    {pos.code} {pos.branch && `• ${pos.branch.name}`}
+                  </p>
+                  {pos.priceList && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Lista: {pos.priceList.name}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+            {pointsOfSale.length === 0 && (
+              <p className="text-gray-500 text-center py-4">
+                No hay puntos de venta configurados
+              </p>
+            )}
+            {selectedPOS && (
+              <button
+                onClick={() => setShowPOSSelector(false)}
+                className="w-full btn btn-primary mt-4"
+              >
+                Continuar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Panel izquierdo - Productos */}
       <div className="flex flex-col h-screen bg-gray-50">
         {/* Header */}
@@ -294,9 +381,22 @@ export default function POS() {
             )}
           </div>
 
-          <div className="text-right">
-            <p className="text-sm font-medium">{user?.name}</p>
-            <p className="text-xs text-gray-500">{user?.branch?.name}</p>
+          <div className="text-right flex items-center gap-4">
+            {/* Indicador de POS */}
+            <button
+              onClick={() => pointsOfSale.length > 1 && setShowPOSSelector(true)}
+              className={`px-3 py-1 rounded-lg text-sm ${
+                selectedPOS
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-red-100 text-red-700'
+              } ${pointsOfSale.length > 1 ? 'cursor-pointer hover:opacity-80' : ''}`}
+            >
+              {selectedPOS ? `Caja: ${selectedPOS.name}` : 'Sin caja'}
+            </button>
+            <div>
+              <p className="text-sm font-medium">{user?.name}</p>
+              <p className="text-xs text-gray-500">{user?.branch?.name}</p>
+            </div>
           </div>
         </div>
 
