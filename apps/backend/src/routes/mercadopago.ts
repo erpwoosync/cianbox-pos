@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { mercadoPagoService } from '../services/mercadopago.service';
 
 const router = Router();
@@ -40,7 +40,7 @@ const updateDeviceSchema = z.object({
  * POST /api/mercadopago/orders
  * Crea una orden de pago en un terminal Point
  */
-router.post('/orders', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/orders', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
     const data = createOrderSchema.parse(req.body);
@@ -101,7 +101,7 @@ router.post('/orders', authMiddleware, async (req: AuthRequest, res: Response) =
  * GET /api/mercadopago/orders/:orderId
  * Consulta el estado de una orden
  */
-router.get('/orders/:orderId', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get('/orders/:orderId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
     const { orderId } = req.params;
@@ -125,7 +125,7 @@ router.get('/orders/:orderId', authMiddleware, async (req: AuthRequest, res: Res
  * POST /api/mercadopago/orders/:orderId/cancel
  * Cancela una orden pendiente
  */
-router.post('/orders/:orderId/cancel', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/orders/:orderId/cancel', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
     const { orderId } = req.params;
@@ -149,7 +149,7 @@ router.post('/orders/:orderId/cancel', authMiddleware, async (req: AuthRequest, 
  * GET /api/mercadopago/devices
  * Lista los dispositivos Point disponibles
  */
-router.get('/devices', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get('/devices', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
 
@@ -172,7 +172,7 @@ router.get('/devices', authMiddleware, async (req: AuthRequest, res: Response) =
  * GET /api/mercadopago/orders/pending
  * Lista las órdenes pendientes del tenant
  */
-router.get('/orders-pending', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get('/orders-pending', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
 
@@ -199,7 +199,7 @@ router.get('/orders-pending', authMiddleware, async (req: AuthRequest, res: Resp
  * GET /api/mercadopago/config
  * Obtiene la configuración de MP del tenant
  */
-router.get('/config', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get('/config', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
 
@@ -240,7 +240,7 @@ router.get('/config', authMiddleware, async (req: AuthRequest, res: Response) =>
  * POST /api/mercadopago/config
  * Guarda la configuración de MP del tenant
  */
-router.post('/config', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/config', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
     const data = saveConfigSchema.parse(req.body);
@@ -280,7 +280,7 @@ router.post('/config', authMiddleware, async (req: AuthRequest, res: Response) =
  * PUT /api/mercadopago/points-of-sale/:id/device
  * Asocia un dispositivo MP Point a un punto de venta
  */
-router.put('/points-of-sale/:id/device', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.put('/points-of-sale/:id/device', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
     const { id } = req.params;

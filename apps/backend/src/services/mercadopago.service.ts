@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -104,7 +104,7 @@ class MercadoPagoService {
   async createPointOrder(params: MPOrderRequest): Promise<{ orderId: string; status: string }> {
     const config = await this.getConfig(params.tenantId);
 
-    const idempotencyKey = uuidv4();
+    const idempotencyKey = randomUUID();
 
     const orderBody = {
       type: 'point',
@@ -141,7 +141,7 @@ class MercadoPagoService {
       throw new Error(`Error al crear orden en Mercado Pago: ${response.status} - ${JSON.stringify(errorData)}`);
     }
 
-    const orderResponse: MPOrderResponse = await response.json();
+    const orderResponse = (await response.json()) as MPOrderResponse;
 
     // Guardar la orden en nuestra DB
     await prisma.mercadoPagoOrder.create({
@@ -152,7 +152,7 @@ class MercadoPagoService {
         deviceId: params.deviceId,
         amount: params.amount,
         status: 'PENDING',
-        responseData: orderResponse as unknown as Record<string, unknown>,
+        responseData: JSON.parse(JSON.stringify(orderResponse)),
       },
     });
 
@@ -179,7 +179,7 @@ class MercadoPagoService {
       throw new Error(`Error al consultar orden: ${response.status}`);
     }
 
-    const orderData: MPOrderResponse = await response.json();
+    const orderData = (await response.json()) as MPOrderResponse;
 
     // Mapear status de MP a nuestro status
     let status = 'PENDING';
@@ -274,7 +274,7 @@ class MercadoPagoService {
       throw new Error(`Error al listar dispositivos: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { devices?: MPDevice[] };
     return data.devices || [];
   }
 

@@ -369,7 +369,7 @@ export default function POS() {
   // Estado para Mercado Pago Point
   const [mpOrder, setMpOrder] = useState<MPOrderState | null>(null);
   const [isMPProcessing, setIsMPProcessing] = useState(false);
-  const mpPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const mpPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Atajos de teclado
   useEffect(() => {
