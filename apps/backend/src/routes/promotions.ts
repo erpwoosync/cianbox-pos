@@ -771,20 +771,60 @@ router.post(
         return true;
       });
 
+      // Obtener información de productos para verificar categorías y marcas
+      const productIds = items.map((item: { productId: string }) => item.productId);
+      const productsInfo = await prisma.product.findMany({
+        where: {
+          id: { in: productIds },
+          tenantId,
+        },
+        select: {
+          id: true,
+          categoryId: true,
+          brandId: true,
+        },
+      });
+
+      const productMap = new Map(productsInfo.map((p) => [p.id, p]));
+
       // Calcular descuentos por item
       const calculatedItems = items.map(
         (item: { productId: string; quantity: number; unitPrice: number }) => {
           let bestDiscount = 0;
           let appliedPromotion = null;
 
+          const productInfo = productMap.get(item.productId);
+
           for (const promo of applicablePromotions) {
             // Verificar si el producto está en la promoción
-            const isApplicable =
-              promo.applyTo === 'ALL_PRODUCTS' ||
-              promo.applicableProducts.some((p) => p.productId === item.productId) ||
-              (promo.categoryIds?.length &&
-                promo.categoryIds.includes(item.productId)) ||
-              (promo.brandIds?.length && promo.brandIds.includes(item.productId));
+            let isApplicable = false;
+
+            switch (promo.applyTo) {
+              case 'ALL_PRODUCTS':
+                isApplicable = true;
+                break;
+              case 'SPECIFIC_PRODUCTS':
+                isApplicable = promo.applicableProducts.some(
+                  (p) => p.productId === item.productId
+                );
+                break;
+              case 'CATEGORIES':
+                isApplicable =
+                  !!productInfo?.categoryId &&
+                  !!promo.categoryIds?.length &&
+                  promo.categoryIds.includes(productInfo.categoryId);
+                break;
+              case 'BRANDS':
+                isApplicable =
+                  !!productInfo?.brandId &&
+                  !!promo.brandIds?.length &&
+                  promo.brandIds.includes(productInfo.brandId);
+                break;
+              case 'CART_TOTAL':
+                // Se maneja después con el total del carrito
+                isApplicable = false;
+                break;
+            }
 
             if (!isApplicable) continue;
 
