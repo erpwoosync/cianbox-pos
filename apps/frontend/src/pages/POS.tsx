@@ -95,7 +95,15 @@ interface MPOrderState {
   installments?: number;
 }
 
-type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT';
+type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR';
+
+interface MPQRState {
+  orderId: string;
+  qrData?: string;
+  qrBase64?: string;
+  status: 'PENDING' | 'PROCESSED' | 'CANCELED' | 'FAILED' | 'EXPIRED';
+  expiresAt?: Date;
+}
 
 // ============ HELPERS ============
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -370,6 +378,13 @@ export default function POS() {
   const [mpOrder, setMpOrder] = useState<MPOrderState | null>(null);
   const [isMPProcessing, setIsMPProcessing] = useState(false);
   const mpPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Estado para Mercado Pago QR
+  const [mpQR, setMpQR] = useState<MPQRState | null>(null);
+  const [mpQRAvailable, setMpQRAvailable] = useState(false);
+  const [qrTimeLeft, setQrTimeLeft] = useState(300); // 5 minutos
+  const mpQRPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Atajos de teclado
   useEffect(() => {
@@ -935,6 +950,179 @@ export default function POS() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Verificar disponibilidad de MP QR al cargar
+  useEffect(() => {
+    const checkQRAvailability = async () => {
+      try {
+        const qrConfig = await mercadoPagoService.checkQRConfig();
+        setMpQRAvailable(qrConfig.isConnected);
+      } catch (error) {
+        console.error('Error checking MP QR config:', error);
+        setMpQRAvailable(false);
+      }
+    };
+    checkQRAvailability();
+  }, []);
+
+  // Iniciar pago con MP QR
+  const startMPQRPayment = async () => {
+    if (!mpQRAvailable) {
+      alert('Mercado Pago QR no está configurado');
+      return;
+    }
+
+    setIsMPProcessing(true);
+    setQrTimeLeft(300); // Reset timer a 5 minutos
+
+    try {
+      const externalReference = `POS-${selectedPOS?.code || 'X'}-${Date.now()}`;
+      const response = await mercadoPagoService.createQROrder({
+        pointOfSaleId: selectedPOS?.id || '',
+        amount: total,
+        externalReference,
+        description: `Venta ${selectedPOS?.name || 'POS'}`,
+        items: cart.map(item => ({
+          title: item.product.name,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+        })),
+      });
+
+      if (response.success) {
+        setMpQR({
+          orderId: response.data.orderId,
+          qrData: response.data.qrData,
+          qrBase64: response.data.qrBase64,
+          status: 'PENDING',
+        });
+
+        // Iniciar timer de expiración
+        qrTimerRef.current = setInterval(() => {
+          setQrTimeLeft(prev => {
+            if (prev <= 1) {
+              // Expiró el QR
+              if (qrTimerRef.current) clearInterval(qrTimerRef.current);
+              if (mpQRPollingRef.current) clearInterval(mpQRPollingRef.current);
+              setMpQR(prev => prev ? { ...prev, status: 'EXPIRED' } : null);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        // Iniciar polling para verificar estado
+        mpQRPollingRef.current = setInterval(async () => {
+          try {
+            const statusResponse = await mercadoPagoService.getOrderStatus(response.data.orderId);
+            if (statusResponse.success) {
+              const newStatus = statusResponse.data.status;
+
+              if (['PROCESSED', 'CANCELED', 'FAILED', 'EXPIRED'].includes(newStatus)) {
+                // Detener polling y timer
+                if (mpQRPollingRef.current) {
+                  clearInterval(mpQRPollingRef.current);
+                  mpQRPollingRef.current = null;
+                }
+                if (qrTimerRef.current) {
+                  clearInterval(qrTimerRef.current);
+                  qrTimerRef.current = null;
+                }
+
+                setMpQR(prev => prev ? { ...prev, status: newStatus } : null);
+
+                // Si se procesó exitosamente, crear la venta
+                if (newStatus === 'PROCESSED') {
+                  await processSaleWithMPQRPayment(response.data.orderId);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error verificando estado QR:', error);
+          }
+        }, 3000); // Polling cada 3 segundos
+      } else {
+        alert('Error al generar código QR');
+      }
+    } catch (error) {
+      console.error('Error iniciando pago QR:', error);
+      alert('Error al iniciar pago con Mercado Pago QR');
+    } finally {
+      setIsMPProcessing(false);
+    }
+  };
+
+  // Cancelar pago MP QR
+  const cancelMPQRPayment = () => {
+    if (mpQRPollingRef.current) {
+      clearInterval(mpQRPollingRef.current);
+      mpQRPollingRef.current = null;
+    }
+    if (qrTimerRef.current) {
+      clearInterval(qrTimerRef.current);
+      qrTimerRef.current = null;
+    }
+    setMpQR(null);
+    setQrTimeLeft(300);
+  };
+
+  // Procesar venta con pago MP QR
+  const processSaleWithMPQRPayment = async (orderId: string) => {
+    setIsProcessing(true);
+    try {
+      const saleData = {
+        branchId: selectedPOS!.branch?.id || user?.branch?.id || '',
+        pointOfSaleId: selectedPOS!.id,
+        items: cart.map(item => ({
+          productId: item.product.id,
+          productCode: item.product.sku || undefined,
+          productName: item.product.name,
+          productBarcode: item.product.barcode || undefined,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          unitPriceNet: Number(item.unitPriceNet),
+          discount: Number(item.discount || 0),
+          taxRate: Number(item.product.taxRate || 21),
+          priceListId: selectedPOS!.priceList?.id || undefined,
+          branchId: selectedPOS!.branch?.id || user?.branch?.id || '',
+          promotionId: item.promotions?.[0]?.id || item.promotionId || undefined,
+          promotionName: item.promotions?.map(p => p.name).join(', ') || item.promotionName || undefined,
+        })),
+        payments: [
+          {
+            method: 'QR',
+            amount: Number(total),
+            transactionId: orderId,
+          },
+        ],
+      };
+
+      const response = await salesService.create(saleData);
+
+      if (response.success) {
+        clearCart();
+        setShowPayment(false);
+        setMpQR(null);
+        setAmountTendered('');
+        alert(`Venta #${response.data.saleNumber} registrada correctamente con Mercado Pago QR`);
+        focusSearchInput();
+      }
+    } catch (error: unknown) {
+      console.error('Error procesando venta con QR:', error);
+      const axiosError = error as { response?: { data?: { message?: string; error?: { message?: string } } } };
+      const errorMessage = axiosError?.response?.data?.message || axiosError?.response?.data?.error?.message || 'Error al procesar la venta';
+      alert(errorMessage);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Formatear tiempo restante
+  const formatQRTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Filtrar productos - usar productos de categoría si hay una seleccionada
@@ -1512,15 +1700,100 @@ export default function POS() {
                 </div>
               )}
             </div>
+          ) : mpQR ? (
+            // Modal de espera de pago MP QR
+            <div className="space-y-4 p-4 bg-[#009EE3]/10 rounded-xl border-2 border-[#009EE3]/30">
+              <div className="text-center">
+                {mpQR.status === 'PENDING' && (
+                  <>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Escanear con Mercado Pago</h3>
+                    <p className="text-3xl font-bold text-[#009EE3] mb-4">${total.toFixed(2)}</p>
+
+                    {/* QR Code */}
+                    <div className="bg-white p-4 rounded-xl border-2 border-gray-200 inline-block mb-4">
+                      {mpQR.qrBase64 ? (
+                        <img src={mpQR.qrBase64} alt="Código QR" className="w-48 h-48 mx-auto" />
+                      ) : (
+                        <div className="w-48 h-48 flex items-center justify-center bg-gray-100 rounded">
+                          <QrCode className="w-24 h-24 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-gray-500 mb-2">
+                      El cliente debe abrir la app de Mercado Pago y escanear este código
+                    </p>
+
+                    {/* Timer */}
+                    <div className={`text-sm font-medium ${qrTimeLeft < 60 ? 'text-red-500' : 'text-gray-500'}`}>
+                      Expira en {formatQRTime(qrTimeLeft)}
+                    </div>
+
+                    <div className="flex items-center justify-center gap-2 text-sm text-[#009EE3] mt-4">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Esperando pago...</span>
+                    </div>
+                  </>
+                )}
+                {mpQR.status === 'PROCESSED' && (
+                  <>
+                    <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                      <CheckCircle className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-green-700">Pago recibido</h3>
+                    <p className="text-sm text-gray-600 mt-2">El pago con QR fue procesado correctamente</p>
+                  </>
+                )}
+                {['CANCELED', 'FAILED', 'EXPIRED'].includes(mpQR.status) && (
+                  <>
+                    <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                      <XCircle className="w-8 h-8 text-red-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-red-700">
+                      {mpQR.status === 'CANCELED' ? 'Pago cancelado' : mpQR.status === 'EXPIRED' ? 'QR expirado' : 'Pago fallido'}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-2">Intenta nuevamente o selecciona otro método de pago</p>
+                  </>
+                )}
+              </div>
+
+              {mpQR.status === 'PENDING' && (
+                <button
+                  onClick={cancelMPQRPayment}
+                  className="w-full btn btn-secondary py-3"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  Cancelar
+                </button>
+              )}
+
+              {['CANCELED', 'FAILED', 'EXPIRED'].includes(mpQR.status) && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { cancelMPQRPayment(); setShowPayment(false); focusSearchInput(); }}
+                    className="flex-1 btn btn-secondary py-3"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => { cancelMPQRPayment(); startMPQRPayment(); }}
+                    className="flex-1 btn bg-[#009EE3] hover:bg-[#008BCF] text-white py-3"
+                  >
+                    Generar nuevo QR
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-6 gap-2">
                 {[
                   { method: 'CASH' as PaymentMethod, icon: Banknote, label: 'Efectivo' },
                   { method: 'CREDIT_CARD' as PaymentMethod, icon: CreditCard, label: 'Crédito' },
                   { method: 'DEBIT_CARD' as PaymentMethod, icon: CreditCard, label: 'Débito' },
                   { method: 'QR' as PaymentMethod, icon: QrCode, label: 'QR' },
                   { method: 'MP_POINT' as PaymentMethod, icon: Smartphone, label: 'MP Point', disabled: !selectedPOS?.mpDeviceId },
+                  { method: 'MP_QR' as PaymentMethod, icon: QrCode, label: 'MP QR', disabled: !mpQRAvailable },
                 ].map(({ method, icon: Icon, label, disabled }) => (
                   <button
                     key={method}
@@ -1580,6 +1853,15 @@ export default function POS() {
                   >
                     {isMPProcessing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Smartphone className="w-5 h-5 mr-2" />}
                     Enviar a terminal
+                  </button>
+                ) : selectedPaymentMethod === 'MP_QR' ? (
+                  <button
+                    onClick={startMPQRPayment}
+                    disabled={isMPProcessing || !mpQRAvailable}
+                    className="flex-1 btn bg-[#009EE3] hover:bg-[#008BCF] text-white py-3 disabled:opacity-50"
+                  >
+                    {isMPProcessing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <QrCode className="w-5 h-5 mr-2" />}
+                    Generar QR
                   </button>
                 ) : (
                   <button

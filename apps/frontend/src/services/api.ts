@@ -339,6 +339,31 @@ export const mercadoPagoService = {
     const response = await api.get('/mercadopago/config');
     return response.data;
   },
+
+  // Verificar si MP QR está configurado
+  checkQRConfig: async () => {
+    const response = await api.get('/mercadopago/config?appType=QR');
+    return {
+      success: response.data.success,
+      isConnected: response.data.isQrConnected || false,
+    };
+  },
+
+  // Crear orden QR
+  createQROrder: async (data: {
+    pointOfSaleId: string;
+    amount: number;
+    externalReference: string;
+    description?: string;
+    items?: Array<{
+      title: string;
+      quantity: number;
+      unit_price: number;
+    }>;
+  }) => {
+    const response = await api.post('/mercadopago/qr/orders', data);
+    return response.data;
+  },
 };
 
 export default api;
