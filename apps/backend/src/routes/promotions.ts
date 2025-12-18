@@ -833,6 +833,8 @@ router.post(
 
             switch (promo.type) {
               case 'PERCENTAGE':
+              case 'FLASH_SALE':
+              case 'COUPON':
                 discount =
                   item.unitPrice *
                   item.quantity *
