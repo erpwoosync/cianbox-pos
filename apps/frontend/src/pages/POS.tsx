@@ -748,6 +748,7 @@ export default function POS() {
         ],
       };
 
+      console.log('Enviando datos de venta:', saleData);
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -759,10 +760,12 @@ export default function POS() {
       }
     } catch (error: unknown) {
       console.error('Error procesando venta:', error);
-      const errorMessage = error instanceof Error
-        ? error.message
-        : (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Error desconocido';
-      alert(`Error al procesar la venta: ${errorMessage}`);
+      const axiosError = error as { response?: { data?: { message?: string; errors?: unknown[] } } };
+      const errorData = axiosError?.response?.data;
+      console.error('Error data:', errorData);
+      const errorMessage = errorData?.message || (error instanceof Error ? error.message : 'Error desconocido');
+      const errorDetails = errorData?.errors ? JSON.stringify(errorData.errors) : '';
+      alert(`Error al procesar la venta: ${errorMessage}\n${errorDetails}`);
     } finally {
       setIsProcessing(false);
     }
