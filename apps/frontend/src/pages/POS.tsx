@@ -595,9 +595,9 @@ export default function POS() {
       )}
 
       {/* Panel izquierdo - Productos */}
-      <div className="flex flex-col h-screen bg-gray-50">
+      <div className="flex flex-col h-full min-h-0 bg-gray-50">
         {/* Header */}
-        <div className="bg-white border-b p-4 flex items-center gap-4">
+        <div className="shrink-0 bg-white border-b p-4 flex items-center gap-4">
           <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -660,7 +660,7 @@ export default function POS() {
         )}
 
         {/* Categorías */}
-        <div className="flex gap-2 p-4 overflow-x-auto">
+        <div className="shrink-0 flex gap-2 p-4 overflow-x-auto">
           <button
             onClick={() => setSelectedCategory(null)}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
@@ -683,13 +683,13 @@ export default function POS() {
         </div>
 
         {/* Grid de productos */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {isLoadingProducts ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
             </div>
           ) : (
-            <div className="product-grid">
+            <div className="product-grid pb-4">
               {filteredProducts.map(product => (
                 <button
                   key={product.id}
@@ -755,9 +755,9 @@ export default function POS() {
       )}
 
       {/* Panel derecho - Carrito */}
-      <div className="flex flex-col h-screen bg-white border-l">
+      <div className="flex flex-col h-full min-h-0 bg-white border-l">
         {/* Tabs de tickets - Diseño mejorado */}
-        <div className="bg-gray-100 border-b">
+        <div className="shrink-0 bg-gray-100 border-b">
           <div className="flex items-stretch gap-0 overflow-x-auto">
             {tickets.map((ticket, index) => {
               const ticketTotal = calculateTicketTotal(ticket.items);
@@ -874,7 +874,7 @@ export default function POS() {
         </div>
 
         {/* Header del carrito - Simplificado */}
-        <div className="p-3 border-b bg-gray-50">
+        <div className="shrink-0 p-3 border-b bg-gray-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-4 h-4 text-gray-500" />
@@ -894,7 +894,7 @@ export default function POS() {
         </div>
 
         {/* Lista de items */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
@@ -953,7 +953,7 @@ export default function POS() {
         </div>
 
         {/* Totales y pago */}
-        <div className="border-t p-4 space-y-4">
+        <div className="shrink-0 border-t p-4 space-y-3 bg-white">
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
