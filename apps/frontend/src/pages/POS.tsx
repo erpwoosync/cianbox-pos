@@ -17,9 +17,10 @@ import {
   AlertTriangle,
   Clock,
   Sparkles,
+  Tag,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, categoriesService } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, categoriesService, promotionsService } from '../services/api';
 
 // ============ INTERFACES ============
 interface Product {
@@ -48,6 +49,8 @@ interface CartItem {
   unitPriceNet: number;
   discount: number;
   subtotal: number;
+  promotionId?: string;
+  promotionName?: string;
 }
 
 interface Category {
@@ -551,6 +554,60 @@ export default function POS() {
     setCart([]);
   };
 
+  // Calcular promociones cuando cambia el carrito
+  useEffect(() => {
+    const calculatePromotions = async () => {
+      if (cart.length === 0) return;
+
+      try {
+        const items = cart.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        }));
+
+        const response = await promotionsService.calculate(items);
+        if (response.success && response.data) {
+          const { items: calculatedItems } = response.data;
+
+          setCart(prevCart => {
+            return prevCart.map(cartItem => {
+              const calculated = calculatedItems.find(
+                (c: { productId: string }) => c.productId === cartItem.product.id
+              );
+              if (calculated && calculated.discount > 0) {
+                return {
+                  ...cartItem,
+                  discount: calculated.discount,
+                  subtotal: cartItem.quantity * cartItem.unitPrice - calculated.discount,
+                  promotionId: calculated.promotion?.id,
+                  promotionName: calculated.promotion?.name,
+                };
+              }
+              // Si no hay descuento, limpiar promocion anterior
+              if (cartItem.discount > 0 || cartItem.promotionId) {
+                return {
+                  ...cartItem,
+                  discount: 0,
+                  subtotal: cartItem.quantity * cartItem.unitPrice,
+                  promotionId: undefined,
+                  promotionName: undefined,
+                };
+              }
+              return cartItem;
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error calculando promociones:', error);
+      }
+    };
+
+    // Debounce para evitar llamadas excesivas
+    const timeoutId = setTimeout(calculatePromotions, 300);
+    return () => clearTimeout(timeoutId);
+  }, [cart.length, cart.map(i => `${i.product.id}:${i.quantity}`).join(',')]);
+
   // Calcular totales
   const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
   const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0);
@@ -587,6 +644,8 @@ export default function POS() {
           taxRate: Number(item.product.taxRate || 21),
           priceListId: selectedPOS.priceList?.id || null,
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
+          promotionId: item.promotionId || undefined,
+          promotionName: item.promotionName || undefined,
         })),
         payments: [
           {
@@ -1015,34 +1074,52 @@ export default function POS() {
           ) : (
             <div className="space-y-3">
               {cart.map(item => (
-                <div key={item.id} className="bg-gray-50 rounded-lg p-3 flex gap-3">
-                  <div className="flex-1">
-                    <p className="font-medium text-sm line-clamp-1">{item.product.name}</p>
-                    <p className="text-xs text-gray-500">${item.unitPrice.toFixed(2)} c/u</p>
-                  </div>
+                <div key={item.id} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm line-clamp-1">{item.product.name}</p>
+                      <p className="text-xs text-gray-500">${item.unitPrice.toFixed(2)} c/u</p>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateQuantity(item.id, -1)}
-                      className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="w-8 text-center font-medium">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(item.id, 1)}
-                      className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateQuantity(item.id, -1)}
+                        className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="w-8 text-center font-medium">{item.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(item.id, 1)}
+                        className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
 
-                  <div className="text-right">
-                    <p className="font-semibold">${item.subtotal.toFixed(2)}</p>
-                    <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-600 mt-1">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="text-right">
+                      {item.discount > 0 ? (
+                        <>
+                          <p className="text-xs text-gray-400 line-through">
+                            ${(item.quantity * item.unitPrice).toFixed(2)}
+                          </p>
+                          <p className="font-semibold text-green-600">${item.subtotal.toFixed(2)}</p>
+                        </>
+                      ) : (
+                        <p className="font-semibold">${item.subtotal.toFixed(2)}</p>
+                      )}
+                      <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-600 mt-1">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
+                  {item.promotionName && (
+                    <div className="mt-2 flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                      <Tag className="w-3 h-3" />
+                      <span>{item.promotionName}</span>
+                      <span className="ml-auto font-medium">-${item.discount.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

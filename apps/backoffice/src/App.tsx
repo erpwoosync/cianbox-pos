@@ -12,6 +12,7 @@ import Stock from './pages/Stock';
 import Branches from './pages/Branches';
 import PriceLists from './pages/PriceLists';
 import PointsOfSale from './pages/PointsOfSale';
+import Promotions from './pages/Promotions';
 import Roles from './pages/Roles';
 import Users from './pages/Users';
 import Sales from './pages/Sales';
@@ -51,6 +52,7 @@ export default function App() {
                 <Route path="/products/:id" element={<ProductDetail />} />
                 <Route path="/prices" element={<Prices />} />
                 <Route path="/stock" element={<Stock />} />
+                <Route path="/promotions" element={<Promotions />} />
                 <Route path="/roles" element={<Roles />} />
                 <Route path="/users" element={<Users />} />
                 <Route path="/sales" element={<Sales />} />

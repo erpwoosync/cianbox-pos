@@ -20,6 +20,7 @@ import {
   Users,
   Building2,
   ShoppingCart,
+  Gift,
 } from 'lucide-react';
 
 const menuItems = [
@@ -32,6 +33,7 @@ const menuItems = [
   { path: '/products', label: 'Productos', icon: Package },
   { path: '/prices', label: 'Precios', icon: DollarSign },
   { path: '/stock', label: 'Stock', icon: Warehouse },
+  { path: '/promotions', label: 'Promociones', icon: Gift },
   { path: '/sales', label: 'Ventas', icon: ShoppingCart },
   { path: '/roles', label: 'Roles', icon: Shield },
   { path: '/users', label: 'Usuarios', icon: Users },

@@ -442,4 +442,139 @@ export interface UpdateUserDto {
   status?: 'ACTIVE' | 'INVITED' | 'DISABLED';
 }
 
+// ============ PROMOTIONS ============
+
+// Promotion Types
+export type PromotionType =
+  | 'PERCENTAGE'
+  | 'FIXED_AMOUNT'
+  | 'BUY_X_GET_Y'
+  | 'SECOND_UNIT_DISCOUNT'
+  | 'BUNDLE_PRICE'
+  | 'FREE_SHIPPING'
+  | 'COUPON'
+  | 'FLASH_SALE'
+  | 'LOYALTY';
+
+export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FIXED_PRICE';
+
+export type PromotionApplyTo =
+  | 'ALL_PRODUCTS'
+  | 'SPECIFIC_PRODUCTS'
+  | 'CATEGORIES'
+  | 'BRANDS'
+  | 'CART_TOTAL';
+
+export interface Promotion {
+  id: string;
+  code?: string;
+  name: string;
+  description?: string;
+  type: PromotionType;
+  discountType: DiscountType;
+  discountValue: number;
+  buyQuantity?: number;
+  getQuantity?: number;
+  minPurchase?: number;
+  maxDiscount?: number;
+  applyTo: PromotionApplyTo;
+  categoryIds: string[];
+  brandIds: string[];
+  startDate?: string;
+  endDate?: string;
+  daysOfWeek: number[];
+  startTime?: string;
+  endTime?: string;
+  maxUses?: number;
+  maxUsesPerCustomer?: number;
+  currentUses: number;
+  isActive: boolean;
+  priority: number;
+  stackable: boolean;
+  metadata?: Record<string, unknown>;
+  applicableProducts?: { productId: string; product?: Product }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePromotionDto {
+  code?: string;
+  name: string;
+  description?: string;
+  type: PromotionType;
+  discountType: DiscountType;
+  discountValue: number;
+  buyQuantity?: number;
+  getQuantity?: number;
+  minPurchase?: number;
+  maxDiscount?: number;
+  applyTo: PromotionApplyTo;
+  categoryIds?: string[];
+  brandIds?: string[];
+  productIds?: string[];
+  startDate?: string;
+  endDate?: string;
+  daysOfWeek?: number[];
+  startTime?: string;
+  endTime?: string;
+  maxUses?: number;
+  maxUsesPerCustomer?: number;
+  isActive?: boolean;
+  priority?: number;
+  stackable?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdatePromotionDto extends Partial<CreatePromotionDto> {}
+
+export interface SimulateItem {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface SimulationResult {
+  items: Array<{
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    promotion?: { id: string; name: string; type: PromotionType };
+    subtotal: number;
+  }>;
+  totalDiscount: number;
+}
+
+// Promotions API
+export const promotionsApi = {
+  getAll: async (params?: { isActive?: boolean; type?: PromotionType; search?: string }) => {
+    const response = await api.get('/promotions', { params });
+    return response.data.data;
+  },
+  getById: async (id: string) => {
+    const response = await api.get(`/promotions/${id}`);
+    return response.data.data;
+  },
+  create: async (data: CreatePromotionDto) => {
+    const response = await api.post('/promotions', data);
+    return response.data.data;
+  },
+  update: async (id: string, data: UpdatePromotionDto) => {
+    const response = await api.put(`/promotions/${id}`, data);
+    return response.data.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/promotions/${id}`);
+    return response.data;
+  },
+  simulate: async (items: SimulateItem[]) => {
+    const response = await api.post('/promotions/calculate', { items });
+    return response.data.data as SimulationResult;
+  },
+  getActive: async () => {
+    const response = await api.get('/promotions/active');
+    return response.data.data;
+  },
+};
+
 export default api;
