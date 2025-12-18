@@ -34,9 +34,9 @@ jobs:
 
       - name: Deploy
         run: |
-          sudo mkdir -p /var/www/cianbox-pos/apps/frontend/dist
+          sudo mkdir -p /var/www/cianbox-pos/frontend
           sudo rsync -av --delete \
-            ./apps/frontend/dist/ /var/www/cianbox-pos/apps/frontend/dist/
+            ./apps/frontend/dist/ /var/www/cianbox-pos/frontend/
 
       - name: Deployment complete
         run: |
