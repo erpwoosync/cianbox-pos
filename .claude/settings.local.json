@@ -31,7 +31,8 @@
       "WebFetch(domain:cianbox-pos-point.ews-cdn.link)",
       "Bash(timeout 45 bash:*)",
       "Bash(timeout 20 bash:*)",
-      "Bash(timeout 25 bash:*)"
+      "Bash(timeout 25 bash:*)",
+      "Bash(npx prisma migrate dev:*)"
     ]
   }
 }
