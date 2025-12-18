@@ -760,12 +760,12 @@ export default function POS() {
       }
     } catch (error: unknown) {
       console.error('Error procesando venta:', error);
-      const axiosError = error as { response?: { data?: { message?: string; errors?: unknown[] } } };
+      const axiosError = error as { response?: { data?: { message?: string; error?: { message?: string; errors?: unknown[] }; errors?: unknown[] } } };
       const errorData = axiosError?.response?.data;
-      console.error('Error data:', errorData);
-      const errorMessage = errorData?.message || (error instanceof Error ? error.message : 'Error desconocido');
-      const errorDetails = errorData?.errors ? JSON.stringify(errorData.errors) : '';
-      alert(`Error al procesar la venta: ${errorMessage}\n${errorDetails}`);
+      console.error('Error data completo:', JSON.stringify(errorData, null, 2));
+      const errorMessage = errorData?.message || errorData?.error?.message || (error instanceof Error ? error.message : 'Error desconocido');
+      const errorDetails = errorData?.errors || errorData?.error?.errors;
+      alert(`Error al procesar la venta: ${errorMessage}\n${errorDetails ? JSON.stringify(errorDetails, null, 2) : ''}`);
     } finally {
       setIsProcessing(false);
     }
