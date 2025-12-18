@@ -66,6 +66,27 @@ export const categoriesApi = {
     const response = await api.delete(`/backoffice/categories/${id}`);
     return response.data;
   },
+  // Quick Access
+  getQuickAccess: async () => {
+    const response = await api.get('/products/categories/quick-access');
+    return response.data.data;
+  },
+  updateQuickAccess: async (
+    id: string,
+    data: {
+      isQuickAccess: boolean;
+      quickAccessOrder?: number;
+      quickAccessColor?: string | null;
+      quickAccessIcon?: string | null;
+    }
+  ) => {
+    const response = await api.put(`/products/categories/${id}/quick-access`, data);
+    return response.data.data;
+  },
+  reorderQuickAccess: async (categoryIds: string[]) => {
+    const response = await api.put('/products/categories/quick-access/reorder', { categoryIds });
+    return response.data;
+  },
 };
 
 // Brands API
@@ -216,6 +237,10 @@ export interface Category {
   parent?: Category;
   children?: Category[];
   isActive: boolean;
+  isQuickAccess?: boolean;
+  quickAccessOrder?: number;
+  quickAccessColor?: string | null;
+  quickAccessIcon?: string | null;
   _count?: { products: number };
 }
 
