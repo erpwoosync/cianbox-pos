@@ -158,22 +158,20 @@ export default function Categories() {
           <button
             onClick={() => toggleQuickAccess(category)}
             disabled={savingId === category.id}
-            className="relative inline-flex items-center"
+            className="inline-flex items-center justify-center"
             title={category.isQuickAccess ? 'Quitar de acceso rápido' : 'Agregar a acceso rápido'}
           >
             {savingId === category.id ? (
-              <div className="w-11 h-6 flex items-center justify-center">
-                <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
-              </div>
+              <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
             ) : (
               <div
-                className={`w-11 h-6 rounded-full transition-colors ${
+                className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
                   category.isQuickAccess ? 'bg-amber-500' : 'bg-gray-300'
                 }`}
               >
                 <div
-                  className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform flex items-center justify-center ${
-                    category.isQuickAccess ? 'translate-x-5' : 'translate-x-0.5'
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 flex items-center justify-center ${
+                    category.isQuickAccess ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 >
                   <Zap
@@ -311,19 +309,19 @@ export default function Categories() {
                     <button
                       onClick={() => toggleQuickAccess(category)}
                       disabled={savingId === category.id}
-                      className="relative inline-flex items-center"
+                      className="inline-flex items-center justify-center"
                     >
                       {savingId === category.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                        <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
                       ) : (
                         <div
-                          className={`w-11 h-6 rounded-full transition-colors ${
+                          className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
                             category.isQuickAccess ? 'bg-amber-500' : 'bg-gray-300'
                           }`}
                         >
                           <div
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform flex items-center justify-center ${
-                              category.isQuickAccess ? 'translate-x-5' : 'translate-x-0.5'
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 flex items-center justify-center ${
+                              category.isQuickAccess ? 'translate-x-5' : 'translate-x-0'
                             }`}
                           >
                             <Zap
