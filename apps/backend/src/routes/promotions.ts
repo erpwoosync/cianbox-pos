@@ -791,8 +791,10 @@ router.post(
       // Calcular descuentos por item
       const calculatedItems = items.map(
         (item: { productId: string; quantity: number; unitPrice: number }) => {
-          let bestDiscount = 0;
-          let appliedPromotion = null;
+          let totalDiscount = 0;
+          const appliedPromotions: Array<{ id: string; name: string; type: string; discount: number }> = [];
+          let bestNonStackableDiscount = 0;
+          let bestNonStackablePromotion: { id: string; name: string; type: string; discount: number } | null = null;
 
           const productInfo = productMap.get(item.productId);
 
@@ -872,36 +874,42 @@ router.post(
 
             // Guardar descuento
             if (discount > 0) {
+              const promoInfo = {
+                id: promo.id,
+                name: promo.name,
+                type: promo.type,
+                discount: discount,
+              };
+
               if (promo.stackable) {
-                // Promociones acumulables: sumar descuento
-                bestDiscount += discount;
-                // Guardar la promoción con mayor descuento para mostrar
-                if (!appliedPromotion || discount > (appliedPromotion.discount || 0)) {
-                  appliedPromotion = {
-                    id: promo.id,
-                    name: promo.name,
-                    type: promo.type,
-                    discount: discount,
-                  };
-                }
-              } else if (discount > bestDiscount) {
-                // Promociones no acumulables: usar la mejor
-                bestDiscount = discount;
-                appliedPromotion = {
-                  id: promo.id,
-                  name: promo.name,
-                  type: promo.type,
-                  discount: discount,
-                };
+                // Promociones acumulables: agregar al array
+                appliedPromotions.push(promoInfo);
+                totalDiscount += discount;
+              } else if (discount > bestNonStackableDiscount) {
+                // Promociones no acumulables: guardar la mejor
+                bestNonStackableDiscount = discount;
+                bestNonStackablePromotion = promoInfo;
               }
             }
           }
 
+          // Si hay una promoción no acumulable mejor, usarla
+          if (bestNonStackablePromotion && bestNonStackableDiscount > totalDiscount) {
+            return {
+              ...item,
+              discount: bestNonStackableDiscount,
+              promotions: [bestNonStackablePromotion],
+              promotion: bestNonStackablePromotion, // compatibilidad
+              subtotal: item.unitPrice * item.quantity - bestNonStackableDiscount,
+            };
+          }
+
           return {
             ...item,
-            discount: bestDiscount,
-            promotion: appliedPromotion,
-            subtotal: item.unitPrice * item.quantity - bestDiscount,
+            discount: totalDiscount,
+            promotions: appliedPromotions,
+            promotion: appliedPromotions[0] || null, // compatibilidad
+            subtotal: item.unitPrice * item.quantity - totalDiscount,
           };
         }
       );

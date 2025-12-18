@@ -42,6 +42,13 @@ interface Product {
   }>;
 }
 
+interface AppliedPromotion {
+  id: string;
+  name: string;
+  type: string;
+  discount: number;
+}
+
 interface CartItem {
   id: string;
   product: Product;
@@ -52,6 +59,7 @@ interface CartItem {
   subtotal: number;
   promotionId?: string;
   promotionName?: string;
+  promotions?: AppliedPromotion[];
 }
 
 interface QuickAccessCategory {
@@ -597,16 +605,18 @@ export default function POS() {
                   subtotal: cartItem.quantity * cartItem.unitPrice - calculated.discount,
                   promotionId: calculated.promotion?.id,
                   promotionName: calculated.promotion?.name,
+                  promotions: calculated.promotions || [],
                 };
               }
               // Si no hay descuento, limpiar promocion anterior
-              if (cartItem.discount > 0 || cartItem.promotionId) {
+              if (cartItem.discount > 0 || cartItem.promotionId || cartItem.promotions?.length) {
                 return {
                   ...cartItem,
                   discount: 0,
                   subtotal: cartItem.quantity * cartItem.unitPrice,
                   promotionId: undefined,
                   promotionName: undefined,
+                  promotions: [],
                 };
               }
               return cartItem;
@@ -631,7 +641,16 @@ export default function POS() {
 
   // Agrupar descuentos por promoción
   const discountsByPromotion = cart.reduce((acc, item) => {
-    if (item.promotionId && item.promotionName && item.discount > 0) {
+    // Usar el nuevo array de promotions si existe
+    if (item.promotions && item.promotions.length > 0) {
+      for (const promo of item.promotions) {
+        if (!acc[promo.id]) {
+          acc[promo.id] = { name: promo.name, total: 0 };
+        }
+        acc[promo.id].total += promo.discount;
+      }
+    } else if (item.promotionId && item.promotionName && item.discount > 0) {
+      // Fallback para compatibilidad
       if (!acc[item.promotionId]) {
         acc[item.promotionId] = { name: item.promotionName, total: 0 };
       }
@@ -1188,7 +1207,17 @@ export default function POS() {
                       </button>
                     </div>
                   </div>
-                  {item.promotionName && (
+                  {item.promotions && item.promotions.length > 0 ? (
+                    <div className="mt-2 space-y-1">
+                      {item.promotions.map((promo) => (
+                        <div key={promo.id} className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                          <Tag className="w-3 h-3" />
+                          <span>{promo.name}</span>
+                          <span className="ml-auto font-medium">-${promo.discount.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : item.promotionName && (
                     <div className="mt-2 flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
                       <Tag className="w-3 h-3" />
                       <span>{item.promotionName}</span>

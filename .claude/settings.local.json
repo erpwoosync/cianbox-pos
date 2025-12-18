@@ -34,7 +34,8 @@
       "Bash(timeout 25 bash:*)",
       "Bash(npx prisma migrate dev:*)",
       "Bash(cat:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(npx prisma migrate status:*)"
     ]
   }
 }
