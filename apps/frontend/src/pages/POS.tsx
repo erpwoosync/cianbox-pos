@@ -33,6 +33,7 @@ interface Product {
   basePrice?: number;
   taxRate?: number;
   category?: { id: string; name: string };
+  brand?: { id: string; name: string };
   prices?: Array<{
     priceListId: string;
     price: number;
@@ -321,6 +322,22 @@ export default function POS() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isLoadingCategoryProducts, setIsLoadingCategoryProducts] = useState(false);
 
+  // Promociones activas
+  interface ActivePromotion {
+    id: string;
+    name: string;
+    type: string;
+    applyTo: string;
+    categoryIds?: string[];
+    brandIds?: string[];
+    discountValue: number;
+    discountType: string;
+    buyQuantity?: number;
+    getQuantity?: number;
+    applicableProducts?: { productId: string }[];
+  }
+  const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
+
   // Estado de punto de venta
   const [pointsOfSale, setPointsOfSale] = useState<PointOfSale[]>([]);
   const [selectedPOS, setSelectedPOS] = useState<PointOfSale | null>(null);
@@ -396,11 +413,12 @@ export default function POS() {
 
   const loadInitialData = async () => {
     try {
-      const [categoriesRes, quickAccessRes, productsRes, posRes] = await Promise.all([
+      const [categoriesRes, quickAccessRes, productsRes, posRes, promotionsRes] = await Promise.all([
         productsService.getCategories(),
         categoriesService.getQuickAccess(),
         productsService.list({ pageSize: 100 }),
         pointsOfSaleService.list(),
+        promotionsService.getActive(),
       ]);
 
       if (categoriesRes.success) setCategories(categoriesRes.data);
@@ -418,6 +436,11 @@ export default function POS() {
       }
 
       if (productsRes.success) setProducts(productsRes.data);
+
+      // Cargar promociones activas
+      if (promotionsRes.success) {
+        setActivePromotions(promotionsRes.data || []);
+      }
 
       if (posRes.success) {
         const userBranchId = user?.branch?.id;
@@ -613,6 +636,53 @@ export default function POS() {
   const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0);
   const total = subtotal;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Obtener promoción aplicable para un producto
+  const getProductPromotion = useCallback((product: Product): ActivePromotion | null => {
+    if (!activePromotions.length) return null;
+
+    for (const promo of activePromotions) {
+      let isApplicable = false;
+
+      switch (promo.applyTo) {
+        case 'ALL_PRODUCTS':
+          isApplicable = true;
+          break;
+        case 'SPECIFIC_PRODUCTS':
+          isApplicable = promo.applicableProducts?.some(p => p.productId === product.id) || false;
+          break;
+        case 'CATEGORIES':
+          isApplicable = !!product.category?.id && !!promo.categoryIds?.includes(product.category.id);
+          break;
+        case 'BRANDS':
+          isApplicable = !!product.brand?.id && !!promo.brandIds?.includes(product.brand.id);
+          break;
+      }
+
+      if (isApplicable) {
+        return promo;
+      }
+    }
+    return null;
+  }, [activePromotions]);
+
+  // Formatear descuento para mostrar
+  const formatPromotionBadge = (promo: ActivePromotion): string => {
+    switch (promo.type) {
+      case 'PERCENTAGE':
+        return `-${promo.discountValue}%`;
+      case 'FIXED_AMOUNT':
+        return `-$${promo.discountValue}`;
+      case 'BUY_X_GET_Y':
+        return `${promo.buyQuantity || 1}x${promo.getQuantity || 2}`;
+      case 'SECOND_UNIT_DISCOUNT':
+        return `2da -${promo.discountValue}%`;
+      case 'FLASH_SALE':
+        return `-${promo.discountValue}%`;
+      default:
+        return 'Promo';
+    }
+  };
 
   // Calcular vuelto
   const tenderedAmount = parseFloat(amountTendered) || 0;
@@ -846,25 +916,38 @@ export default function POS() {
             </div>
           ) : (
             <div className="product-grid pb-4">
-              {filteredProducts.map(product => (
-                <button
-                  key={product.id}
-                  onClick={() => addToCart(product)}
-                  className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 hover:shadow-md hover:border-primary-200 transition-all text-left"
-                >
-                  <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-                    {product.imageUrl ? (
-                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <ShoppingCart className="w-8 h-8 text-gray-300" />
+              {filteredProducts.map(product => {
+                const promo = getProductPromotion(product);
+                return (
+                  <button
+                    key={product.id}
+                    onClick={() => addToCart(product)}
+                    className={`bg-white rounded-xl p-3 shadow-sm border transition-all text-left relative ${
+                      promo
+                        ? 'border-green-200 hover:border-green-400 hover:shadow-md'
+                        : 'border-gray-100 hover:shadow-md hover:border-primary-200'
+                    }`}
+                  >
+                    {promo && (
+                      <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10">
+                        <Tag className="w-3 h-3" />
+                        {formatPromotionBadge(promo)}
+                      </div>
                     )}
-                  </div>
-                  <p className="font-medium text-sm line-clamp-2 min-h-[2.5rem]">
-                    {product.shortName || product.name}
-                  </p>
-                  <p className="text-primary-600 font-semibold mt-1">${getProductPrice(product).toFixed(2)}</p>
-                </button>
-              ))}
+                    <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
+                      {product.imageUrl ? (
+                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <ShoppingCart className="w-8 h-8 text-gray-300" />
+                      )}
+                    </div>
+                    <p className="font-medium text-sm line-clamp-2 min-h-[2.5rem]">
+                      {product.shortName || product.name}
+                    </p>
+                    <p className="text-primary-600 font-semibold mt-1">${getProductPrice(product).toFixed(2)}</p>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
