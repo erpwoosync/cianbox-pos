@@ -35,6 +35,7 @@ const paymentSchema = z.object({
     'CREDIT_CARD',
     'DEBIT_CARD',
     'QR',
+    'MP_POINT',
     'TRANSFER',
     'CHECK',
     'CREDIT',

@@ -17,6 +17,7 @@ import Roles from './pages/Roles';
 import Users from './pages/Users';
 import Sales from './pages/Sales';
 import SaleDetail from './pages/SaleDetail';
+import Integrations from './pages/Integrations';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -57,6 +58,7 @@ export default function App() {
                 <Route path="/users" element={<Users />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/sales/:id" element={<SaleDetail />} />
+                <Route path="/integrations" element={<Integrations />} />
               </Routes>
             </Layout>
           </PrivateRoute>

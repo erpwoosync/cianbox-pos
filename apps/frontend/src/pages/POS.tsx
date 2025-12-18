@@ -18,9 +18,12 @@ import {
   Clock,
   Sparkles,
   Tag,
+  Smartphone,
+  XCircle,
+  CheckCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, categoriesService, promotionsService } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, categoriesService, promotionsService, mercadoPagoService } from '../services/api';
 
 // ============ INTERFACES ============
 interface Product {
@@ -79,9 +82,20 @@ interface PointOfSale {
   isActive: boolean;
   branch?: { id: string; name: string };
   priceList?: { id: string; name: string; currency: string };
+  mpDeviceId?: string | null;
+  mpDeviceName?: string | null;
 }
 
-type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR';
+interface MPOrderState {
+  orderId: string;
+  status: 'PENDING' | 'PROCESSED' | 'CANCELED' | 'FAILED' | 'EXPIRED';
+  paymentMethod?: string;
+  cardBrand?: string;
+  cardLastFour?: string;
+  installments?: number;
+}
+
+type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT';
 
 // ============ HELPERS ============
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -351,6 +365,11 @@ export default function POS() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('CASH');
   const [amountTendered, setAmountTendered] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Estado para Mercado Pago Point
+  const [mpOrder, setMpOrder] = useState<MPOrderState | null>(null);
+  const [isMPProcessing, setIsMPProcessing] = useState(false);
+  const mpPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // Atajos de teclado
   useEffect(() => {
@@ -709,6 +728,157 @@ export default function POS() {
   // Calcular vuelto
   const tenderedAmount = parseFloat(amountTendered) || 0;
   const change = tenderedAmount - total;
+
+  // Limpiar polling de MP al desmontar
+  useEffect(() => {
+    return () => {
+      if (mpPollingRef.current) {
+        clearInterval(mpPollingRef.current);
+      }
+    };
+  }, []);
+
+  // Iniciar pago con MP Point
+  const startMPPayment = async () => {
+    if (!selectedPOS?.mpDeviceId) {
+      alert('Este punto de venta no tiene un dispositivo Mercado Pago Point configurado');
+      return;
+    }
+
+    setIsMPProcessing(true);
+    try {
+      const externalReference = `POS-${selectedPOS.code}-${Date.now()}`;
+      const response = await mercadoPagoService.createOrder({
+        pointOfSaleId: selectedPOS.id,
+        amount: total,
+        externalReference,
+        description: `Venta ${selectedPOS.name}`,
+      });
+
+      if (response.success) {
+        setMpOrder({
+          orderId: response.data.orderId,
+          status: 'PENDING',
+        });
+
+        // Iniciar polling para verificar estado
+        mpPollingRef.current = setInterval(async () => {
+          try {
+            const statusResponse = await mercadoPagoService.getOrderStatus(response.data.orderId);
+            if (statusResponse.success) {
+              const newStatus = statusResponse.data.status;
+              setMpOrder(prev => prev ? {
+                ...prev,
+                status: newStatus,
+                paymentMethod: statusResponse.data.paymentMethod,
+                cardBrand: statusResponse.data.cardBrand,
+                cardLastFour: statusResponse.data.cardLastFour,
+                installments: statusResponse.data.installments,
+              } : null);
+
+              // Si el pago se procesó, canceló o falló, detener polling
+              if (['PROCESSED', 'CANCELED', 'FAILED', 'EXPIRED'].includes(newStatus)) {
+                if (mpPollingRef.current) {
+                  clearInterval(mpPollingRef.current);
+                  mpPollingRef.current = null;
+                }
+
+                // Si se procesó exitosamente, crear la venta
+                if (newStatus === 'PROCESSED') {
+                  await processSaleWithMPPayment(response.data.orderId, statusResponse.data);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error verificando estado MP:', error);
+          }
+        }, 2000); // Polling cada 2 segundos
+      } else {
+        alert('Error al crear orden de pago');
+      }
+    } catch (error) {
+      console.error('Error iniciando pago MP:', error);
+      alert('Error al iniciar pago con Mercado Pago Point');
+    } finally {
+      setIsMPProcessing(false);
+    }
+  };
+
+  // Cancelar pago MP Point
+  const cancelMPPayment = async () => {
+    if (!mpOrder) return;
+
+    try {
+      await mercadoPagoService.cancelOrder(mpOrder.orderId);
+      if (mpPollingRef.current) {
+        clearInterval(mpPollingRef.current);
+        mpPollingRef.current = null;
+      }
+      setMpOrder(null);
+    } catch (error) {
+      console.error('Error cancelando pago MP:', error);
+      // Limpiar de todas formas
+      if (mpPollingRef.current) {
+        clearInterval(mpPollingRef.current);
+        mpPollingRef.current = null;
+      }
+      setMpOrder(null);
+    }
+  };
+
+  // Procesar venta con pago MP Point
+  const processSaleWithMPPayment = async (orderId: string, mpData: { paymentMethod?: string; cardBrand?: string; cardLastFour?: string; installments?: number }) => {
+    setIsProcessing(true);
+    try {
+      const saleData = {
+        branchId: selectedPOS!.branch?.id || user?.branch?.id || '',
+        pointOfSaleId: selectedPOS!.id,
+        items: cart.map(item => ({
+          productId: item.product.id,
+          productCode: item.product.sku || undefined,
+          productName: item.product.name,
+          productBarcode: item.product.barcode || undefined,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          unitPriceNet: Number(item.unitPriceNet),
+          discount: Number(item.discount || 0),
+          taxRate: Number(item.product.taxRate || 21),
+          priceListId: selectedPOS!.priceList?.id || undefined,
+          branchId: selectedPOS!.branch?.id || user?.branch?.id || '',
+          promotionId: item.promotions?.[0]?.id || item.promotionId || undefined,
+          promotionName: item.promotions?.map(p => p.name).join(', ') || item.promotionName || undefined,
+        })),
+        payments: [
+          {
+            method: 'MP_POINT',
+            amount: Number(total),
+            transactionId: orderId,
+            cardBrand: mpData.cardBrand,
+            cardLastFour: mpData.cardLastFour,
+            installments: mpData.installments,
+          },
+        ],
+      };
+
+      const response = await salesService.create(saleData);
+
+      if (response.success) {
+        clearCart();
+        setShowPayment(false);
+        setMpOrder(null);
+        setAmountTendered('');
+        alert(`Venta #${response.data.saleNumber} registrada correctamente con Mercado Pago Point`);
+        focusSearchInput();
+      }
+    } catch (error: unknown) {
+      console.error('Error procesando venta con MP:', error);
+      const axiosError = error as { response?: { data?: { message?: string; error?: { message?: string } } } };
+      const errorMessage = axiosError?.response?.data?.message || axiosError?.response?.data?.error?.message || 'Error al procesar la venta';
+      alert(errorMessage);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // Procesar venta
   const processSale = async () => {
@@ -1268,23 +1438,102 @@ export default function POS() {
             >
               Cobrar ${total.toFixed(2)}
             </button>
+          ) : mpOrder ? (
+            // Modal de espera de pago MP Point
+            <div className="space-y-4 p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
+              <div className="text-center">
+                {mpOrder.status === 'PENDING' && (
+                  <>
+                    <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                      <Smartphone className="w-8 h-8 text-blue-600 animate-pulse" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Esperando pago en terminal...</h3>
+                    <p className="text-3xl font-bold text-blue-600 my-4">${total.toFixed(2)}</p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      El cliente debe pasar su tarjeta en el dispositivo Point
+                    </p>
+                    <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Procesando...</span>
+                    </div>
+                  </>
+                )}
+                {mpOrder.status === 'PROCESSED' && (
+                  <>
+                    <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                      <CheckCircle className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-green-700">Pago aprobado</h3>
+                    {mpOrder.cardBrand && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        {mpOrder.cardBrand} ****{mpOrder.cardLastFour}
+                        {mpOrder.installments && mpOrder.installments > 1 && ` (${mpOrder.installments} cuotas)`}
+                      </p>
+                    )}
+                  </>
+                )}
+                {['CANCELED', 'FAILED', 'EXPIRED'].includes(mpOrder.status) && (
+                  <>
+                    <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                      <XCircle className="w-8 h-8 text-red-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-red-700">
+                      {mpOrder.status === 'CANCELED' ? 'Pago cancelado' : mpOrder.status === 'EXPIRED' ? 'Pago expirado' : 'Pago fallido'}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-2">Intenta nuevamente o selecciona otro método de pago</p>
+                  </>
+                )}
+              </div>
+
+              {mpOrder.status === 'PENDING' && (
+                <button
+                  onClick={cancelMPPayment}
+                  className="w-full btn btn-secondary py-3"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  Cancelar pago
+                </button>
+              )}
+
+              {['CANCELED', 'FAILED', 'EXPIRED'].includes(mpOrder.status) && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setMpOrder(null); setShowPayment(false); focusSearchInput(); }}
+                    className="flex-1 btn btn-secondary py-3"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => { setMpOrder(null); }}
+                    className="flex-1 btn btn-primary py-3"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 {[
                   { method: 'CASH' as PaymentMethod, icon: Banknote, label: 'Efectivo' },
                   { method: 'CREDIT_CARD' as PaymentMethod, icon: CreditCard, label: 'Crédito' },
                   { method: 'DEBIT_CARD' as PaymentMethod, icon: CreditCard, label: 'Débito' },
                   { method: 'QR' as PaymentMethod, icon: QrCode, label: 'QR' },
-                ].map(({ method, icon: Icon, label }) => (
+                  { method: 'MP_POINT' as PaymentMethod, icon: Smartphone, label: 'MP Point', disabled: !selectedPOS?.mpDeviceId },
+                ].map(({ method, icon: Icon, label, disabled }) => (
                   <button
                     key={method}
                     onClick={() => setSelectedPaymentMethod(method)}
+                    disabled={disabled}
                     className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-colors ${
                       selectedPaymentMethod === method
                         ? 'border-primary-600 bg-primary-50'
+                        : disabled
+                        ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
+                    title={disabled ? 'No hay dispositivo MP Point configurado' : ''}
                   >
                     <Icon className="w-5 h-5" />
                     <span className="text-xs">{label}</span>
@@ -1309,19 +1558,39 @@ export default function POS() {
                 </div>
               )}
 
+              {selectedPaymentMethod === 'MP_POINT' && selectedPOS?.mpDeviceId && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-700 flex items-center gap-2">
+                    <Smartphone className="w-4 h-4" />
+                    Dispositivo: {selectedPOS.mpDeviceName || selectedPOS.mpDeviceId}
+                  </p>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <button onClick={() => { setShowPayment(false); focusSearchInput(); }} className="flex-1 btn btn-secondary py-3">
                   <X className="w-5 h-5 mr-2" />
                   Cancelar
                 </button>
-                <button
-                  onClick={processSale}
-                  disabled={isProcessing || (selectedPaymentMethod === 'CASH' && tenderedAmount < total)}
-                  className="flex-1 btn btn-success py-3 disabled:opacity-50"
-                >
-                  {isProcessing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Check className="w-5 h-5 mr-2" />}
-                  Confirmar
-                </button>
+                {selectedPaymentMethod === 'MP_POINT' ? (
+                  <button
+                    onClick={startMPPayment}
+                    disabled={isMPProcessing || !selectedPOS?.mpDeviceId}
+                    className="flex-1 btn btn-success py-3 disabled:opacity-50"
+                  >
+                    {isMPProcessing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Smartphone className="w-5 h-5 mr-2" />}
+                    Enviar a terminal
+                  </button>
+                ) : (
+                  <button
+                    onClick={processSale}
+                    disabled={isProcessing || (selectedPaymentMethod === 'CASH' && tenderedAmount < total)}
+                    className="flex-1 btn btn-success py-3 disabled:opacity-50"
+                  >
+                    {isProcessing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Check className="w-5 h-5 mr-2" />}
+                    Confirmar
+                  </button>
+                )}
               </div>
             </div>
           )}

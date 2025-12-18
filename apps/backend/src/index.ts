@@ -22,6 +22,7 @@ import promotionsRoutes from './routes/promotions.js';
 import cianboxRoutes from './routes/cianbox.js';
 import agencyRoutes from './routes/agency.js';
 import backofficeRoutes from './routes/backoffice.js';
+import mercadoPagoRoutes, { webhookRouter as mpWebhookRouter } from './routes/mercadopago.js';
 
 // Importar servicios
 import CianboxService from './services/cianbox.service.js';
@@ -104,6 +105,8 @@ app.get('/api', (_req, res) => {
       cianbox: '/api/cianbox',
       agency: '/api/agency',
       backoffice: '/api/backoffice',
+      mercadopago: '/api/mercadopago',
+      webhooks: '/api/webhooks',
     },
   });
 });
@@ -116,6 +119,8 @@ app.use('/api/promotions', promotionsRoutes);
 app.use('/api/cianbox', cianboxRoutes);
 app.use('/api/agency', agencyRoutes); // Super admin / gestión de DB servers
 app.use('/api/backoffice', backofficeRoutes); // Client backoffice - gestión de catálogo
+app.use('/api/mercadopago', mercadoPagoRoutes); // Mercado Pago Point integration
+app.use('/api/webhooks', mpWebhookRouter); // Webhooks (público, sin auth)
 
 // Ruta 404
 app.use((_req, res) => {

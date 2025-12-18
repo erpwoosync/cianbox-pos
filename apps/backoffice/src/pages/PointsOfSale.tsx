@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { pointsOfSaleApi, stockApi, pricesApi, PointOfSale, CreatePointOfSaleDto } from '../services/api';
-import { Monitor, RefreshCw, Search, Plus, Pencil, Trash2, X, Store, ListOrdered } from 'lucide-react';
+import { pointsOfSaleApi, stockApi, pricesApi, mercadoPagoApi, PointOfSale, CreatePointOfSaleDto, MercadoPagoDevice } from '../services/api';
+import { Monitor, RefreshCw, Search, Plus, Pencil, Trash2, X, Store, ListOrdered, Smartphone } from 'lucide-react';
 
 interface Branch {
   id: string;
@@ -20,6 +20,8 @@ export default function PointsOfSale() {
   const [pointsOfSale, setPointsOfSale] = useState<PointOfSale[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
+  const [mpDevices, setMpDevices] = useState<MercadoPagoDevice[]>([]);
+  const [mpConfigured, setMpConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -35,6 +37,8 @@ export default function PointsOfSale() {
     description: '',
     priceListId: '',
     isActive: true,
+    mpDeviceId: null,
+    mpDeviceName: null,
   });
 
   useEffect(() => {
@@ -52,6 +56,19 @@ export default function PointsOfSale() {
       setPointsOfSale(posData);
       setBranches(branchesData);
       setPriceLists(priceListsData);
+
+      // Cargar dispositivos MP Point si está configurado
+      try {
+        const mpConfig = await mercadoPagoApi.getConfig();
+        if (mpConfig?.isActive) {
+          setMpConfigured(true);
+          const devices = await mercadoPagoApi.listDevices();
+          setMpDevices(devices);
+        }
+      } catch {
+        // MP no configurado, ignorar
+        setMpConfigured(false);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -87,6 +104,8 @@ export default function PointsOfSale() {
       description: pos.description || '',
       priceListId: pos.priceListId || '',
       isActive: pos.isActive,
+      mpDeviceId: pos.mpDeviceId || null,
+      mpDeviceName: pos.mpDeviceName || null,
     });
     setShowModal(true);
   };
@@ -101,6 +120,8 @@ export default function PointsOfSale() {
       description: '',
       priceListId: '',
       isActive: true,
+      mpDeviceId: null,
+      mpDeviceName: null,
     });
   };
 
@@ -202,6 +223,9 @@ export default function PointsOfSale() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Lista de Precios
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    MP Point
+                  </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Estado
                   </th>
@@ -249,6 +273,18 @@ export default function PointsOfSale() {
                         </div>
                       ) : (
                         <span className="text-sm text-gray-400">Sin lista asignada</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {pos.mpDeviceId ? (
+                        <div className="flex items-center gap-2">
+                          <Smartphone size={16} className="text-blue-500" />
+                          <span className="text-sm text-gray-700">
+                            {pos.mpDeviceName || pos.mpDeviceId}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">Sin dispositivo</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -395,6 +431,40 @@ export default function PointsOfSale() {
                   Define qué precios se usarán en este punto de venta
                 </p>
               </div>
+
+              {mpConfigured && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <div className="flex items-center gap-2">
+                      <Smartphone size={16} className="text-blue-500" />
+                      Dispositivo MP Point
+                    </div>
+                  </label>
+                  <select
+                    value={formData.mpDeviceId || ''}
+                    onChange={(e) => {
+                      const deviceId = e.target.value || null;
+                      const device = mpDevices.find(d => d.id === deviceId);
+                      setFormData({
+                        ...formData,
+                        mpDeviceId: deviceId,
+                        mpDeviceName: device?.operating_mode || null,
+                      });
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  >
+                    <option value="">Sin dispositivo asignado</option>
+                    {mpDevices.map((device) => (
+                      <option key={device.id} value={device.id}>
+                        {device.operating_mode} - {device.id.slice(-8)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Terminal Mercado Pago Point para cobros con tarjeta
+                  </p>
+                </div>
+              )}
 
               <div className="flex items-center gap-2">
                 <input

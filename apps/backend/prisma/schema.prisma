@@ -121,6 +121,8 @@ model Tenant {
   cashRegisters     CashRegister[]
   printers          Printer[]
   printPoints       PrintPoint[]
+  mercadoPagoConfig MercadoPagoConfig?
+  mercadoPagoOrders MercadoPagoOrder[]
 
   @@map("tenants")
 }
@@ -299,6 +301,11 @@ model PointOfSale {
   printPointId  String?  // Punto de impresión por defecto
   isActive      Boolean  @default(true)
   settings      Json     @default("{}") // Configuración específica del POS
+
+  // Mercado Pago Point
+  mpDeviceId    String?  // device_id del terminal MP Point
+  mpDeviceName  String?  // Nombre del dispositivo MP Point
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -783,13 +790,14 @@ model Sale {
   cancelReason    String?
 
   // Relaciones
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch      Branch      @relation(fields: [branchId], references: [id])
-  pointOfSale PointOfSale @relation(fields: [pointOfSaleId], references: [id])
-  user        User        @relation(fields: [userId], references: [id])
-  customer    Customer?   @relation(fields: [customerId], references: [id])
-  items       SaleItem[]
-  payments    Payment[]
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch           Branch            @relation(fields: [branchId], references: [id])
+  pointOfSale      PointOfSale       @relation(fields: [pointOfSaleId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+  customer         Customer?         @relation(fields: [customerId], references: [id])
+  items            SaleItem[]
+  payments         Payment[]
+  mercadoPagoOrder MercadoPagoOrder?
 
   @@unique([tenantId, saleNumber])
   @@index([tenantId, saleDate])
@@ -906,6 +914,7 @@ enum PaymentMethod {
   CREDIT_CARD   // Tarjeta de crédito
   DEBIT_CARD    // Tarjeta de débito
   QR            // QR (MercadoPago, etc)
+  MP_POINT      // Mercado Pago Point (terminal)
   TRANSFER      // Transferencia bancaria
   CHECK         // Cheque
   CREDIT        // Cuenta corriente (fiado)
@@ -1113,6 +1122,59 @@ model AuditLog {
   @@index([tenantId, entity, entityId])
   @@index([tenantId, userId, createdAt])
   @@map("audit_logs")
+}
+
+// ==============================================
+// MERCADO PAGO POINT
+// ==============================================
+
+// Configuración de Mercado Pago por Tenant
+model MercadoPagoConfig {
+  id            String   @id @default(cuid())
+  tenantId      String   @unique
+  accessToken   String   // Token de acceso (encriptado)
+  publicKey     String?  // Clave pública
+  userId        String?  // User ID de MP
+  webhookSecret String?  // Secret para validar webhooks
+  isActive      Boolean  @default(true)
+  environment   String   @default("production") // sandbox/production
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("mercadopago_configs")
+}
+
+// Órdenes de pago en Mercado Pago Point
+model MercadoPagoOrder {
+  id                String   @id @default(cuid())
+  tenantId          String
+  saleId            String?  @unique // Se asocia cuando se completa la venta
+  orderId           String   @unique // ID de orden en MP
+  externalReference String   // Referencia externa (ej: "POS-001-000123")
+  deviceId          String   // device_id del terminal Point
+  amount            Decimal  @db.Decimal(12, 2)
+  status            String   // PENDING, PROCESSED, CANCELED, FAILED, EXPIRED
+  paymentId         String?  // payment_id de MP cuando se procesa
+  paymentMethod     String?  // Método de pago usado (credit_card, debit_card, etc)
+  cardBrand         String?  // Marca de tarjeta (VISA, MASTERCARD, etc)
+  cardLastFour      String?  // Últimos 4 dígitos
+  installments      Int?     // Cuotas
+  responseData      Json?    // Respuesta completa de MP
+  errorMessage      String?  // Mensaje de error si falló
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  processedAt       DateTime? // Cuando se procesó el pago
+
+  // Relaciones
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sale   Sale?  @relation(fields: [saleId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("mercadopago_orders")
 }
 
 // ==============================================

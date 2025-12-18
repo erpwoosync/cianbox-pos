@@ -21,6 +21,7 @@ import {
   Building2,
   ShoppingCart,
   Gift,
+  Plug,
 } from 'lucide-react';
 
 const menuItems = [
@@ -37,6 +38,7 @@ const menuItems = [
   { path: '/sales', label: 'Ventas', icon: ShoppingCart },
   { path: '/roles', label: 'Roles', icon: Shield },
   { path: '/users', label: 'Usuarios', icon: Users },
+  { path: '/integrations', label: 'Integraciones', icon: Plug },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

@@ -303,4 +303,42 @@ export const cianboxService = {
   },
 };
 
+// Servicios de Mercado Pago Point
+export const mercadoPagoService = {
+  // Crear orden de pago en terminal Point
+  createOrder: async (data: {
+    pointOfSaleId: string;
+    amount: number;
+    externalReference: string;
+    description?: string;
+  }) => {
+    const response = await api.post('/mercadopago/orders', data);
+    return response.data;
+  },
+
+  // Consultar estado de una orden
+  getOrderStatus: async (orderId: string) => {
+    const response = await api.get(`/mercadopago/orders/${orderId}`);
+    return response.data;
+  },
+
+  // Cancelar una orden pendiente
+  cancelOrder: async (orderId: string) => {
+    const response = await api.post(`/mercadopago/orders/${orderId}/cancel`);
+    return response.data;
+  },
+
+  // Listar dispositivos Point disponibles
+  listDevices: async () => {
+    const response = await api.get('/mercadopago/devices');
+    return response.data;
+  },
+
+  // Obtener configuración de MP
+  getConfig: async () => {
+    const response = await api.get('/mercadopago/config');
+    return response.data;
+  },
+};
+
 export default api;

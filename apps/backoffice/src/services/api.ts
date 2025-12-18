@@ -297,6 +297,8 @@ export interface PointOfSale {
   branch?: { id: string; name: string; code: string };
   priceListId?: string;
   priceList?: { id: string; name: string; currency: string };
+  mpDeviceId?: string | null;
+  mpDeviceName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -308,6 +310,8 @@ export interface CreatePointOfSaleDto {
   description?: string;
   priceListId?: string;
   isActive?: boolean;
+  mpDeviceId?: string | null;
+  mpDeviceName?: string | null;
 }
 
 export interface UpdatePointOfSaleDto {
@@ -317,6 +321,8 @@ export interface UpdatePointOfSaleDto {
   description?: string;
   priceListId?: string | null;
   isActive?: boolean;
+  mpDeviceId?: string | null;
+  mpDeviceName?: string | null;
 }
 
 // Permissions API
@@ -575,6 +581,57 @@ export const promotionsApi = {
   },
   getActive: async () => {
     const response = await api.get('/promotions/active');
+    return response.data.data;
+  },
+};
+
+// ============ MERCADO PAGO ============
+
+// Mercado Pago Config Types
+export interface MercadoPagoConfig {
+  id: string;
+  tenantId: string;
+  publicKey?: string;
+  userId?: string;
+  isActive: boolean;
+  environment: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MercadoPagoDevice {
+  id: string;
+  operating_mode: string;
+  pos_id?: number;
+  store_id?: string;
+  external_pos_id?: string;
+}
+
+export interface SaveMercadoPagoConfigDto {
+  accessToken: string;
+  publicKey?: string;
+  userId?: string;
+  webhookSecret?: string;
+  environment?: 'sandbox' | 'production';
+  isActive?: boolean;
+}
+
+// Mercado Pago API
+export const mercadoPagoApi = {
+  getConfig: async () => {
+    const response = await api.get('/mercadopago/config');
+    return response.data;
+  },
+  saveConfig: async (data: SaveMercadoPagoConfigDto) => {
+    const response = await api.post('/mercadopago/config', data);
+    return response.data.data;
+  },
+  listDevices: async () => {
+    const response = await api.get('/mercadopago/devices');
+    return response.data.data as MercadoPagoDevice[];
+  },
+  updatePOSDevice: async (posId: string, data: { mpDeviceId: string | null; mpDeviceName?: string | null }) => {
+    const response = await api.put(`/mercadopago/points-of-sale/${posId}/device`, data);
     return response.data.data;
   },
 };
