@@ -239,18 +239,36 @@ export default function Categories() {
                         <button
                           onClick={() => toggleQuickAccess(category)}
                           disabled={savingId === category.id}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                            category.isQuickAccess
-                              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                          }`}
+                          className="relative inline-flex items-center"
+                          title={category.isQuickAccess ? 'Quitar de acceso rápido' : 'Agregar a acceso rápido'}
                         >
                           {savingId === category.id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <div className="w-11 h-6 flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                            </div>
                           ) : (
-                            <Zap className={`w-3 h-3 ${category.isQuickAccess ? 'fill-current' : ''}`} />
+                            <>
+                              {/* Switch Track */}
+                              <div
+                                className={`w-11 h-6 rounded-full transition-colors ${
+                                  category.isQuickAccess
+                                    ? 'bg-amber-500'
+                                    : 'bg-gray-300'
+                                }`}
+                              >
+                                {/* Switch Thumb */}
+                                <div
+                                  className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform flex items-center justify-center ${
+                                    category.isQuickAccess
+                                      ? 'translate-x-5'
+                                      : 'translate-x-0.5'
+                                  }`}
+                                >
+                                  <Zap className={`w-3 h-3 ${category.isQuickAccess ? 'text-amber-500' : 'text-gray-400'}`} />
+                                </div>
+                              </div>
+                            </>
                           )}
-                          {category.isQuickAccess ? 'Activo' : 'Inactivo'}
                         </button>
                       </td>
                       <td className="py-3 px-4 text-center">

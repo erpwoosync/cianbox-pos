@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Store,
   Printer,
@@ -7,15 +8,43 @@ import {
   Shield,
   Save,
   Link,
+  Zap,
+  ArrowRight,
+  Tags,
 } from 'lucide-react';
+import { categoriesService } from '../services/api';
 import { useAuthStore } from '../context/authStore';
 
 type TabId = 'general' | 'cianbox' | 'pos' | 'notifications';
 
+interface QuickAccessCategory {
+  id: string;
+  name: string;
+  quickAccessColor?: string | null;
+  _count?: { products: number };
+}
+
 export default function Settings() {
   const { tenant } = useAuthStore();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [isSaving, setIsSaving] = useState(false);
+  const [quickAccessCategories, setQuickAccessCategories] = useState<QuickAccessCategory[]>([]);
+
+  useEffect(() => {
+    loadQuickAccessCategories();
+  }, []);
+
+  const loadQuickAccessCategories = async () => {
+    try {
+      const response = await categoriesService.getQuickAccess();
+      if (response.success) {
+        setQuickAccessCategories(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading quick access categories:', error);
+    }
+  };
 
   const tabs = [
     { id: 'general' as const, name: 'General', icon: Store },
@@ -248,6 +277,59 @@ export default function Settings() {
                     />
                     <span className="text-gray-700">Requerir cliente en cada venta</span>
                   </label>
+                </div>
+              </div>
+
+              {/* Quick Access Categories */}
+              <div>
+                <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-500" />
+                  Categorías de Acceso Rápido
+                </h3>
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-sm text-amber-800 mb-3">
+                    Configura las categorías que aparecerán como botones destacados en el POS para acceso rápido a los productos más vendidos.
+                  </p>
+
+                  {quickAccessCategories.length > 0 ? (
+                    <div className="mb-4">
+                      <p className="text-xs text-amber-700 mb-2 font-medium">Categorías configuradas:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {quickAccessCategories.slice(0, 5).map((cat) => (
+                          <span
+                            key={cat.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border"
+                            style={{
+                              borderColor: cat.quickAccessColor || '#3b82f6',
+                              color: cat.quickAccessColor || '#3b82f6',
+                              backgroundColor: `${cat.quickAccessColor || '#3b82f6'}10`,
+                            }}
+                          >
+                            <Tags className="w-3 h-3" />
+                            {cat.name}
+                          </span>
+                        ))}
+                        {quickAccessCategories.length > 5 && (
+                          <span className="text-xs text-amber-600">
+                            +{quickAccessCategories.length - 5} más
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-amber-600 mb-3">
+                      No hay categorías de acceso rápido configuradas.
+                    </p>
+                  )}
+
+                  <button
+                    onClick={() => navigate('/categorias')}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    <Zap className="w-4 h-4" />
+                    Configurar Acceso Rápido
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
