@@ -514,10 +514,9 @@ export default function Categories() {
                         borderColor: cat.quickAccessColor || '#3b82f6',
                         color: cat.quickAccessColor || '#3b82f6',
                       }}
-                      className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl border-2 bg-white font-medium whitespace-nowrap min-w-[100px]"
+                      className="flex items-center justify-center px-5 py-3 rounded-xl border-2 bg-white font-semibold whitespace-nowrap min-w-[100px]"
                     >
-                      <span className="text-sm font-semibold">{cat.name}</span>
-                      <span className="text-xs opacity-75">{cat._count?.products || 0} productos</span>
+                      {cat.name}
                     </button>
                   ))}
                 </div>

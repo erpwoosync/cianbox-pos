@@ -693,7 +693,7 @@ export default function POS() {
               {quickAccessCategories.map(cat => (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
                   style={{
                     backgroundColor: selectedCategory === cat.id
                       ? (cat.quickAccessColor || '#3b82f6')
@@ -701,12 +701,9 @@ export default function POS() {
                     borderColor: cat.quickAccessColor || '#3b82f6',
                     color: selectedCategory === cat.id ? 'white' : (cat.quickAccessColor || '#3b82f6'),
                   }}
-                  className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl border-2 font-medium whitespace-nowrap transition-all hover:scale-105 hover:shadow-md min-w-[100px]"
+                  className="flex items-center justify-center px-5 py-3 rounded-xl border-2 font-semibold whitespace-nowrap transition-all hover:scale-105 hover:shadow-md min-w-[100px]"
                 >
-                  <span className="text-sm font-semibold">{cat.name}</span>
-                  {cat._count && (
-                    <span className="text-xs opacity-75">{cat._count.products} productos</span>
-                  )}
+                  {cat.name}
                 </button>
               ))}
             </div>
