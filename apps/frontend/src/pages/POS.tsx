@@ -10,18 +10,14 @@ import {
   Banknote,
   QrCode,
   ArrowLeft,
-  Tag,
   X,
   Check,
   Loader2,
-  WifiOff,
-  Wifi,
-  RefreshCw,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService } from '../services/api';
-import { useLocalStorage } from '../hooks/useLocalStorage';
 
+// ============ INTERFACES ============
 interface Product {
   id: string;
   sku: string;
@@ -40,39 +36,6 @@ interface Product {
   }>;
 }
 
-// Helper para generar IDs únicos
-const generateId = () => {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
-
-// Helper para obtener el precio del producto
-const getProductPrice = (product: Product): number => {
-  // Primero intentar basePrice
-  if (product.basePrice != null) {
-    const price = Number(product.basePrice);
-    if (!isNaN(price)) return price;
-  }
-  // Luego buscar en prices (primer precio disponible)
-  if (product.prices && product.prices.length > 0) {
-    const price = Number(product.prices[0].price);
-    if (!isNaN(price)) return price;
-  }
-  return 0;
-};
-
-// Helper para obtener el precio neto (sin IVA) del producto
-const getProductPriceNet = (product: Product): number => {
-  // Buscar en prices (primer precio disponible)
-  if (product.prices && product.prices.length > 0 && product.prices[0].priceNet != null) {
-    const priceNet = Number(product.prices[0].priceNet);
-    if (!isNaN(priceNet)) return priceNet;
-  }
-  // Si no hay priceNet, calcular desde price y taxRate
-  const price = getProductPrice(product);
-  const taxRate = product.taxRate || 21;
-  return price / (1 + taxRate / 100);
-};
-
 interface CartItem {
   id: string;
   product: Product;
@@ -81,18 +44,6 @@ interface CartItem {
   unitPriceNet: number;
   discount: number;
   subtotal: number;
-  promotionId?: string;
-  promotionName?: string;
-}
-
-interface Ticket {
-  id: string;
-  number: number;
-  name: string;
-  items: CartItem[];
-  createdAt: string;
-  customerId?: string;
-  customerName?: string;
 }
 
 interface Category {
@@ -111,65 +62,72 @@ interface PointOfSale {
 
 type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR';
 
-interface SaleData {
-  branchId: string;
-  pointOfSaleId: string;
-  items: Array<{
-    productId: string;
-    productCode: string;
-    productName: string;
-    productBarcode: string;
-    quantity: number;
-    unitPrice: number;
-    unitPriceNet: number;
-    discount: number;
-    taxRate: number;
-    promotionId?: string;
-    promotionName?: string;
-    priceListId: string | null;
-    branchId: string;
-  }>;
-  payments: Array<{
-    method: PaymentMethod;
-    amount: number;
-    amountTendered?: number;
-  }>;
-}
+// ============ HELPERS ============
+const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-interface PendingSale {
-  id: string;
-  saleData: SaleData;
-  createdAt: string;
-  attempts: number;
-}
+const getProductPrice = (product: Product): number => {
+  if (product.basePrice != null) {
+    const price = Number(product.basePrice);
+    if (!isNaN(price)) return price;
+  }
+  if (product.prices && product.prices.length > 0) {
+    const price = Number(product.prices[0].price);
+    if (!isNaN(price)) return price;
+  }
+  return 0;
+};
 
-const STORAGE_KEY = 'pos_tickets';
-const PENDING_SALES_KEY = 'pos_pending_sales';
+const getProductPriceNet = (product: Product): number => {
+  if (product.prices && product.prices.length > 0 && product.prices[0].priceNet != null) {
+    const priceNet = Number(product.prices[0].priceNet);
+    if (!isNaN(priceNet)) return priceNet;
+  }
+  const price = getProductPrice(product);
+  const taxRate = product.taxRate || 21;
+  return price / (1 + taxRate / 100);
+};
 
+// ============ STORAGE KEY ============
+const CART_STORAGE_KEY = 'pos_cart_simple';
+
+// ============ LOAD/SAVE FUNCTIONS ============
+const loadCartFromStorage = (): CartItem[] => {
+  try {
+    const saved = localStorage.getItem(CART_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      console.log('[POS] Carrito cargado:', parsed.length, 'items');
+      return parsed;
+    }
+  } catch (e) {
+    console.error('[POS] Error cargando carrito:', e);
+  }
+  return [];
+};
+
+const saveCartToStorage = (cart: CartItem[]) => {
+  try {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    console.log('[POS] Carrito guardado:', cart.length, 'items');
+  } catch (e) {
+    console.error('[POS] Error guardando carrito:', e);
+  }
+};
+
+// ============ COMPONENT ============
 export default function POS() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  // Estado de tickets - persistido con useLocalStorage
-  const defaultTicket: Ticket = {
-    id: generateId(),
-    number: 1,
-    name: 'Ticket #1',
-    items: [],
-    createdAt: new Date().toISOString(),
-  };
+  // Carrito - inicializar desde localStorage
+  const [cart, setCart] = useState<CartItem[]>(() => loadCartFromStorage());
 
-  const [tickets, setTickets] = useLocalStorage<Ticket[]>(STORAGE_KEY, [defaultTicket]);
-  const [currentTicketId, setCurrentTicketId] = useLocalStorage<string | null>(
-    'pos_current_ticket',
-    tickets.length > 0 ? tickets[tickets.length - 1].id : defaultTicket.id
-  );
+  // Guardar carrito en localStorage cada vez que cambie
+  useEffect(() => {
+    saveCartToStorage(cart);
+  }, [cart]);
 
-  const [showTicketList, setShowTicketList] = useState(false);
-
-  // Estado del carrito (computed from current ticket)
-  const cart = tickets.find((t) => t.id === currentTicketId)?.items || [];
-
+  // Estado de búsqueda
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -191,48 +149,7 @@ export default function POS() {
   const [amountTendered, setAmountTendered] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Estado offline/online
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  // Cargar ventas pendientes desde localStorage al montar
-  useEffect(() => {
-    const savedPendingSales = localStorage.getItem(PENDING_SALES_KEY);
-    if (savedPendingSales) {
-      try {
-        const parsed: PendingSale[] = JSON.parse(savedPendingSales);
-        setPendingSales(parsed);
-      } catch (error) {
-        console.error('Error loading pending sales from localStorage:', error);
-      }
-    }
-  }, []);
-
-  // Detectar cambios de estado online/offline
-  useEffect(() => {
-    const handleOnline = () => {
-      console.log('[POS] Conexión restaurada');
-      setIsOnline(true);
-      // Auto-sincronizar ventas pendientes
-      syncPendingSales();
-    };
-
-    const handleOffline = () => {
-      console.log('[POS] Sin conexión');
-      setIsOnline(false);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [pendingSales]);
-
-  // Cargar categorías y productos
+  // Cargar datos iniciales
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -245,30 +162,20 @@ export default function POS() {
         pointsOfSaleService.list(),
       ]);
 
-      if (categoriesRes.success) {
-        setCategories(categoriesRes.data);
-      }
-
-      if (productsRes.success) {
-        setProducts(productsRes.data);
-      }
+      if (categoriesRes.success) setCategories(categoriesRes.data);
+      if (productsRes.success) setProducts(productsRes.data);
 
       if (posRes.success) {
-        // Filtrar puntos de venta activos de la sucursal del usuario
         const userBranchId = user?.branch?.id;
         const activePOS = posRes.data.filter(
           (pos: PointOfSale) => pos.isActive && (!userBranchId || pos.branch?.id === userBranchId)
         );
         setPointsOfSale(activePOS);
 
-        // Auto-seleccionar si solo hay uno
         if (activePOS.length === 1) {
           setSelectedPOS(activePOS[0]);
         } else if (activePOS.length > 1) {
-          // Mostrar selector si hay múltiples
           setShowPOSSelector(true);
-        } else if (activePOS.length === 0) {
-          alert('No hay puntos de venta configurados para esta sucursal');
         }
       }
     } catch (error) {
@@ -278,67 +185,9 @@ export default function POS() {
     }
   };
 
-  // Gestión de tickets
-  const createNewTicket = () => {
-    const newTicket: Ticket = {
-      id: generateId(),
-      number: tickets.length + 1,
-      name: `Ticket #${tickets.length + 1}`,
-      items: [],
-      createdAt: new Date().toISOString(),
-    };
-    setTickets((prev) => [...prev, newTicket]);
-    setCurrentTicketId(newTicket.id);
-    setShowTicketList(false);
-  };
-
-  const switchTicket = (ticketId: string) => {
-    setCurrentTicketId(ticketId);
-    setShowTicketList(false);
-  };
-
-  const deleteTicket = (ticketId: string) => {
-    setTickets((prev) => {
-      const filtered = prev.filter((t) => t.id !== ticketId);
-
-      // Si no quedan tickets, crear uno nuevo inmediatamente
-      if (filtered.length === 0) {
-        const newTicket: Ticket = {
-          id: generateId(),
-          number: 1,
-          name: 'Ticket #1',
-          items: [],
-          createdAt: new Date().toISOString(),
-        };
-        setCurrentTicketId(newTicket.id);
-        return [newTicket];
-      }
-
-      // Si eliminamos el ticket actual, seleccionar el último de los que quedan
-      if (ticketId === currentTicketId) {
-        setCurrentTicketId(filtered[filtered.length - 1].id);
-      }
-
-      return filtered;
-    });
-  };
-
-  // Actualizar items del ticket actual
-  const updateCart = (updater: (items: CartItem[]) => CartItem[]) => {
-    if (!currentTicketId) return;
-    setTickets((prev) =>
-      prev.map((ticket) =>
-        ticket.id === currentTicketId
-          ? { ...ticket, items: updater(ticket.items) }
-          : ticket
-      )
-    );
-  };
-
   // Búsqueda de productos
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
-
     if (query.length < 2) {
       setSearchResults([]);
       return;
@@ -346,15 +195,9 @@ export default function POS() {
 
     setIsSearching(true);
     try {
-      const response = await productsService.search(
-        query,
-        undefined,
-        user?.branch?.id
-      );
+      const response = await productsService.search(query, undefined, user?.branch?.id);
       if (response.success) {
         setSearchResults(response.data);
-
-        // Si es un código de barras exacto y hay un resultado, agregar al carrito
         if (response.data.length === 1 && response.data[0].barcode === query) {
           addToCart(response.data[0]);
           setSearchQuery('');
@@ -370,10 +213,8 @@ export default function POS() {
 
   // Agregar producto al carrito
   const addToCart = (product: Product) => {
-    updateCart((prev) => {
-      const existingIndex = prev.findIndex(
-        (item) => item.product.id === product.id
-      );
+    setCart(prev => {
+      const existingIndex = prev.findIndex(item => item.product.id === product.id);
 
       if (existingIndex >= 0) {
         const updated = [...prev];
@@ -406,9 +247,9 @@ export default function POS() {
 
   // Actualizar cantidad
   const updateQuantity = (itemId: string, delta: number) => {
-    updateCart((prev) =>
+    setCart(prev =>
       prev
-        .map((item) => {
+        .map(item => {
           if (item.id === itemId) {
             const newQty = Math.max(0, item.quantity + delta);
             return {
@@ -419,13 +260,18 @@ export default function POS() {
           }
           return item;
         })
-        .filter((item) => item.quantity > 0)
+        .filter(item => item.quantity > 0)
     );
   };
 
   // Eliminar item
   const removeItem = (itemId: string) => {
-    updateCart((prev) => prev.filter((item) => item.id !== itemId));
+    setCart(prev => prev.filter(item => item.id !== itemId));
+  };
+
+  // Vaciar carrito
+  const clearCart = () => {
+    setCart([]);
   };
 
   // Calcular totales
@@ -437,53 +283,6 @@ export default function POS() {
   // Calcular vuelto
   const tenderedAmount = parseFloat(amountTendered) || 0;
   const change = tenderedAmount - total;
-
-  // Sincronizar ventas pendientes
-  const syncPendingSales = async () => {
-    if (isSyncing || pendingSales.length === 0 || !isOnline) {
-      return;
-    }
-
-    setIsSyncing(true);
-    console.log(`[POS] Sincronizando ${pendingSales.length} ventas pendientes...`);
-
-    const remaining: PendingSale[] = [];
-
-    for (const pendingSale of pendingSales) {
-      try {
-        const response = await salesService.create(pendingSale.saleData);
-        if (response.success) {
-          console.log(`[POS] Venta pendiente ${pendingSale.id} sincronizada`);
-        } else {
-          // Si falla, reintentar más tarde
-          remaining.push({
-            ...pendingSale,
-            attempts: pendingSale.attempts + 1,
-          });
-        }
-      } catch (error) {
-        console.error(`[POS] Error sincronizando venta ${pendingSale.id}:`, error);
-        // Guardar para reintentar (máximo 5 intentos)
-        if (pendingSale.attempts < 5) {
-          remaining.push({
-            ...pendingSale,
-            attempts: pendingSale.attempts + 1,
-          });
-        }
-      }
-    }
-
-    // Actualizar lista de pendientes
-    setPendingSales(remaining);
-    localStorage.setItem(PENDING_SALES_KEY, JSON.stringify(remaining));
-    setIsSyncing(false);
-
-    if (remaining.length === 0) {
-      console.log('[POS] Todas las ventas pendientes han sido sincronizadas');
-    } else {
-      console.log(`[POS] Quedan ${remaining.length} ventas pendientes`);
-    }
-  };
 
   // Procesar venta
   const processSale = async () => {
@@ -499,7 +298,7 @@ export default function POS() {
       const saleData = {
         branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         pointOfSaleId: selectedPOS.id,
-        items: cart.map((item) => ({
+        items: cart.map(item => ({
           productId: item.product.id,
           productCode: item.product.sku,
           productName: item.product.name,
@@ -509,9 +308,6 @@ export default function POS() {
           unitPriceNet: Number(item.unitPriceNet),
           discount: Number(item.discount || 0),
           taxRate: Number(item.product.taxRate || 21),
-          promotionId: item.promotionId,
-          promotionName: item.promotionName,
-          // IDs para sincronización con Cianbox
           priceListId: selectedPOS.priceList?.id || null,
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         })),
@@ -519,51 +315,18 @@ export default function POS() {
           {
             method: selectedPaymentMethod,
             amount: Number(total),
-            amountTendered:
-              selectedPaymentMethod === 'CASH' ? Number(tenderedAmount) : undefined,
+            amountTendered: selectedPaymentMethod === 'CASH' ? Number(tenderedAmount) : undefined,
           },
         ],
       };
 
-      // Si está offline, encolar la venta
-      if (!isOnline) {
-        const pendingSale: PendingSale = {
-          id: generateId(),
-          saleData,
-          createdAt: new Date().toISOString(),
-          attempts: 0,
-        };
-
-        const updatedPending = [...pendingSales, pendingSale];
-        setPendingSales(updatedPending);
-        localStorage.setItem(PENDING_SALES_KEY, JSON.stringify(updatedPending));
-
-        // Eliminar ticket completado y mostrar confirmación
-        if (currentTicketId) {
-          deleteTicket(currentTicketId);
-        }
-        setShowPayment(false);
-        setAmountTendered('');
-        alert('Venta guardada. Se sincronizará cuando vuelva la conexión.');
-        return;
-      }
-
-      // Si está online, procesar normalmente
       const response = await salesService.create(saleData);
 
       if (response.success) {
-        // Eliminar ticket completado y mostrar confirmación
-        if (currentTicketId) {
-          deleteTicket(currentTicketId);
-        }
+        clearCart();
         setShowPayment(false);
         setAmountTendered('');
         alert(`Venta #${response.data.saleNumber} registrada correctamente`);
-
-        // Intentar sincronizar ventas pendientes si hay
-        if (pendingSales.length > 0) {
-          syncPendingSales();
-        }
       }
     } catch (error) {
       console.error('Error procesando venta:', error);
@@ -573,14 +336,13 @@ export default function POS() {
     }
   };
 
-  // Filtrar productos por categoría
+  // Filtrar productos
   const filteredProducts = selectedCategory
-    ? products.filter((p) => p.category?.id === selectedCategory)
+    ? products.filter(p => p.category?.id === selectedCategory)
     : products;
 
-  // Filtrar categorías que tienen productos
-  const categoriesWithProducts = categories.filter((cat) =>
-    products.some((p) => p.category?.id === cat.id)
+  const categoriesWithProducts = categories.filter(cat =>
+    products.some(p => p.category?.id === cat.id)
   );
 
   return (
@@ -591,7 +353,7 @@ export default function POS() {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-semibold mb-4">Seleccionar Punto de Venta</h3>
             <div className="space-y-2">
-              {pointsOfSale.map((pos) => (
+              {pointsOfSale.map(pos => (
                 <button
                   key={pos.id}
                   onClick={() => {
@@ -608,24 +370,11 @@ export default function POS() {
                   <p className="text-sm text-gray-500">
                     {pos.code} {pos.branch && `• ${pos.branch.name}`}
                   </p>
-                  {pos.priceList && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      Lista: {pos.priceList.name}
-                    </p>
-                  )}
                 </button>
               ))}
             </div>
-            {pointsOfSale.length === 0 && (
-              <p className="text-gray-500 text-center py-4">
-                No hay puntos de venta configurados
-              </p>
-            )}
             {selectedPOS && (
-              <button
-                onClick={() => setShowPOSSelector(false)}
-                className="w-full btn btn-primary mt-4"
-              >
+              <button onClick={() => setShowPOSSelector(false)} className="w-full btn btn-primary mt-4">
                 Continuar
               </button>
             )}
@@ -637,10 +386,7 @@ export default function POS() {
       <div className="flex flex-col h-screen bg-gray-50">
         {/* Header */}
         <div className="bg-white border-b p-4 flex items-center gap-4">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
+          <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
 
@@ -649,7 +395,7 @@ export default function POS() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={e => handleSearch(e.target.value)}
               placeholder="Buscar por nombre, SKU o código de barras..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               autoFocus
@@ -660,52 +406,11 @@ export default function POS() {
           </div>
 
           <div className="text-right flex items-center gap-4">
-            {/* Indicador de conexión y sincronización */}
-            {!isOnline ? (
-              <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-sm">
-                <WifiOff className="w-4 h-4" />
-                <span>Sin conexión</span>
-                {pendingSales.length > 0 && (
-                  <span className="bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                    {pendingSales.length} pendientes
-                  </span>
-                )}
-              </div>
-            ) : (
-              <>
-                {isSyncing && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Sincronizando...</span>
-                  </div>
-                )}
-                {!isSyncing && pendingSales.length > 0 && (
-                  <button
-                    onClick={syncPendingSales}
-                    className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200"
-                    title="Sincronizar ventas pendientes"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    <span>{pendingSales.length} pendientes</span>
-                  </button>
-                )}
-                {!isSyncing && pendingSales.length === 0 && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm">
-                    <Wifi className="w-4 h-4" />
-                    <span>Conectado</span>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Indicador de POS */}
             <button
               onClick={() => pointsOfSale.length > 1 && setShowPOSSelector(true)}
               className={`px-3 py-1 rounded-lg text-sm ${
-                selectedPOS
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-red-100 text-red-700'
-              } ${pointsOfSale.length > 1 ? 'cursor-pointer hover:opacity-80' : ''}`}
+                selectedPOS ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+              }`}
             >
               {selectedPOS ? `Caja: ${selectedPOS.name}` : 'Sin caja'}
             </button>
@@ -719,7 +424,7 @@ export default function POS() {
         {/* Resultados de búsqueda */}
         {searchResults.length > 0 && (
           <div className="absolute top-20 left-4 right-[396px] bg-white rounded-lg shadow-lg border z-10 max-h-96 overflow-y-auto">
-            {searchResults.map((product) => (
+            {searchResults.map(product => (
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
@@ -727,24 +432,16 @@ export default function POS() {
               >
                 <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
                   {product.imageUrl ? (
-                    <img
-                      src={product.imageUrl}
-                      alt={product.name}
-                      className="w-full h-full object-cover rounded-lg"
-                    />
+                    <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover rounded-lg" />
                   ) : (
                     <ShoppingCart className="w-6 h-6 text-gray-400" />
                   )}
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-medium">{product.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {product.sku} | {product.barcode}
-                  </p>
+                  <p className="text-sm text-gray-500">{product.sku} | {product.barcode}</p>
                 </div>
-                <p className="font-semibold">
-                  ${getProductPrice(product).toFixed(2)}
-                </p>
+                <p className="font-semibold">${getProductPrice(product).toFixed(2)}</p>
               </button>
             ))}
           </div>
@@ -755,21 +452,17 @@ export default function POS() {
           <button
             onClick={() => setSelectedCategory(null)}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              !selectedCategory
-                ? 'bg-primary-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
+              !selectedCategory ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
             }`}
           >
             Todos
           </button>
-          {categoriesWithProducts.map((cat) => (
+          {categoriesWithProducts.map(cat => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                selectedCategory === cat.id
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                selectedCategory === cat.id ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
               }`}
             >
               {cat.name}
@@ -785,7 +478,7 @@ export default function POS() {
             </div>
           ) : (
             <div className="product-grid">
-              {filteredProducts.map((product) => (
+              {filteredProducts.map(product => (
                 <button
                   key={product.id}
                   onClick={() => addToCart(product)}
@@ -793,11 +486,7 @@ export default function POS() {
                 >
                   <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
                     {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
                       <ShoppingCart className="w-8 h-8 text-gray-300" />
                     )}
@@ -805,9 +494,7 @@ export default function POS() {
                   <p className="font-medium text-sm line-clamp-2 min-h-[2.5rem]">
                     {product.shortName || product.name}
                   </p>
-                  <p className="text-primary-600 font-semibold mt-1">
-                    ${getProductPrice(product).toFixed(2)}
-                  </p>
+                  <p className="text-primary-600 font-semibold mt-1">${getProductPrice(product).toFixed(2)}</p>
                 </button>
               ))}
             </div>
@@ -817,66 +504,6 @@ export default function POS() {
 
       {/* Panel derecho - Carrito */}
       <div className="flex flex-col h-screen bg-white border-l">
-        {/* Selector de tickets */}
-        <div className="p-3 border-b bg-gray-50">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowTicketList(!showTicketList)}
-              className="flex-1 flex items-center justify-between px-3 py-2 bg-white border rounded-lg hover:bg-gray-50"
-            >
-              <span className="text-sm font-medium">
-                {tickets.find((t) => t.id === currentTicketId)?.name || 'Seleccionar ticket'}
-              </span>
-              <span className="text-xs text-gray-500">
-                ({tickets.length} {tickets.length === 1 ? 'ticket' : 'tickets'})
-              </span>
-            </button>
-            <button
-              onClick={createNewTicket}
-              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
-              title="Nuevo ticket"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Lista de tickets */}
-          {showTicketList && (
-            <div className="mt-2 max-h-64 overflow-y-auto bg-white border rounded-lg shadow-lg">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className={`p-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer ${
-                    ticket.id === currentTicketId ? 'bg-blue-50' : ''
-                  }`}
-                  onClick={() => switchTicket(ticket.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{ticket.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {ticket.items.length} items - {new Date(ticket.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    {tickets.length > 1 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteTicket(ticket.id);
-                        }}
-                        className="p-1 text-red-600 hover:bg-red-100 rounded"
-                        title="Eliminar ticket"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Header del carrito */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
@@ -884,16 +511,11 @@ export default function POS() {
               <ShoppingCart className="w-5 h-5" />
               Carrito
               {itemCount > 0 && (
-                <span className="bg-primary-600 text-white text-xs px-2 py-0.5 rounded-full">
-                  {itemCount}
-                </span>
+                <span className="bg-primary-600 text-white text-xs px-2 py-0.5 rounded-full">{itemCount}</span>
               )}
             </h2>
             {cart.length > 0 && (
-              <button
-                onClick={() => updateCart(() => [])}
-                className="text-sm text-red-600 hover:text-red-700"
-              >
+              <button onClick={clearCart} className="text-sm text-red-600 hover:text-red-700">
                 Vaciar
               </button>
             )}
@@ -910,24 +532,11 @@ export default function POS() {
             </div>
           ) : (
             <div className="space-y-3">
-              {cart.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-gray-50 rounded-lg p-3 flex gap-3"
-                >
+              {cart.map(item => (
+                <div key={item.id} className="bg-gray-50 rounded-lg p-3 flex gap-3">
                   <div className="flex-1">
-                    <p className="font-medium text-sm line-clamp-1">
-                      {item.product.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      ${item.unitPrice.toFixed(2)} c/u
-                    </p>
-                    {item.promotionName && (
-                      <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
-                        <Tag className="w-3 h-3" />
-                        {item.promotionName}
-                      </p>
-                    )}
+                    <p className="font-medium text-sm line-clamp-1">{item.product.name}</p>
+                    <p className="text-xs text-gray-500">${item.unitPrice.toFixed(2)} c/u</p>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -937,9 +546,7 @@ export default function POS() {
                     >
                       <Minus className="w-4 h-4" />
                     </button>
-                    <span className="w-8 text-center font-medium">
-                      {item.quantity}
-                    </span>
+                    <span className="w-8 text-center font-medium">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, 1)}
                       className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
@@ -950,10 +557,7 @@ export default function POS() {
 
                   <div className="text-right">
                     <p className="font-semibold">${item.subtotal.toFixed(2)}</p>
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="text-red-500 hover:text-red-600 mt-1"
-                    >
+                    <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-600 mt-1">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -965,7 +569,6 @@ export default function POS() {
 
         {/* Totales y pago */}
         <div className="border-t p-4 space-y-4">
-          {/* Totales */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
@@ -983,7 +586,6 @@ export default function POS() {
             </div>
           </div>
 
-          {/* Botón de cobrar */}
           {!showPayment ? (
             <button
               onClick={() => setShowPayment(true)}
@@ -994,7 +596,6 @@ export default function POS() {
             </button>
           ) : (
             <div className="space-y-4">
-              {/* Métodos de pago */}
               <div className="grid grid-cols-4 gap-2">
                 {[
                   { method: 'CASH' as PaymentMethod, icon: Banknote, label: 'Efectivo' },
@@ -1017,48 +618,34 @@ export default function POS() {
                 ))}
               </div>
 
-              {/* Input de monto (solo efectivo) */}
               {selectedPaymentMethod === 'CASH' && (
                 <div>
                   <label className="text-sm text-gray-500">Monto recibido</label>
                   <input
                     type="number"
                     value={amountTendered}
-                    onChange={(e) => setAmountTendered(e.target.value)}
+                    onChange={e => setAmountTendered(e.target.value)}
                     placeholder="0.00"
                     className="input text-xl text-right"
                     min={total}
                   />
                   {tenderedAmount >= total && (
-                    <p className="text-right text-green-600 font-semibold mt-1">
-                      Vuelto: ${change.toFixed(2)}
-                    </p>
+                    <p className="text-right text-green-600 font-semibold mt-1">Vuelto: ${change.toFixed(2)}</p>
                   )}
                 </div>
               )}
 
-              {/* Botones de acción */}
               <div className="flex gap-2">
-                <button
-                  onClick={() => setShowPayment(false)}
-                  className="flex-1 btn btn-secondary py-3"
-                >
+                <button onClick={() => setShowPayment(false)} className="flex-1 btn btn-secondary py-3">
                   <X className="w-5 h-5 mr-2" />
                   Cancelar
                 </button>
                 <button
                   onClick={processSale}
-                  disabled={
-                    isProcessing ||
-                    (selectedPaymentMethod === 'CASH' && tenderedAmount < total)
-                  }
+                  disabled={isProcessing || (selectedPaymentMethod === 'CASH' && tenderedAmount < total)}
                   className="flex-1 btn btn-success py-3 disabled:opacity-50"
                 >
-                  {isProcessing ? (
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  ) : (
-                    <Check className="w-5 h-5 mr-2" />
-                  )}
+                  {isProcessing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Check className="w-5 h-5 mr-2" />}
                   Confirmar
                 </button>
               </div>
