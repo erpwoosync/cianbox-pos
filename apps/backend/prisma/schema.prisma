@@ -332,10 +332,11 @@ model Category {
   sortOrder          Int       @default(0)
   imageUrl           String?
   isActive           Boolean   @default(true)
-  isQuickAccess      Boolean   @default(false) // Mostrar como acceso rápido en POS
-  quickAccessOrder   Int       @default(0)     // Orden en la barra de acceso rápido
-  quickAccessColor   String?   // Color del botón de acceso rápido (hex)
-  quickAccessIcon    String?   // Icono del botón (nombre de lucide-react)
+  isQuickAccess          Boolean   @default(false) // Mostrar como acceso rápido en POS
+  quickAccessOrder       Int       @default(0)     // Orden en la barra de acceso rápido
+  quickAccessColor       String?   // Color del botón de acceso rápido (hex)
+  quickAccessIcon        String?   // Icono del botón (nombre de lucide-react)
+  isDefaultQuickAccess   Boolean   @default(false) // Categoría seleccionada por defecto en POS
   lastSyncedAt       DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

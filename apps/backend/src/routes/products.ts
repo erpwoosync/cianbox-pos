@@ -115,6 +115,7 @@ const categoryQuickAccessSchema = z.object({
   quickAccessOrder: z.number().int().min(0).optional(),
   quickAccessColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   quickAccessIcon: z.string().optional().nullable(),
+  isDefaultQuickAccess: z.boolean().optional(),
 });
 
 /**
@@ -132,7 +133,7 @@ router.put(
         throw new ValidationError('Datos inválidos', validation.error.errors);
       }
 
-      const { isQuickAccess, quickAccessOrder, quickAccessColor, quickAccessIcon } = validation.data;
+      const { isQuickAccess, quickAccessOrder, quickAccessColor, quickAccessIcon, isDefaultQuickAccess } = validation.data;
       const tenantId = req.user!.tenantId;
 
       // Verificar que la categoría existe
@@ -154,6 +155,14 @@ router.put(
         order = (maxOrder._max.quickAccessOrder || 0) + 1;
       }
 
+      // Si se marca como default, desmarcar las demás
+      if (isDefaultQuickAccess === true) {
+        await prisma.category.updateMany({
+          where: { tenantId, isDefaultQuickAccess: true },
+          data: { isDefaultQuickAccess: false },
+        });
+      }
+
       const category = await prisma.category.update({
         where: { id: req.params.id },
         data: {
@@ -161,6 +170,7 @@ router.put(
           quickAccessOrder: order ?? 0,
           quickAccessColor: quickAccessColor ?? null,
           quickAccessIcon: quickAccessIcon ?? null,
+          ...(isDefaultQuickAccess !== undefined && { isDefaultQuickAccess }),
         },
       });
 

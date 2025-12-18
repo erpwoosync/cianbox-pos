@@ -78,6 +78,7 @@ export const categoriesApi = {
       quickAccessOrder?: number;
       quickAccessColor?: string | null;
       quickAccessIcon?: string | null;
+      isDefaultQuickAccess?: boolean;
     }
   ) => {
     const response = await api.put(`/products/categories/${id}/quick-access`, data);
@@ -241,6 +242,7 @@ export interface Category {
   quickAccessOrder?: number;
   quickAccessColor?: string | null;
   quickAccessIcon?: string | null;
+  isDefaultQuickAccess?: boolean;
   _count?: { products: number };
 }
 

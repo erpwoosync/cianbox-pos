@@ -61,6 +61,7 @@ interface QuickAccessCategory {
   quickAccessColor?: string | null;
   quickAccessIcon?: string | null;
   quickAccessOrder: number;
+  isDefaultQuickAccess?: boolean;
   _count?: { products: number };
 }
 
@@ -400,7 +401,19 @@ export default function POS() {
       ]);
 
       if (categoriesRes.success) setCategories(categoriesRes.data);
-      if (quickAccessRes.success) setQuickAccessCategories(quickAccessRes.data);
+
+      if (quickAccessRes.success) {
+        setQuickAccessCategories(quickAccessRes.data);
+
+        // Seleccionar la categoría por defecto si existe
+        const defaultCategory = quickAccessRes.data.find(
+          (cat: QuickAccessCategory) => cat.isDefaultQuickAccess
+        );
+        if (defaultCategory) {
+          setSelectedCategory(defaultCategory.id);
+        }
+      }
+
       if (productsRes.success) setProducts(productsRes.data);
 
       if (posRes.success) {

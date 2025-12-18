@@ -13,6 +13,7 @@ import {
   Palette,
   GripVertical,
   Loader2,
+  Star,
 } from 'lucide-react';
 
 // Colores predefinidos para acceso rápido
@@ -106,6 +107,24 @@ export default function Categories() {
       setQuickAccessCategories(newOrder);
     } catch (error) {
       console.error('Error reordering:', error);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const setDefaultCategory = async (categoryId: string) => {
+    setSavingId(categoryId);
+    try {
+      const category = quickAccessCategories.find((c) => c.id === categoryId);
+      if (!category) return;
+
+      await categoriesApi.updateQuickAccess(categoryId, {
+        isQuickAccess: true,
+        isDefaultQuickAccess: !category.isDefaultQuickAccess,
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Error setting default:', error);
     } finally {
       setSavingId(null);
     }
@@ -460,6 +479,20 @@ export default function Categories() {
                         </div>
                       )}
                     </div>
+
+                    {/* Default Button */}
+                    <button
+                      onClick={() => setDefaultCategory(category.id)}
+                      disabled={savingId === category.id}
+                      className={`p-2 rounded-lg transition-colors ${
+                        category.isDefaultQuickAccess
+                          ? 'text-amber-500 bg-amber-50 hover:bg-amber-100'
+                          : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50'
+                      }`}
+                      title={category.isDefaultQuickAccess ? 'Categoría por defecto' : 'Establecer como categoría por defecto'}
+                    >
+                      <Star className={`w-5 h-5 ${category.isDefaultQuickAccess ? 'fill-current' : ''}`} />
+                    </button>
 
                     {/* Order Buttons */}
                     <div className="flex flex-col gap-1">
