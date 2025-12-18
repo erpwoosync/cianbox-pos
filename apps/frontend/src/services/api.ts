@@ -150,6 +150,37 @@ export const productsService = {
   },
 };
 
+// Servicios de categorías (incluyendo acceso rápido)
+export const categoriesService = {
+  list: async () => {
+    const response = await api.get('/products/categories');
+    return response.data;
+  },
+
+  getQuickAccess: async () => {
+    const response = await api.get('/products/categories/quick-access');
+    return response.data;
+  },
+
+  updateQuickAccess: async (
+    categoryId: string,
+    data: {
+      isQuickAccess: boolean;
+      quickAccessOrder?: number;
+      quickAccessColor?: string | null;
+      quickAccessIcon?: string | null;
+    }
+  ) => {
+    const response = await api.put(`/products/categories/${categoryId}/quick-access`, data);
+    return response.data;
+  },
+
+  reorderQuickAccess: async (categoryIds: string[]) => {
+    const response = await api.put('/products/categories/quick-access/reorder', { categoryIds });
+    return response.data;
+  },
+};
+
 // Servicios de ventas
 export const salesService = {
   create: async (saleData: {

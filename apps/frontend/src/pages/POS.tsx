@@ -19,7 +19,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, categoriesService } from '../services/api';
 
 // ============ INTERFACES ============
 interface Product {
@@ -53,6 +53,15 @@ interface CartItem {
 interface Category {
   id: string;
   name: string;
+}
+
+interface QuickAccessCategory {
+  id: string;
+  name: string;
+  quickAccessColor?: string | null;
+  quickAccessIcon?: string | null;
+  quickAccessOrder: number;
+  _count?: { products: number };
 }
 
 interface PointOfSale {
@@ -301,6 +310,7 @@ export default function POS() {
 
   // Estado de productos y categorías
   const [categories, setCategories] = useState<Category[]>([]);
+  const [quickAccessCategories, setQuickAccessCategories] = useState<QuickAccessCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -380,13 +390,15 @@ export default function POS() {
 
   const loadInitialData = async () => {
     try {
-      const [categoriesRes, productsRes, posRes] = await Promise.all([
+      const [categoriesRes, quickAccessRes, productsRes, posRes] = await Promise.all([
         productsService.getCategories(),
+        categoriesService.getQuickAccess(),
         productsService.list({ pageSize: 100 }),
         pointsOfSaleService.list(),
       ]);
 
       if (categoriesRes.success) setCategories(categoriesRes.data);
+      if (quickAccessRes.success) setQuickAccessCategories(quickAccessRes.data);
       if (productsRes.success) setProducts(productsRes.data);
 
       if (posRes.success) {
@@ -674,8 +686,35 @@ export default function POS() {
           </div>
         )}
 
+        {/* Acceso Rápido - Categorías destacadas */}
+        {quickAccessCategories.length > 0 && (
+          <div className="shrink-0 bg-gradient-to-r from-primary-50 to-emerald-50 border-b">
+            <div className="flex gap-2 p-3 overflow-x-auto">
+              {quickAccessCategories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  style={{
+                    backgroundColor: selectedCategory === cat.id
+                      ? (cat.quickAccessColor || '#3b82f6')
+                      : 'white',
+                    borderColor: cat.quickAccessColor || '#3b82f6',
+                    color: selectedCategory === cat.id ? 'white' : (cat.quickAccessColor || '#3b82f6'),
+                  }}
+                  className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl border-2 font-medium whitespace-nowrap transition-all hover:scale-105 hover:shadow-md min-w-[100px]"
+                >
+                  <span className="text-sm font-semibold">{cat.name}</span>
+                  {cat._count && (
+                    <span className="text-xs opacity-75">{cat._count.products} productos</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Categorías */}
-        <div className="shrink-0 flex gap-2 p-4 overflow-x-auto">
+        <div className="shrink-0 flex gap-2 p-3 overflow-x-auto bg-gray-50/50">
           <button
             onClick={() => setSelectedCategory(null)}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${

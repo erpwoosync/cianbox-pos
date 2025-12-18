@@ -75,6 +75,138 @@ router.get(
 );
 
 /**
+ * GET /api/products/categories/quick-access
+ * Listar categorías de acceso rápido para el POS
+ */
+router.get(
+  '/categories/quick-access',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const categories = await prisma.category.findMany({
+        where: {
+          tenantId: req.user!.tenantId,
+          isActive: true,
+          isQuickAccess: true,
+        },
+        include: {
+          _count: {
+            select: { products: { where: { isActive: true } } },
+          },
+        },
+        orderBy: [{ quickAccessOrder: 'asc' }, { name: 'asc' }],
+      });
+
+      res.json({ success: true, data: categories });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Schema para actualizar acceso rápido de categoría
+const categoryQuickAccessSchema = z.object({
+  isQuickAccess: z.boolean(),
+  quickAccessOrder: z.number().int().min(0).optional(),
+  quickAccessColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
+  quickAccessIcon: z.string().optional().nullable(),
+});
+
+/**
+ * PUT /api/products/categories/:id/quick-access
+ * Actualizar configuración de acceso rápido de una categoría
+ */
+router.put(
+  '/categories/:id/quick-access',
+  authenticate,
+  authorize('admin:settings'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const validation = categoryQuickAccessSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const { isQuickAccess, quickAccessOrder, quickAccessColor, quickAccessIcon } = validation.data;
+      const tenantId = req.user!.tenantId;
+
+      // Verificar que la categoría existe
+      const existing = await prisma.category.findFirst({
+        where: { id: req.params.id, tenantId },
+      });
+
+      if (!existing) {
+        throw new NotFoundError('Categoría');
+      }
+
+      // Si se activa y no tiene orden, asignar el siguiente
+      let order = quickAccessOrder;
+      if (isQuickAccess && order === undefined) {
+        const maxOrder = await prisma.category.aggregate({
+          where: { tenantId, isQuickAccess: true },
+          _max: { quickAccessOrder: true },
+        });
+        order = (maxOrder._max.quickAccessOrder || 0) + 1;
+      }
+
+      const category = await prisma.category.update({
+        where: { id: req.params.id },
+        data: {
+          isQuickAccess,
+          quickAccessOrder: order ?? 0,
+          quickAccessColor: quickAccessColor ?? null,
+          quickAccessIcon: quickAccessIcon ?? null,
+        },
+      });
+
+      res.json({ success: true, data: category });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Schema para reordenar acceso rápido
+const reorderQuickAccessSchema = z.object({
+  categoryIds: z.array(z.string()).min(1),
+});
+
+/**
+ * PUT /api/products/categories/quick-access/reorder
+ * Reordenar categorías de acceso rápido
+ */
+router.put(
+  '/categories/quick-access/reorder',
+  authenticate,
+  authorize('admin:settings'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const validation = reorderQuickAccessSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const { categoryIds } = validation.data;
+      const tenantId = req.user!.tenantId;
+
+      // Actualizar orden de cada categoría
+      await prisma.$transaction(
+        categoryIds.map((id, index) =>
+          prisma.category.updateMany({
+            where: { id, tenantId },
+            data: { quickAccessOrder: index },
+          })
+        )
+      );
+
+      res.json({ success: true, message: 'Orden actualizado' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/products/brands
  * Listar marcas
  */

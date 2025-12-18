@@ -321,20 +321,24 @@ model PointOfSale {
 
 // Categorías (sincronizadas desde Cianbox, con jerarquía)
 model Category {
-  id                String    @id @default(cuid())
-  tenantId          String
-  cianboxCategoryId Int?      // ID en Cianbox
-  code              String?   // Código interno
-  name              String
-  description       String?
-  parentId          String?   // Categoría padre (jerarquía)
-  level             Int       @default(0) // Nivel en la jerarquía
-  sortOrder         Int       @default(0)
-  imageUrl          String?
-  isActive          Boolean   @default(true)
-  lastSyncedAt      DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  tenantId           String
+  cianboxCategoryId  Int?      // ID en Cianbox
+  code               String?   // Código interno
+  name               String
+  description        String?
+  parentId           String?   // Categoría padre (jerarquía)
+  level              Int       @default(0) // Nivel en la jerarquía
+  sortOrder          Int       @default(0)
+  imageUrl           String?
+  isActive           Boolean   @default(true)
+  isQuickAccess      Boolean   @default(false) // Mostrar como acceso rápido en POS
+  quickAccessOrder   Int       @default(0)     // Orden en la barra de acceso rápido
+  quickAccessColor   String?   // Color del botón de acceso rápido (hex)
+  quickAccessIcon    String?   // Icono del botón (nombre de lucide-react)
+  lastSyncedAt       DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relaciones
   tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -344,6 +348,7 @@ model Category {
 
   @@unique([tenantId, cianboxCategoryId])
   @@index([tenantId, parentId])
+  @@index([tenantId, isQuickAccess, quickAccessOrder])
   @@map("categories")
 }
 
