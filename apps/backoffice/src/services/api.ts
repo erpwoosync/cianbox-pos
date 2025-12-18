@@ -587,16 +587,35 @@ export const promotionsApi = {
 
 // ============ MERCADO PAGO ============
 
+// Tipo de aplicación de Mercado Pago
+export type MercadoPagoAppType = 'POINT' | 'QR';
+
 // Mercado Pago Config Types
 export interface MercadoPagoConfig {
   id: string;
   tenantId: string;
+  appType: MercadoPagoAppType;
+  mpUserId?: string;
   publicKey?: string;
-  userId?: string;
+  scope?: string;
   isActive: boolean;
   environment: string;
+  tokenExpiresAt?: string;
+  isTokenExpiringSoon?: boolean;
+  isConnected: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// Respuesta de configuración con ambas apps
+export interface MercadoPagoConfigResponse {
+  success: boolean;
+  data: {
+    point: MercadoPagoConfig | null;
+    qr: MercadoPagoConfig | null;
+  };
+  isPointConnected: boolean;
+  isQrConnected: boolean;
 }
 
 export interface MercadoPagoDevice {
@@ -607,29 +626,45 @@ export interface MercadoPagoDevice {
   external_pos_id?: string;
 }
 
-export interface SaveMercadoPagoConfigDto {
-  accessToken: string;
-  publicKey?: string;
-  userId?: string;
-  webhookSecret?: string;
-  environment?: 'sandbox' | 'production';
-  isActive?: boolean;
-}
-
-// Mercado Pago API
+// Mercado Pago API (OAuth) con soporte para dos apps
 export const mercadoPagoApi = {
-  getConfig: async () => {
+  // Obtener configuración de ambas apps (Point y QR)
+  getConfig: async (): Promise<MercadoPagoConfigResponse> => {
     const response = await api.get('/mercadopago/config');
     return response.data;
   },
-  saveConfig: async (data: SaveMercadoPagoConfigDto) => {
-    const response = await api.post('/mercadopago/config', data);
-    return response.data.data;
+
+  // Obtener configuración de una app específica
+  getConfigByApp: async (appType: MercadoPagoAppType): Promise<{ data: MercadoPagoConfig | null; isConnected: boolean }> => {
+    const response = await api.get(`/mercadopago/config?appType=${appType}`);
+    return response.data;
   },
+
+  // Obtener URL de autorización OAuth para una app específica
+  getAuthorizationUrl: async (appType: MercadoPagoAppType = 'POINT'): Promise<string> => {
+    const response = await api.get(`/mercadopago/oauth/authorize?appType=${appType}`);
+    return response.data.data.authorizationUrl;
+  },
+
+  // Desvincular cuenta de MP para una app específica
+  disconnect: async (appType: MercadoPagoAppType = 'POINT') => {
+    const response = await api.delete(`/mercadopago/oauth/disconnect?appType=${appType}`);
+    return response.data;
+  },
+
+  // Renovar token manualmente para una app específica
+  refreshToken: async (appType: MercadoPagoAppType = 'POINT') => {
+    const response = await api.post(`/mercadopago/refresh-token?appType=${appType}`);
+    return response.data;
+  },
+
+  // Listar dispositivos Point (solo funciona con app POINT)
   listDevices: async () => {
     const response = await api.get('/mercadopago/devices');
     return response.data.data as MercadoPagoDevice[];
   },
+
+  // Actualizar dispositivo en POS
   updatePOSDevice: async (posId: string, data: { mpDeviceId: string | null; mpDeviceName?: string | null }) => {
     const response = await api.put(`/mercadopago/points-of-sale/${posId}/device`, data);
     return response.data.data;

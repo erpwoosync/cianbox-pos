@@ -60,7 +60,7 @@ export default function PointsOfSale() {
       // Cargar dispositivos MP Point si está configurado
       try {
         const mpConfig = await mercadoPagoApi.getConfig();
-        if (mpConfig?.isActive) {
+        if (mpConfig?.isPointConnected) {
           setMpConfigured(true);
           const devices = await mercadoPagoApi.listDevices();
           setMpDevices(devices);

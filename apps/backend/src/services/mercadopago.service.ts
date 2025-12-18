@@ -1,7 +1,31 @@
-import { PrismaClient } from '@prisma/client';
-import { randomUUID } from 'crypto';
+import { PrismaClient, MercadoPagoAppType } from '@prisma/client';
+import { randomUUID, createHmac } from 'crypto';
 
 const prisma = new PrismaClient();
+
+// ============================================
+// CONFIGURACIÓN OAUTH - DOS APLICACIONES
+// ============================================
+
+// App Point (Terminales)
+const MP_POINT_CLIENT_ID = process.env.MP_POINT_CLIENT_ID || '';
+const MP_POINT_CLIENT_SECRET = process.env.MP_POINT_CLIENT_SECRET || '';
+
+// App QR (Código QR)
+const MP_QR_CLIENT_ID = process.env.MP_QR_CLIENT_ID || '';
+const MP_QR_CLIENT_SECRET = process.env.MP_QR_CLIENT_SECRET || '';
+
+// Callback URL común (diferenciamos por state)
+const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || '';
+
+// Helper para obtener credenciales según tipo de app
+function getAppCredentials(appType: MercadoPagoAppType): { clientId: string; clientSecret: string } {
+  if (appType === 'POINT') {
+    return { clientId: MP_POINT_CLIENT_ID, clientSecret: MP_POINT_CLIENT_SECRET };
+  } else {
+    return { clientId: MP_QR_CLIENT_ID, clientSecret: MP_QR_CLIENT_SECRET };
+  }
+}
 
 // ============================================
 // TIPOS
@@ -76,33 +100,305 @@ interface MPWebhookEvent {
   user_id: string;
 }
 
+interface OAuthTokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  scope: string;
+  user_id: number;
+  refresh_token: string;
+  public_key: string;
+}
+
 // ============================================
 // SERVICIO DE MERCADO PAGO POINT
 // ============================================
 
 class MercadoPagoService {
   private baseUrl = 'https://api.mercadopago.com';
+  private authUrl = 'https://auth.mercadopago.com';
+
+  // ============================================
+  // OAUTH 2.0 FLOW
+  // ============================================
 
   /**
-   * Obtiene la configuración de MP para un tenant
+   * Genera la URL de autorización OAuth para que el cliente vincule su cuenta MP
+   * @param tenantId - ID del tenant
+   * @param appType - Tipo de app: 'POINT' o 'QR'
    */
-  async getConfig(tenantId: string) {
+  getAuthorizationUrl(tenantId: string, appType: MercadoPagoAppType = 'POINT'): string {
+    const { clientId } = getAppCredentials(appType);
+
+    if (!clientId || !MP_REDIRECT_URI) {
+      throw new Error(`Configuración de OAuth incompleta para ${appType}. Verificar credenciales.`);
+    }
+
+    // Incluimos tenantId y appType en el state
+    const state = Buffer.from(JSON.stringify({ tenantId, appType })).toString('base64');
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'code',
+      platform_id: 'mp',
+      state: state,
+      redirect_uri: MP_REDIRECT_URI,
+    });
+
+    return `${this.authUrl}/authorization?${params.toString()}`;
+  }
+
+  /**
+   * Intercambia el código de autorización por tokens
+   * @param code - Código de autorización
+   * @param tenantId - ID del tenant
+   * @param appType - Tipo de app: 'POINT' o 'QR'
+   */
+  async exchangeCodeForTokens(code: string, tenantId: string, appType: MercadoPagoAppType = 'POINT'): Promise<OAuthTokenResponse> {
+    const { clientId, clientSecret } = getAppCredentials(appType);
+
+    if (!clientId || !clientSecret || !MP_REDIRECT_URI) {
+      throw new Error(`Configuración de OAuth incompleta para ${appType}`);
+    }
+
+    const response = await fetch(`${this.baseUrl}/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: MP_REDIRECT_URI,
+      }).toString(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`Error intercambiando código OAuth (${appType}):`, errorData);
+      throw new Error(`Error en OAuth: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const tokens = (await response.json()) as OAuthTokenResponse;
+
+    // Calcular fecha de expiración (expires_in viene en segundos)
+    const tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+
+    // Guardar tokens en la base de datos (upsert por tenantId + appType)
+    await prisma.mercadoPagoConfig.upsert({
+      where: {
+        tenantId_appType: { tenantId, appType },
+      },
+      update: {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        tokenExpiresAt,
+        mpUserId: tokens.user_id.toString(),
+        publicKey: tokens.public_key,
+        scope: tokens.scope,
+        appId: clientId,
+        isActive: true,
+        updatedAt: new Date(),
+      },
+      create: {
+        tenantId,
+        appType,
+        appId: clientId,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        tokenExpiresAt,
+        mpUserId: tokens.user_id.toString(),
+        publicKey: tokens.public_key,
+        scope: tokens.scope,
+        isActive: true,
+        environment: 'production',
+      },
+    });
+
+    return tokens;
+  }
+
+  /**
+   * Renueva el access token usando el refresh token
+   * @param tenantId - ID del tenant
+   * @param appType - Tipo de app: 'POINT' o 'QR'
+   */
+  async refreshAccessToken(tenantId: string, appType: MercadoPagoAppType = 'POINT'): Promise<void> {
+    const { clientId, clientSecret } = getAppCredentials(appType);
+
+    if (!clientId || !clientSecret) {
+      throw new Error(`Configuración de OAuth incompleta para ${appType}`);
+    }
+
     const config = await prisma.mercadoPagoConfig.findUnique({
-      where: { tenantId },
+      where: {
+        tenantId_appType: { tenantId, appType },
+      },
+    });
+
+    if (!config || !config.refreshToken) {
+      throw new Error(`No hay refresh token disponible para ${appType}. El cliente debe re-autorizar.`);
+    }
+
+    const response = await fetch(`${this.baseUrl}/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: config.refreshToken,
+      }).toString(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`Error renovando token (${appType}):`, errorData);
+
+      // Si el refresh token es inválido, desactivamos la integración
+      if (response.status === 400 || response.status === 401) {
+        await prisma.mercadoPagoConfig.update({
+          where: {
+            tenantId_appType: { tenantId, appType },
+          },
+          data: { isActive: false },
+        });
+        throw new Error(`Refresh token inválido para ${appType}. El cliente debe re-autorizar.`);
+      }
+
+      throw new Error(`Error renovando token (${appType}): ${response.status}`);
+    }
+
+    const tokens = (await response.json()) as OAuthTokenResponse;
+    const tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+
+    await prisma.mercadoPagoConfig.update({
+      where: {
+        tenantId_appType: { tenantId, appType },
+      },
+      data: {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        tokenExpiresAt,
+        publicKey: tokens.public_key,
+        scope: tokens.scope,
+        updatedAt: new Date(),
+      },
+    });
+
+    console.log(`Token renovado para tenant ${tenantId} (${appType})`);
+  }
+
+  /**
+   * Obtiene un access token válido, renovándolo si es necesario
+   * @param tenantId - ID del tenant
+   * @param appType - Tipo de app: 'POINT' o 'QR'
+   */
+  async getValidAccessToken(tenantId: string, appType: MercadoPagoAppType = 'POINT'): Promise<string> {
+    const config = await prisma.mercadoPagoConfig.findUnique({
+      where: {
+        tenantId_appType: { tenantId, appType },
+      },
     });
 
     if (!config || !config.isActive) {
-      throw new Error('Mercado Pago no está configurado para este tenant');
+      throw new Error(`Mercado Pago ${appType} no está configurado para este tenant`);
+    }
+
+    // Verificar si el token está por expirar (renovar si expira en menos de 1 hora)
+    const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
+
+    if (config.tokenExpiresAt && config.tokenExpiresAt < oneHourFromNow) {
+      console.log(`Token ${appType} próximo a expirar para tenant ${tenantId}, renovando...`);
+      await this.refreshAccessToken(tenantId, appType);
+
+      // Obtener el token actualizado
+      const updatedConfig = await prisma.mercadoPagoConfig.findUnique({
+        where: {
+          tenantId_appType: { tenantId, appType },
+        },
+      });
+      return updatedConfig!.accessToken;
+    }
+
+    return config.accessToken;
+  }
+
+  /**
+   * Desvincula la cuenta de MP del tenant para un tipo de app específico
+   * @param tenantId - ID del tenant
+   * @param appType - Tipo de app: 'POINT' o 'QR'
+   */
+  async disconnectAccount(tenantId: string, appType: MercadoPagoAppType = 'POINT'): Promise<void> {
+    await prisma.mercadoPagoConfig.delete({
+      where: {
+        tenantId_appType: { tenantId, appType },
+      },
+    }).catch(() => {
+      // Ignorar si no existe
+    });
+  }
+
+  // ============================================
+  // CONFIGURACIÓN
+  // ============================================
+
+  /**
+   * Obtiene la configuración de MP para un tenant y tipo de app
+   * @param tenantId - ID del tenant
+   * @param appType - Tipo de app: 'POINT' o 'QR'
+   */
+  async getConfig(tenantId: string, appType: MercadoPagoAppType = 'POINT') {
+    const config = await prisma.mercadoPagoConfig.findUnique({
+      where: {
+        tenantId_appType: { tenantId, appType },
+      },
+    });
+
+    if (!config || !config.isActive) {
+      throw new Error(`Mercado Pago ${appType} no está configurado para este tenant`);
     }
 
     return config;
   }
 
   /**
+   * Obtiene la configuración sin lanzar error si no existe
+   * @param tenantId - ID del tenant
+   * @param appType - Tipo de app: 'POINT' o 'QR'
+   */
+  async getConfigSafe(tenantId: string, appType: MercadoPagoAppType = 'POINT') {
+    return prisma.mercadoPagoConfig.findUnique({
+      where: {
+        tenantId_appType: { tenantId, appType },
+      },
+    });
+  }
+
+  /**
+   * Obtiene todas las configuraciones de MP para un tenant (Point y QR)
+   * @param tenantId - ID del tenant
+   */
+  async getAllConfigs(tenantId: string) {
+    return prisma.mercadoPagoConfig.findMany({
+      where: { tenantId },
+    });
+  }
+
+  // ============================================
+  // ÓRDENES DE PAGO POINT
+  // ============================================
+
+  /**
    * Crea una orden de pago en un terminal Point
+   * Usa exclusivamente la app POINT
    */
   async createPointOrder(params: MPOrderRequest): Promise<{ orderId: string; status: string }> {
-    const config = await this.getConfig(params.tenantId);
+    const accessToken = await this.getValidAccessToken(params.tenantId, 'POINT');
 
     const idempotencyKey = randomUUID();
 
@@ -129,7 +425,7 @@ class MercadoPagoService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'X-Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify(orderBody),
@@ -163,15 +459,15 @@ class MercadoPagoService {
   }
 
   /**
-   * Consulta el estado de una orden
+   * Consulta el estado de una orden (Point)
    */
   async getOrderStatus(tenantId: string, orderId: string) {
-    const config = await this.getConfig(tenantId);
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
 
     const response = await fetch(`${this.baseUrl}/v1/orders/${orderId}`, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${config.accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     });
 
@@ -198,7 +494,7 @@ class MercadoPagoService {
     // Actualizar en nuestra DB
     const updateData: Record<string, unknown> = {
       status,
-      responseData: orderData as unknown as Record<string, unknown>,
+      responseData: JSON.parse(JSON.stringify(orderData)),
       updatedAt: new Date(),
     };
 
@@ -229,15 +525,15 @@ class MercadoPagoService {
   }
 
   /**
-   * Cancela una orden pendiente
+   * Cancela una orden pendiente (Point)
    */
   async cancelOrder(tenantId: string, orderId: string): Promise<void> {
-    const config = await this.getConfig(tenantId);
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
 
     const response = await fetch(`${this.baseUrl}/v1/orders/${orderId}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${config.accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     });
 
@@ -255,16 +551,21 @@ class MercadoPagoService {
     });
   }
 
+  // ============================================
+  // DISPOSITIVOS POINT
+  // ============================================
+
   /**
    * Lista los dispositivos Point del tenant
+   * Usa exclusivamente la app POINT
    */
   async listDevices(tenantId: string): Promise<MPDevice[]> {
-    const config = await this.getConfig(tenantId);
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
 
     const response = await fetch(`${this.baseUrl}/point/integration-api/devices`, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${config.accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     });
 
@@ -277,6 +578,10 @@ class MercadoPagoService {
     const data = (await response.json()) as { devices?: MPDevice[] };
     return data.devices || [];
   }
+
+  // ============================================
+  // WEBHOOKS
+  // ============================================
 
   /**
    * Procesa un webhook de Mercado Pago
@@ -342,45 +647,16 @@ class MercadoPagoService {
     const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
 
     // Calcular HMAC
-    const crypto = require('crypto');
-    const hmac = crypto.createHmac('sha256', secret);
+    const hmac = createHmac('sha256', secret);
     hmac.update(manifest);
     const calculatedHash = hmac.digest('hex');
 
     return calculatedHash === hash;
   }
 
-  /**
-   * Guarda o actualiza la configuración de MP para un tenant
-   */
-  async saveConfig(
-    tenantId: string,
-    data: {
-      accessToken: string;
-      publicKey?: string;
-      userId?: string;
-      webhookSecret?: string;
-      environment?: string;
-      isActive?: boolean;
-    }
-  ) {
-    return prisma.mercadoPagoConfig.upsert({
-      where: { tenantId },
-      update: {
-        ...data,
-        updatedAt: new Date(),
-      },
-      create: {
-        tenantId,
-        accessToken: data.accessToken,
-        publicKey: data.publicKey,
-        userId: data.userId,
-        webhookSecret: data.webhookSecret,
-        environment: data.environment || 'production',
-        isActive: data.isActive ?? true,
-      },
-    });
-  }
+  // ============================================
+  // UTILIDADES
+  // ============================================
 
   /**
    * Obtiene una orden por su ID interno
@@ -423,6 +699,37 @@ class MercadoPagoService {
         createdAt: 'desc',
       },
     });
+  }
+
+  // ============================================
+  // CRON: RENOVACIÓN AUTOMÁTICA DE TOKENS
+  // ============================================
+
+  /**
+   * Renueva tokens que están próximos a expirar (para cron job)
+   * Renueva tokens que expiran en menos de 7 días
+   */
+  async refreshExpiringTokens(): Promise<void> {
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const expiringConfigs = await prisma.mercadoPagoConfig.findMany({
+      where: {
+        isActive: true,
+        refreshToken: { not: null },
+        tokenExpiresAt: { lt: sevenDaysFromNow },
+      },
+    });
+
+    console.log(`Encontrados ${expiringConfigs.length} tokens próximos a expirar`);
+
+    for (const config of expiringConfigs) {
+      try {
+        await this.refreshAccessToken(config.tenantId, config.appType);
+        console.log(`Token renovado exitosamente para tenant ${config.tenantId} (${config.appType})`);
+      } catch (error) {
+        console.error(`Error renovando token para tenant ${config.tenantId} (${config.appType}):`, error);
+      }
+    }
   }
 }
 

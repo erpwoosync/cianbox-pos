@@ -121,7 +121,7 @@ model Tenant {
   cashRegisters     CashRegister[]
   printers          Printer[]
   printPoints       PrintPoint[]
-  mercadoPagoConfig MercadoPagoConfig?
+  mercadoPagoConfigs MercadoPagoConfig[]  // Plural: puede tener config para Point y QR
   mercadoPagoOrders MercadoPagoOrder[]
 
   @@map("tenants")
@@ -1129,21 +1129,44 @@ model AuditLog {
 // ==============================================
 
 // Configuración de Mercado Pago por Tenant
+// Tipo de aplicación de Mercado Pago
+enum MercadoPagoAppType {
+  POINT  // Terminales Point (cobro con tarjeta)
+  QR     // Código QR (cobro con billetera virtual)
+}
+
 model MercadoPagoConfig {
-  id            String   @id @default(cuid())
-  tenantId      String   @unique
-  accessToken   String   // Token de acceso (encriptado)
-  publicKey     String?  // Clave pública
-  userId        String?  // User ID de MP
-  webhookSecret String?  // Secret para validar webhooks
-  isActive      Boolean  @default(true)
-  environment   String   @default("production") // sandbox/production
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String              @id @default(cuid())
+  tenantId        String
+
+  // Tipo de aplicación
+  appType         MercadoPagoAppType  @default(POINT)
+  appId           String?             // ID de la aplicación en MP
+
+  // OAuth Tokens
+  accessToken     String              // Token de acceso OAuth
+  refreshToken    String?             // Token para renovar acceso
+  tokenExpiresAt  DateTime?           // Cuándo expira el access_token
+
+  // Datos del usuario de MP
+  mpUserId        String?             // User ID de la cuenta MP del cliente
+  publicKey       String?             // Clave pública
+  scope           String?             // Permisos otorgados (ej: "read write offline_access")
+
+  // Configuración
+  webhookSecret   String?             // Secret para validar webhooks
+  isActive        Boolean             @default(true)
+  environment     String              @default("production") // sandbox/production
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   // Relaciones
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  // Un token por tenant por tipo de app
+  @@unique([tenantId, appType])
+  @@index([tenantId])
   @@map("mercadopago_configs")
 }
 
