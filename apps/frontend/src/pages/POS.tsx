@@ -313,7 +313,9 @@ export default function POS() {
   const [quickAccessCategories, setQuickAccessCategories] = useState<QuickAccessCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isLoadingCategoryProducts, setIsLoadingCategoryProducts] = useState(false);
 
   // Estado de punto de venta
   const [pointsOfSale, setPointsOfSale] = useState<PointOfSale[]>([]);
@@ -420,6 +422,31 @@ export default function POS() {
       setIsLoadingProducts(false);
     }
   };
+
+  // Cargar productos de una categoría específica
+  const loadCategoryProducts = useCallback(async (categoryId: string | null) => {
+    if (!categoryId) {
+      setCategoryProducts([]);
+      return;
+    }
+
+    setIsLoadingCategoryProducts(true);
+    try {
+      const response = await productsService.list({ categoryId, pageSize: 500 });
+      if (response.success) {
+        setCategoryProducts(response.data);
+      }
+    } catch (error) {
+      console.error('Error cargando productos de categoría:', error);
+    } finally {
+      setIsLoadingCategoryProducts(false);
+    }
+  }, []);
+
+  // Efecto para cargar productos cuando cambia la categoría
+  useEffect(() => {
+    loadCategoryProducts(selectedCategory);
+  }, [selectedCategory, loadCategoryProducts]);
 
   // Búsqueda de productos
   const handleSearch = useCallback(async (query: string) => {
@@ -574,9 +601,9 @@ export default function POS() {
     }
   };
 
-  // Filtrar productos
+  // Filtrar productos - usar productos de categoría si hay una seleccionada
   const filteredProducts = selectedCategory
-    ? products.filter(p => p.category?.id === selectedCategory)
+    ? categoryProducts
     : products;
 
   const categoriesWithProducts = categories.filter(cat =>
@@ -735,9 +762,15 @@ export default function POS() {
 
         {/* Grid de productos */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
-          {isLoadingProducts ? (
+          {isLoadingProducts || isLoadingCategoryProducts ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+              <ShoppingCart className="w-12 h-12 mb-3 opacity-50" />
+              <p className="font-medium">No hay productos en esta categoría</p>
+              <p className="text-sm">Selecciona otra categoría o busca un producto</p>
             </div>
           ) : (
             <div className="product-grid pb-4">
