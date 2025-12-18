@@ -663,6 +663,8 @@ const updatePointOfSaleSchema = z.object({
   description: z.string().optional(),
   priceListId: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
+  mpDeviceId: z.string().nullable().optional(),
+  mpDeviceName: z.string().nullable().optional(),
 });
 
 router.put(
@@ -687,7 +689,7 @@ router.put(
         throw new ApiError(404, 'NOT_FOUND', 'Punto de venta no encontrado');
       }
 
-      const { branchId, code, name, description, priceListId, isActive } = validation.data;
+      const { branchId, code, name, description, priceListId, isActive, mpDeviceId, mpDeviceName } = validation.data;
 
       // Verificar sucursal si se cambia
       if (branchId && branchId !== existing.branchId) {
@@ -739,6 +741,8 @@ router.put(
           ...(description !== undefined && { description }),
           ...(priceListId !== undefined && { priceListId }),
           ...(isActive !== undefined && { isActive }),
+          ...(mpDeviceId !== undefined && { mpDeviceId }),
+          ...(mpDeviceName !== undefined && { mpDeviceName }),
         },
         include: {
           branch: { select: { id: true, name: true, code: true } },
