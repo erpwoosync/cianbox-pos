@@ -54,11 +54,6 @@ interface CartItem {
   promotionName?: string;
 }
 
-interface Category {
-  id: string;
-  name: string;
-}
-
 interface QuickAccessCategory {
   id: string;
   name: string;
@@ -314,7 +309,6 @@ export default function POS() {
   const [isSearching, setIsSearching] = useState(false);
 
   // Estado de productos y categorías
-  const [categories, setCategories] = useState<Category[]>([]);
   const [quickAccessCategories, setQuickAccessCategories] = useState<QuickAccessCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -414,15 +408,12 @@ export default function POS() {
 
   const loadInitialData = async () => {
     try {
-      const [categoriesRes, quickAccessRes, productsRes, posRes, promotionsRes] = await Promise.all([
-        productsService.getCategories(),
+      const [quickAccessRes, productsRes, posRes, promotionsRes] = await Promise.all([
         categoriesService.getQuickAccess(),
         productsService.list({ pageSize: 100 }),
         pointsOfSaleService.list(),
         promotionsService.getActive(),
       ]);
-
-      if (categoriesRes.success) setCategories(categoriesRes.data);
 
       if (quickAccessRes.success) {
         setQuickAccessCategories(quickAccessRes.data);
@@ -749,10 +740,6 @@ export default function POS() {
     ? categoryProducts
     : products;
 
-  const categoriesWithProducts = categories.filter(cat =>
-    products.some(p => p.category?.id === cat.id)
-  );
-
   return (
     <div className="pos-layout">
       {/* Modal selector de Punto de Venta */}
@@ -879,29 +866,6 @@ export default function POS() {
             </div>
           </div>
         )}
-
-        {/* Categorías */}
-        <div className="shrink-0 flex gap-2 p-3 overflow-x-auto bg-gray-50/50">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              !selectedCategory ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            Todos
-          </button>
-          {categoriesWithProducts.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                selectedCategory === cat.id ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
 
         {/* Grid de productos */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
