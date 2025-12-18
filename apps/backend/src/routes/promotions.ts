@@ -870,16 +870,30 @@ router.post(
               discount = Math.min(discount, Number(promo.maxDiscount));
             }
 
-            // Guardar mejor descuento (promociones no acumulables)
-            if (discount > bestDiscount && !promo.stackable) {
-              bestDiscount = discount;
-              appliedPromotion = {
-                id: promo.id,
-                name: promo.name,
-                type: promo.type,
-              };
-            } else if (promo.stackable) {
-              bestDiscount += discount;
+            // Guardar descuento
+            if (discount > 0) {
+              if (promo.stackable) {
+                // Promociones acumulables: sumar descuento
+                bestDiscount += discount;
+                // Guardar la promoción con mayor descuento para mostrar
+                if (!appliedPromotion || discount > (appliedPromotion.discount || 0)) {
+                  appliedPromotion = {
+                    id: promo.id,
+                    name: promo.name,
+                    type: promo.type,
+                    discount: discount,
+                  };
+                }
+              } else if (discount > bestDiscount) {
+                // Promociones no acumulables: usar la mejor
+                bestDiscount = discount;
+                appliedPromotion = {
+                  id: promo.id,
+                  name: promo.name,
+                  type: promo.type,
+                  discount: discount,
+                };
+              }
             }
           }
 
