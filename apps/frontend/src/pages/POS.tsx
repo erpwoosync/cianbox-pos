@@ -734,10 +734,10 @@ export default function POS() {
           unitPriceNet: Number(item.unitPriceNet),
           discount: Number(item.discount || 0),
           taxRate: Number(item.product.taxRate || 21),
-          priceListId: selectedPOS.priceList?.id || null,
+          priceListId: selectedPOS.priceList?.id || undefined,
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
-          promotionId: item.promotionId || undefined,
-          promotionName: item.promotionName || undefined,
+          promotionId: item.promotions?.[0]?.id || item.promotionId || undefined,
+          promotionName: item.promotions?.map(p => p.name).join(', ') || item.promotionName || undefined,
         })),
         payments: [
           {
