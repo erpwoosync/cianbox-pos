@@ -409,7 +409,7 @@ class MercadoPagoService {
       transactions: {
         payments: [
           {
-            amount: params.amount,
+            amount: String(params.amount),
           },
         ],
       },
@@ -699,6 +699,156 @@ class MercadoPagoService {
         createdAt: 'desc',
       },
     });
+  }
+
+  // ============================================
+  // QR: SUCURSALES Y CAJAS
+  // ============================================
+
+  /**
+   * Lista sucursales (stores) de la cuenta MP para QR
+   */
+  async listQRStores(tenantId: string): Promise<Array<{ id: string; name: string; external_id: string }>> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'QR');
+
+    // Obtener el user_id de la config
+    const config = await this.getConfig(tenantId, 'QR');
+    if (!config?.mpUserId) {
+      throw new Error('No se encontró el user_id de Mercado Pago');
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/users/${config.mpUserId}/stores/search`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      console.error('Error listando stores MP:', error);
+      throw new Error('Error al obtener sucursales de Mercado Pago');
+    }
+
+    const data = await response.json() as { results?: Array<{ id: string; name: string; external_id: string }> };
+    return data.results || [];
+  }
+
+  /**
+   * Lista cajas (POS) de una sucursal para QR
+   */
+  async listQRCashiers(tenantId: string, storeId?: string): Promise<Array<{ id: number; name: string; external_id: string; store_id: string }>> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'QR');
+
+    // Obtener el user_id de la config
+    const config = await this.getConfig(tenantId, 'QR');
+    if (!config?.mpUserId) {
+      throw new Error('No se encontró el user_id de Mercado Pago');
+    }
+
+    let url = `${this.baseUrl}/pos?`;
+    if (storeId) {
+      url += `store_id=${storeId}&`;
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Error listando POS MP:', errorData);
+      throw new Error('Error al obtener cajas de Mercado Pago');
+    }
+
+    const data = await response.json() as { results?: Array<{ id: number; name: string; external_id: string; store_id: string }> };
+    return data.results || [];
+  }
+
+  /**
+   * Crea una orden QR dinámica
+   */
+  async createQROrder(params: {
+    tenantId: string;
+    externalPosId: string;
+    amount: number;
+    externalReference: string;
+    description?: string;
+    items?: Array<{ title: string; quantity: number; unit_price: number }>;
+  }): Promise<{ orderId: string; qrData: string; inStoreOrderId: string }> {
+    const accessToken = await this.getValidAccessToken(params.tenantId, 'QR');
+
+    // Obtener el user_id de la config
+    const config = await this.getConfig(params.tenantId, 'QR');
+    if (!config?.mpUserId) {
+      throw new Error('No se encontró el user_id de Mercado Pago');
+    }
+
+    const orderData = {
+      external_reference: params.externalReference,
+      title: params.description || 'Venta POS',
+      description: params.description || 'Venta desde Cianbox POS',
+      total_amount: params.amount,
+      items: params.items || [
+        {
+          title: params.description || 'Venta POS',
+          unit_price: params.amount,
+          quantity: 1,
+          unit_measure: 'unit',
+          total_amount: params.amount,
+        },
+      ],
+      expiration_date: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutos
+      notification_url: `${process.env.API_BASE_URL || 'https://api.cianbox-pos.ews-cdn.link'}/api/webhooks/mercadopago`,
+    };
+
+    // Crear orden QR dinámica
+    const response = await fetch(
+      `${this.baseUrl}/instore/qr/seller/collectors/${config.mpUserId}/pos/${params.externalPosId}/orders`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': params.externalReference,
+        },
+        body: JSON.stringify(orderData),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as { message?: string };
+      console.error('Error creando orden QR:', errorData);
+      throw new Error(errorData.message || 'Error al crear orden QR');
+    }
+
+    const data = await response.json() as { in_store_order_id?: string; qr_data?: string };
+
+    // Guardar la orden en BD
+    await prisma.mercadoPagoOrder.create({
+      data: {
+        tenantId: params.tenantId,
+        orderId: data.in_store_order_id || params.externalReference,
+        externalReference: params.externalReference,
+        deviceId: params.externalPosId,
+        amount: params.amount,
+        status: 'PENDING',
+      },
+    });
+
+    return {
+      orderId: data.in_store_order_id || params.externalReference,
+      qrData: data.qr_data || '',
+      inStoreOrderId: data.in_store_order_id || '',
+    };
   }
 
   // ============================================
