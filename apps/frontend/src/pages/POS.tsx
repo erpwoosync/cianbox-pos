@@ -726,9 +726,9 @@ export default function POS() {
         pointOfSaleId: selectedPOS.id,
         items: cart.map(item => ({
           productId: item.product.id,
-          productCode: item.product.sku,
+          productCode: item.product.sku || undefined,
           productName: item.product.name,
-          productBarcode: item.product.barcode,
+          productBarcode: item.product.barcode || undefined,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
           unitPriceNet: Number(item.unitPriceNet),
