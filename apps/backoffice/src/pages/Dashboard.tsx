@@ -4,11 +4,17 @@ import { dashboardApi } from '../services/api';
 import { Package, FolderTree, Tags, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface DashboardStats {
-  totalProducts: number;
-  activeProducts: number;
-  totalCategories: number;
-  totalBrands: number;
-  lowStockProducts: number;
+  products: {
+    total: number;
+    active: number;
+    inactive: number;
+  };
+  categories: number;
+  brands: number;
+  stock: {
+    lowStock: number;
+    outOfStock: number;
+  };
 }
 
 export default function Dashboard() {
@@ -41,29 +47,29 @@ export default function Dashboard() {
   const cards = [
     {
       title: 'Productos',
-      value: stats?.totalProducts || 0,
-      subtitle: `${stats?.activeProducts || 0} activos`,
+      value: stats?.products?.total || 0,
+      subtitle: `${stats?.products?.active || 0} activos`,
       icon: Package,
       color: 'blue',
       link: '/products',
     },
     {
       title: 'Categorías',
-      value: stats?.totalCategories || 0,
+      value: stats?.categories || 0,
       icon: FolderTree,
       color: 'purple',
       link: '/categories',
     },
     {
       title: 'Marcas',
-      value: stats?.totalBrands || 0,
+      value: stats?.brands || 0,
       icon: Tags,
       color: 'indigo',
       link: '/brands',
     },
     {
       title: 'Stock Bajo',
-      value: stats?.lowStockProducts || 0,
+      value: stats?.stock?.lowStock || 0,
       subtitle: 'productos',
       icon: AlertTriangle,
       color: 'amber',
