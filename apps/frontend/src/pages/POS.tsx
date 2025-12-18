@@ -13,7 +13,10 @@ import {
   X,
   Check,
   Loader2,
-  Receipt,
+  Edit3,
+  AlertTriangle,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService } from '../services/api';
@@ -65,6 +68,22 @@ type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR';
 
 // ============ HELPERS ============
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+const formatRelativeTime = (timestamp: number): string => {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+
+  if (minutes < 1) return 'Ahora';
+  if (minutes < 60) return `${minutes}min`;
+  if (hours < 24) return `${hours}h`;
+  return new Date(timestamp).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+};
+
+const calculateTicketTotal = (items: CartItem[]): number => {
+  return items.reduce((sum, item) => sum + (item.quantity * item.unitPrice - item.discount), 0);
+};
 
 const getProductPrice = (product: Product): number => {
   if (product.basePrice != null) {
@@ -205,16 +224,31 @@ export default function POS() {
     setActiveTicketId(newTicket.id);
   };
 
-  // Eliminar ticket
-  const handleDeleteTicket = (ticketId: string) => {
+  // Estado para confirmación de eliminación
+  const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
+
+  // Estado para renombrar ticket
+  const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
+  const [editingTicketName, setEditingTicketName] = useState('');
+
+  // Solicitar eliminar ticket (con confirmación si tiene items)
+  const requestDeleteTicket = (ticket: Ticket) => {
+    if (ticket.items.length > 0) {
+      setTicketToDelete(ticket);
+    } else {
+      confirmDeleteTicket(ticket.id);
+    }
+  };
+
+  // Confirmar eliminación de ticket
+  const confirmDeleteTicket = (ticketId: string) => {
+    setTicketToDelete(null);
     setTickets(prev => {
       const remaining = prev.filter(t => t.id !== ticketId);
-      // Si eliminamos el ticket activo, cambiar a otro
       if (ticketId === activeTicketId) {
         if (remaining.length > 0) {
           setActiveTicketId(remaining[0].id);
         } else {
-          // Si no quedan tickets, crear uno nuevo
           const newTicket = createNewTicket();
           setActiveTicketId(newTicket.id);
           return [newTicket];
@@ -222,6 +256,31 @@ export default function POS() {
       }
       return remaining;
     });
+  };
+
+  // Iniciar edición de nombre de ticket
+  const startEditingTicketName = (ticket: Ticket) => {
+    setEditingTicketId(ticket.id);
+    setEditingTicketName(ticket.name);
+  };
+
+  // Guardar nombre de ticket
+  const saveTicketName = () => {
+    if (editingTicketId && editingTicketName.trim()) {
+      setTickets(prev => prev.map(t =>
+        t.id === editingTicketId
+          ? { ...t, name: editingTicketName.trim() }
+          : t
+      ));
+    }
+    setEditingTicketId(null);
+    setEditingTicketName('');
+  };
+
+  // Cancelar edición
+  const cancelEditingTicketName = () => {
+    setEditingTicketId(null);
+    setEditingTicketName('');
   };
 
   // Estado de búsqueda
@@ -245,6 +304,62 @@ export default function POS() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('CASH');
   const [amountTendered, setAmountTendered] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Atajos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // No procesar si estamos editando un nombre de ticket
+      if (editingTicketId) return;
+
+      // Ctrl+T o Ctrl+N: Nuevo ticket
+      if ((e.ctrlKey || e.metaKey) && (e.key === 't' || e.key === 'n')) {
+        e.preventDefault();
+        handleNewTicket();
+        return;
+      }
+
+      // Ctrl+1-9: Cambiar a ticket por número
+      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const index = parseInt(e.key) - 1;
+        if (index < tickets.length) {
+          setActiveTicketId(tickets[index].id);
+        }
+        return;
+      }
+
+      // Ctrl+Tab: Siguiente ticket
+      if (e.ctrlKey && e.key === 'Tab') {
+        e.preventDefault();
+        const currentIndex = tickets.findIndex(t => t.id === activeTicketId);
+        const nextIndex = e.shiftKey
+          ? (currentIndex - 1 + tickets.length) % tickets.length
+          : (currentIndex + 1) % tickets.length;
+        setActiveTicketId(tickets[nextIndex].id);
+        return;
+      }
+
+      // F2: Cobrar (si hay items)
+      if (e.key === 'F2' && cart.length > 0) {
+        e.preventDefault();
+        setShowPayment(true);
+        return;
+      }
+
+      // Escape: Cerrar modales
+      if (e.key === 'Escape') {
+        if (ticketToDelete) {
+          setTicketToDelete(null);
+        } else if (showPayment) {
+          setShowPayment(false);
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [tickets, activeTicketId, editingTicketId, cart.length, showPayment, ticketToDelete]);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -599,66 +714,180 @@ export default function POS() {
         </div>
       </div>
 
+      {/* Modal de confirmación de eliminación */}
+      {ticketToDelete && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Eliminar ticket</h3>
+                <p className="text-sm text-gray-500">{ticketToDelete.name}</p>
+              </div>
+            </div>
+            <p className="text-gray-600 mb-2">
+              Este ticket tiene <strong>{ticketToDelete.items.length} producto{ticketToDelete.items.length !== 1 ? 's' : ''}</strong> con un total de:
+            </p>
+            <p className="text-2xl font-bold text-gray-900 mb-4">
+              ${calculateTicketTotal(ticketToDelete.items).toFixed(2)}
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setTicketToDelete(null)}
+                className="flex-1 btn btn-secondary py-2"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => confirmDeleteTicket(ticketToDelete.id)}
+                className="flex-1 btn bg-red-600 hover:bg-red-700 text-white py-2"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Panel derecho - Carrito */}
       <div className="flex flex-col h-screen bg-white border-l">
-        {/* Tabs de tickets */}
-        <div className="flex items-center gap-1 p-2 border-b bg-gray-50 overflow-x-auto">
-          {tickets.map(ticket => (
-            <button
-              key={ticket.id}
-              onClick={() => setActiveTicketId(ticket.id)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
-                activeTicketId === ticket.id
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border'
-              }`}
-            >
-              <Receipt className="w-4 h-4" />
-              <span>{ticket.name}</span>
-              {ticket.items.length > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                  activeTicketId === ticket.id ? 'bg-white/20' : 'bg-primary-100 text-primary-700'
-                }`}>
-                  {ticket.items.reduce((sum, item) => sum + item.quantity, 0)}
-                </span>
-              )}
-              {tickets.length > 1 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteTicket(ticket.id);
-                  }}
-                  className={`ml-1 p-0.5 rounded hover:bg-black/10 ${
-                    activeTicketId === ticket.id ? 'text-white/70 hover:text-white' : 'text-gray-400 hover:text-gray-600'
-                  }`}
+        {/* Tabs de tickets - Diseño mejorado */}
+        <div className="bg-gray-100 border-b">
+          <div className="flex items-stretch gap-0 overflow-x-auto">
+            {tickets.map((ticket, index) => {
+              const ticketTotal = calculateTicketTotal(ticket.items);
+              const isActive = activeTicketId === ticket.id;
+              const hasItems = ticket.items.length > 0;
+
+              return (
+                <div
+                  key={ticket.id}
+                  onClick={() => !editingTicketId && setActiveTicketId(ticket.id)}
+                  className={`relative group flex flex-col min-w-[140px] max-w-[180px] cursor-pointer transition-all ${
+                    isActive
+                      ? 'bg-white border-t-2 border-t-primary-600 z-10'
+                      : 'bg-gray-50 hover:bg-gray-100 border-t-2 border-t-transparent'
+                  } ${index > 0 ? 'border-l border-gray-200' : ''}`}
                 >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
+                  {/* Contenido del tab */}
+                  <div className="flex-1 px-3 py-2">
+                    {/* Nombre del ticket - Editable */}
+                    <div className="flex items-center gap-1 mb-1">
+                      {editingTicketId === ticket.id ? (
+                        <input
+                          type="text"
+                          value={editingTicketName}
+                          onChange={(e) => setEditingTicketName(e.target.value)}
+                          onBlur={saveTicketName}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveTicketName();
+                            if (e.key === 'Escape') cancelEditingTicketName();
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full px-1 py-0.5 text-sm font-medium border border-primary-400 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          autoFocus
+                        />
+                      ) : (
+                        <>
+                          <span className={`text-sm font-medium truncate ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>
+                            #{index + 1} {ticket.name}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditingTicketName(ticket);
+                            }}
+                            className={`p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                              isActive ? 'hover:bg-gray-100' : 'hover:bg-gray-200'
+                            }`}
+                            title="Renombrar"
+                          >
+                            <Edit3 className="w-3 h-3 text-gray-400" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Info del ticket */}
+                    <div className="flex items-center justify-between">
+                      {hasItems ? (
+                        <>
+                          <span className={`text-lg font-bold ${isActive ? 'text-primary-600' : 'text-gray-700'}`}>
+                            ${ticketTotal.toFixed(2)}
+                          </span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-200 text-gray-600'
+                          }`}>
+                            {ticket.items.reduce((sum, item) => sum + item.quantity, 0)} items
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          Vacío
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Tiempo */}
+                    <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
+                      <Clock className="w-3 h-3" />
+                      {formatRelativeTime(ticket.createdAt)}
+                    </div>
+                  </div>
+
+                  {/* Botón eliminar */}
+                  {tickets.length > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        requestDeleteTicket(ticket);
+                      }}
+                      className={`absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-all ${
+                        isActive
+                          ? 'hover:bg-red-100 text-red-500'
+                          : 'hover:bg-red-100 text-gray-400 hover:text-red-500'
+                      }`}
+                      title="Eliminar ticket"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Botón nuevo ticket */}
+            <button
+              onClick={handleNewTicket}
+              className="flex items-center justify-center min-w-[50px] px-3 py-4 bg-gray-50 hover:bg-emerald-50 border-l border-gray-200 text-gray-500 hover:text-emerald-600 transition-colors"
+              title="Nuevo ticket (Ctrl+T)"
+            >
+              <Plus className="w-5 h-5" />
             </button>
-          ))}
-          <button
-            onClick={handleNewTicket}
-            className="p-2 rounded-lg bg-white border text-gray-600 hover:bg-gray-100 hover:text-gray-800"
-            title="Nuevo ticket"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          </div>
         </div>
 
-        {/* Header del carrito */}
-        <div className="p-4 border-b">
+        {/* Header del carrito - Simplificado */}
+        <div className="p-3 border-b bg-gray-50">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" />
-              {activeTicket?.name || 'Carrito'}
-              {itemCount > 0 && (
-                <span className="bg-primary-600 text-white text-xs px-2 py-0.5 rounded-full">{itemCount}</span>
-              )}
-            </h2>
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">
+                {itemCount} {itemCount === 1 ? 'producto' : 'productos'}
+              </span>
+            </div>
             {cart.length > 0 && (
-              <button onClick={clearCart} className="text-sm text-red-600 hover:text-red-700">
-                Vaciar
+              <button
+                onClick={clearCart}
+                className="text-xs text-red-500 hover:text-red-600 hover:underline"
+              >
+                Vaciar carrito
               </button>
             )}
           </div>
@@ -667,10 +896,24 @@ export default function POS() {
         {/* Lista de items */}
         <div className="flex-1 overflow-y-auto p-4">
           {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <ShoppingCart className="w-16 h-16 mb-4" />
-              <p>Carrito vacío</p>
-              <p className="text-sm">Escanee o busque productos</p>
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <ShoppingCart className="w-10 h-10 text-gray-300" />
+              </div>
+              <p className="text-gray-600 font-medium mb-1">Ticket vacío</p>
+              <p className="text-sm text-gray-400 mb-4 max-w-[200px]">
+                Escanea un código de barras o busca productos para agregar
+              </p>
+              <div className="flex flex-col gap-2 text-xs text-gray-400">
+                <div className="flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-500 font-mono">Enter</kbd>
+                  <span>Buscar producto</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-500 font-mono">F2</kbd>
+                  <span>Cobrar</span>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
