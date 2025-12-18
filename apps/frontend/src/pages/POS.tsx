@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService } from '../services/api';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface Product {
   id: string;
@@ -149,47 +150,20 @@ export default function POS() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  // Estado de tickets (múltiples ventas en paralelo) - lazy initialization desde localStorage
-  const [tickets, setTickets] = useState<Ticket[]>(() => {
-    try {
-      const savedTickets = localStorage.getItem(STORAGE_KEY);
-      if (savedTickets) {
-        const parsed: Ticket[] = JSON.parse(savedTickets);
-        if (parsed.length > 0) {
-          console.log('[POS] Tickets cargados desde localStorage:', parsed.length);
-          return parsed;
-        }
-      }
-    } catch (error) {
-      console.error('[POS] Error loading tickets from localStorage:', error);
-    }
-    // Si no hay tickets guardados, crear uno inicial
-    const initialTicket: Ticket = {
-      id: generateId(),
-      number: 1,
-      name: 'Ticket #1',
-      items: [],
-      createdAt: new Date().toISOString(),
-    };
-    console.log('[POS] Creando ticket inicial');
-    return [initialTicket];
-  });
+  // Estado de tickets - persistido con useLocalStorage
+  const defaultTicket: Ticket = {
+    id: generateId(),
+    number: 1,
+    name: 'Ticket #1',
+    items: [],
+    createdAt: new Date().toISOString(),
+  };
 
-  const [currentTicketId, setCurrentTicketId] = useState<string | null>(() => {
-    // Auto-seleccionar el último ticket disponible
-    try {
-      const savedTickets = localStorage.getItem(STORAGE_KEY);
-      if (savedTickets) {
-        const parsed: Ticket[] = JSON.parse(savedTickets);
-        if (parsed.length > 0) {
-          return parsed[parsed.length - 1].id;
-        }
-      }
-    } catch (error) {
-      console.error('[POS] Error loading currentTicketId:', error);
-    }
-    return null;
-  });
+  const [tickets, setTickets] = useLocalStorage<Ticket[]>(STORAGE_KEY, [defaultTicket]);
+  const [currentTicketId, setCurrentTicketId] = useLocalStorage<string | null>(
+    'pos_current_ticket',
+    tickets.length > 0 ? tickets[tickets.length - 1].id : defaultTicket.id
+  );
 
   const [showTicketList, setShowTicketList] = useState(false);
 
@@ -257,12 +231,6 @@ export default function POS() {
       window.removeEventListener('offline', handleOffline);
     };
   }, [pendingSales]);
-
-  // Guardar tickets en localStorage cada vez que cambien
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-    console.log('[POS] Tickets guardados en localStorage:', tickets.length);
-  }, [tickets]);
 
   // Cargar categorías y productos
   useEffect(() => {
