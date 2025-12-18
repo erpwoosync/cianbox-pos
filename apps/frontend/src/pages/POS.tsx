@@ -629,6 +629,17 @@ export default function POS() {
   const total = subtotal;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Agrupar descuentos por promoción
+  const discountsByPromotion = cart.reduce((acc, item) => {
+    if (item.promotionId && item.promotionName && item.discount > 0) {
+      if (!acc[item.promotionId]) {
+        acc[item.promotionId] = { name: item.promotionName, total: 0 };
+      }
+      acc[item.promotionId].total += item.discount;
+    }
+    return acc;
+  }, {} as Record<string, { name: string; total: number }>);
+
   // Obtener promoción aplicable para un producto
   const getProductPromotion = useCallback((product: Product): ActivePromotion | null => {
     if (!activePromotions.length) return null;
@@ -1195,11 +1206,20 @@ export default function POS() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>${(subtotal + totalDiscount).toFixed(2)}</span>
             </div>
-            {totalDiscount > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>Descuentos</span>
+            {Object.entries(discountsByPromotion).map(([promoId, promo]) => (
+              <div key={promoId} className="flex justify-between text-sm text-green-600">
+                <span className="flex items-center gap-1">
+                  <Tag className="w-3 h-3" />
+                  {promo.name}
+                </span>
+                <span>-${promo.total.toFixed(2)}</span>
+              </div>
+            ))}
+            {totalDiscount > 0 && Object.keys(discountsByPromotion).length > 1 && (
+              <div className="flex justify-between text-xs text-gray-500 border-t border-dashed pt-1">
+                <span>Total descuentos</span>
                 <span>-${totalDiscount.toFixed(2)}</span>
               </div>
             )}
