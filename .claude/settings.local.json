@@ -29,7 +29,8 @@
       "Bash(timeout 50 bash:*)",
       "WebFetch(domain:cianbox-pos.ews-cdn.link)",
       "WebFetch(domain:cianbox-pos-point.ews-cdn.link)",
-      "Bash(timeout 45 bash:*)"
+      "Bash(timeout 45 bash:*)",
+      "Bash(timeout 20 bash:*)"
     ]
   }
 }

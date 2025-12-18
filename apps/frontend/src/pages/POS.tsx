@@ -13,6 +13,7 @@ import {
   X,
   Check,
   Loader2,
+  Receipt,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService } from '../services/api';
@@ -87,30 +88,69 @@ const getProductPriceNet = (product: Product): number => {
   return price / (1 + taxRate / 100);
 };
 
+// ============ INTERFACES ADICIONALES ============
+interface Ticket {
+  id: string;
+  name: string;
+  items: CartItem[];
+  createdAt: number;
+}
+
 // ============ STORAGE KEY ============
-const CART_STORAGE_KEY = 'pos_cart_simple';
+const TICKETS_STORAGE_KEY = 'pos_tickets';
+const ACTIVE_TICKET_KEY = 'pos_active_ticket';
 
 // ============ LOAD/SAVE FUNCTIONS ============
-const loadCartFromStorage = (): CartItem[] => {
+const createNewTicket = (): Ticket => ({
+  id: generateId(),
+  name: `Ticket ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`,
+  items: [],
+  createdAt: Date.now(),
+});
+
+const loadTicketsFromStorage = (): Ticket[] => {
   try {
-    const saved = localStorage.getItem(CART_STORAGE_KEY);
+    const saved = localStorage.getItem(TICKETS_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      console.log('[POS] Carrito cargado:', parsed.length, 'items');
-      return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log('[POS] Tickets cargados:', parsed.length);
+        return parsed;
+      }
     }
   } catch (e) {
-    console.error('[POS] Error cargando carrito:', e);
+    console.error('[POS] Error cargando tickets:', e);
   }
-  return [];
+  // Crear ticket inicial si no hay ninguno
+  const initial = createNewTicket();
+  console.log('[POS] Creando ticket inicial');
+  return [initial];
 };
 
-const saveCartToStorage = (cart: CartItem[]) => {
+const loadActiveTicketIdFromStorage = (): string => {
   try {
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
-    console.log('[POS] Carrito guardado:', cart.length, 'items');
+    const saved = localStorage.getItem(ACTIVE_TICKET_KEY);
+    if (saved) return saved;
   } catch (e) {
-    console.error('[POS] Error guardando carrito:', e);
+    console.error('[POS] Error cargando ticket activo:', e);
+  }
+  return '';
+};
+
+const saveTicketsToStorage = (tickets: Ticket[]) => {
+  try {
+    localStorage.setItem(TICKETS_STORAGE_KEY, JSON.stringify(tickets));
+    console.log('[POS] Tickets guardados:', tickets.length);
+  } catch (e) {
+    console.error('[POS] Error guardando tickets:', e);
+  }
+};
+
+const saveActiveTicketIdToStorage = (ticketId: string) => {
+  try {
+    localStorage.setItem(ACTIVE_TICKET_KEY, ticketId);
+  } catch (e) {
+    console.error('[POS] Error guardando ticket activo:', e);
   }
 };
 
@@ -119,13 +159,70 @@ export default function POS() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  // Carrito - inicializar desde localStorage
-  const [cart, setCart] = useState<CartItem[]>(() => loadCartFromStorage());
+  // Tickets - inicializar desde localStorage
+  const [tickets, setTickets] = useState<Ticket[]>(() => loadTicketsFromStorage());
+  const [activeTicketId, setActiveTicketId] = useState<string>(() => {
+    const savedId = loadActiveTicketIdFromStorage();
+    const tickets = loadTicketsFromStorage();
+    // Validar que el ID guardado existe
+    if (savedId && tickets.some(t => t.id === savedId)) {
+      return savedId;
+    }
+    return tickets[0]?.id || '';
+  });
 
-  // Guardar carrito en localStorage cada vez que cambie
+  // Guardar tickets en localStorage cada vez que cambien
   useEffect(() => {
-    saveCartToStorage(cart);
-  }, [cart]);
+    saveTicketsToStorage(tickets);
+  }, [tickets]);
+
+  // Guardar ticket activo en localStorage
+  useEffect(() => {
+    saveActiveTicketIdToStorage(activeTicketId);
+  }, [activeTicketId]);
+
+  // Obtener ticket actual
+  const activeTicket = tickets.find(t => t.id === activeTicketId) || tickets[0];
+  const cart = activeTicket?.items || [];
+
+  // Función para actualizar el carrito del ticket activo
+  const setCart = (updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
+    setTickets(prevTickets => {
+      return prevTickets.map(ticket => {
+        if (ticket.id === activeTicketId) {
+          const newItems = typeof updater === 'function' ? updater(ticket.items) : updater;
+          return { ...ticket, items: newItems };
+        }
+        return ticket;
+      });
+    });
+  };
+
+  // Crear nuevo ticket
+  const handleNewTicket = () => {
+    const newTicket = createNewTicket();
+    setTickets(prev => [...prev, newTicket]);
+    setActiveTicketId(newTicket.id);
+  };
+
+  // Eliminar ticket
+  const handleDeleteTicket = (ticketId: string) => {
+    setTickets(prev => {
+      const remaining = prev.filter(t => t.id !== ticketId);
+      // Si eliminamos el ticket activo, cambiar a otro
+      if (ticketId === activeTicketId) {
+        if (remaining.length > 0) {
+          setActiveTicketId(remaining[0].id);
+        } else {
+          // Si no quedan tickets, crear uno nuevo
+          const newTicket = createNewTicket();
+          setActiveTicketId(newTicket.id);
+          return [newTicket];
+        }
+      }
+      return remaining;
+    });
+  };
 
   // Estado de búsqueda
   const [searchQuery, setSearchQuery] = useState('');
@@ -504,12 +601,57 @@ export default function POS() {
 
       {/* Panel derecho - Carrito */}
       <div className="flex flex-col h-screen bg-white border-l">
+        {/* Tabs de tickets */}
+        <div className="flex items-center gap-1 p-2 border-b bg-gray-50 overflow-x-auto">
+          {tickets.map(ticket => (
+            <button
+              key={ticket.id}
+              onClick={() => setActiveTicketId(ticket.id)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                activeTicketId === ticket.id
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100 border'
+              }`}
+            >
+              <Receipt className="w-4 h-4" />
+              <span>{ticket.name}</span>
+              {ticket.items.length > 0 && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTicketId === ticket.id ? 'bg-white/20' : 'bg-primary-100 text-primary-700'
+                }`}>
+                  {ticket.items.reduce((sum, item) => sum + item.quantity, 0)}
+                </span>
+              )}
+              {tickets.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteTicket(ticket.id);
+                  }}
+                  className={`ml-1 p-0.5 rounded hover:bg-black/10 ${
+                    activeTicketId === ticket.id ? 'text-white/70 hover:text-white' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </button>
+          ))}
+          <button
+            onClick={handleNewTicket}
+            className="p-2 rounded-lg bg-white border text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+            title="Nuevo ticket"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* Header del carrito */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <ShoppingCart className="w-5 h-5" />
-              Carrito
+              {activeTicket?.name || 'Carrito'}
               {itemCount > 0 && (
                 <span className="bg-primary-600 text-white text-xs px-2 py-0.5 rounded-full">{itemCount}</span>
               )}
