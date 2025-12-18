@@ -50,7 +50,7 @@ jobs:
           sudo npx prisma generate
 
           # Run database migrations (if any)
-          sudo npx prisma db push --skip-generate
+          sudo npx prisma db push --skip-generate --accept-data-loss
 
           # Restart PM2 process
           sudo pm2 restart cianbox-pos-api || sudo pm2 start ecosystem.config.cjs
