@@ -683,7 +683,7 @@ export class CianboxService {
         brandId,
         basePrice: product.precio_neto || 0,
         baseCost: product.costo || 0,
-        taxRate: product.alicuota_iva || 21,
+        taxRate: this.normalizeTaxRate(product.alicuota_iva),
         taxIncluded: true,
         trackStock: product.afecta_stock ?? true,
         allowNegativeStock: false,
@@ -1136,6 +1136,21 @@ export class CianboxService {
     }
 
     return synced;
+  }
+
+  /**
+   * Normaliza el taxRate de Cianbox al formato porcentaje
+   * Cianbox puede enviar 1.21 (multiplicador) o 21 (porcentaje)
+   */
+  private normalizeTaxRate(alicuotaIva: number | undefined | null): number {
+    if (!alicuotaIva || alicuotaIva === 0) return 21; // Default 21%
+
+    // Si es menor a 2, está en formato multiplicador (1.21 = 21%)
+    if (alicuotaIva > 0 && alicuotaIva < 2) {
+      return Math.round((alicuotaIva - 1) * 1000) / 10; // 1.21 -> 21, 1.105 -> 10.5
+    }
+
+    return alicuotaIva; // Ya está en formato porcentaje
   }
 
   /**

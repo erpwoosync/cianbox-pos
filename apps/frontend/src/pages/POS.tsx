@@ -724,28 +724,21 @@ export default function POS() {
       const saleData = {
         branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         pointOfSaleId: selectedPOS.id,
-        items: cart.map(item => {
-          // Normalizar taxRate: si es < 2, está en formato decimal (1.21 = 21%)
-          let taxRate = Number(item.product.taxRate || 21);
-          if (taxRate > 0 && taxRate < 2) {
-            taxRate = (taxRate - 1) * 100; // 1.21 -> 21
-          }
-          return {
-            productId: item.product.id,
-            productCode: item.product.sku || undefined,
-            productName: item.product.name,
-            productBarcode: item.product.barcode || undefined,
-            quantity: Number(item.quantity),
-            unitPrice: Number(item.unitPrice),
-            unitPriceNet: Number(item.unitPriceNet),
-            discount: Number(item.discount || 0),
-            taxRate,
-            priceListId: selectedPOS.priceList?.id || undefined,
-            branchId: selectedPOS.branch?.id || user?.branch?.id || '',
-            promotionId: item.promotions?.[0]?.id || item.promotionId || undefined,
-            promotionName: item.promotions?.map(p => p.name).join(', ') || item.promotionName || undefined,
-          };
-        }),
+        items: cart.map(item => ({
+          productId: item.product.id,
+          productCode: item.product.sku || undefined,
+          productName: item.product.name,
+          productBarcode: item.product.barcode || undefined,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          unitPriceNet: Number(item.unitPriceNet),
+          discount: Number(item.discount || 0),
+          taxRate: Number(item.product.taxRate || 21),
+          priceListId: selectedPOS.priceList?.id || undefined,
+          branchId: selectedPOS.branch?.id || user?.branch?.id || '',
+          promotionId: item.promotions?.[0]?.id || item.promotionId || undefined,
+          promotionName: item.promotions?.map(p => p.name).join(', ') || item.promotionName || undefined,
+        })),
         payments: [
           {
             method: selectedPaymentMethod,
