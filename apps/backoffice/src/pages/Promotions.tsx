@@ -88,6 +88,7 @@ const getDefaultFormData = (): CreatePromotionDto => ({
   isActive: true,
   priority: 1,
   stackable: false,
+  badgeColor: '#22C55E',
   metadata: {},
 });
 
@@ -186,6 +187,7 @@ export default function Promotions() {
       isActive: promotion.isActive,
       priority: promotion.priority,
       stackable: promotion.stackable,
+      badgeColor: promotion.badgeColor || '#22C55E',
       metadata: promotion.metadata || {},
     });
     setShowModal(true);
@@ -941,6 +943,76 @@ export default function Promotions() {
                       className="w-16 px-2 py-1 border rounded text-sm"
                     />
                     <span className="text-xs text-gray-500">(mayor = primero)</span>
+                  </div>
+                </div>
+
+                {/* Color del Badge */}
+                <div className="pt-3 border-t">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Color del badge en POS
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={formData.badgeColor || '#22C55E'}
+                        onChange={(e) => setFormData({ ...formData, badgeColor: e.target.value })}
+                        className="w-10 h-10 rounded cursor-pointer border border-gray-300"
+                      />
+                      <input
+                        type="text"
+                        value={formData.badgeColor || '#22C55E'}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (/^#[0-9A-Fa-f]{0,6}$/.test(value) || value === '') {
+                            setFormData({ ...formData, badgeColor: value || '#22C55E' });
+                          }
+                        }}
+                        placeholder="#22C55E"
+                        className="w-24 px-2 py-1 border rounded text-sm font-mono"
+                      />
+                    </div>
+                    {/* Vista previa */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">Vista previa:</span>
+                      <div
+                        style={{ backgroundColor: formData.badgeColor || '#22C55E' }}
+                        className="text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1"
+                      >
+                        <Tag size={12} />
+                        {formData.type === 'BUY_X_GET_Y'
+                          ? `${formData.buyQuantity || 1}x${formData.getQuantity || 2}`
+                          : formData.discountType === 'PERCENTAGE'
+                          ? `-${formData.discountValue || 0}%`
+                          : `-$${formData.discountValue || 0}`}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Colores predefinidos */}
+                  <div className="flex gap-2 mt-2">
+                    {[
+                      { color: '#22C55E', name: 'Verde' },
+                      { color: '#EF4444', name: 'Rojo' },
+                      { color: '#F59E0B', name: 'Naranja' },
+                      { color: '#3B82F6', name: 'Azul' },
+                      { color: '#8B5CF6', name: 'Violeta' },
+                      { color: '#EC4899', name: 'Rosa' },
+                      { color: '#14B8A6', name: 'Turquesa' },
+                      { color: '#000000', name: 'Negro' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.color}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, badgeColor: preset.color })}
+                        style={{ backgroundColor: preset.color }}
+                        className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                          formData.badgeColor === preset.color
+                            ? 'border-gray-800 ring-2 ring-offset-1 ring-gray-400'
+                            : 'border-white shadow'
+                        }`}
+                        title={preset.name}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>

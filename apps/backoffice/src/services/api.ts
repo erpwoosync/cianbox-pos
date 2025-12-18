@@ -491,6 +491,7 @@ export interface Promotion {
   isActive: boolean;
   priority: number;
   stackable: boolean;
+  badgeColor?: string | null;
   metadata?: Record<string, unknown>;
   applicableProducts?: { productId: string; product?: Product }[];
   createdAt: string;
@@ -522,6 +523,7 @@ export interface CreatePromotionDto {
   isActive?: boolean;
   priority?: number;
   stackable?: boolean;
+  badgeColor?: string | null;
   metadata?: Record<string, unknown>;
 }
 

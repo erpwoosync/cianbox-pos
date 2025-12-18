@@ -638,6 +638,9 @@ model Promotion {
   priority       Int             @default(0) // Mayor = se aplica primero
   stackable      Boolean         @default(false) // Se puede combinar con otras
 
+  // Apariencia
+  badgeColor     String?         // Color del badge en POS (hex: #FF0000)
+
   // Metadatos
   metadata       Json            @default("{}") // Para eventos especiales (BlackFriday, etc)
 

@@ -335,6 +335,7 @@ export default function POS() {
     buyQuantity?: number;
     getQuantity?: number;
     applicableProducts?: { productId: string }[];
+    badgeColor?: string | null;
   }
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
 
@@ -922,14 +923,30 @@ export default function POS() {
                   <button
                     key={product.id}
                     onClick={() => addToCart(product)}
-                    className={`bg-white rounded-xl p-3 shadow-sm border transition-all text-left relative ${
+                    style={promo ? {
+                      borderColor: `${promo.badgeColor || '#22C55E'}40`,
+                    } : undefined}
+                    className={`bg-white rounded-xl p-3 shadow-sm border-2 transition-all text-left relative ${
                       promo
-                        ? 'border-green-200 hover:border-green-400 hover:shadow-md'
+                        ? 'hover:shadow-md'
                         : 'border-gray-100 hover:shadow-md hover:border-primary-200'
                     }`}
+                    onMouseEnter={(e) => {
+                      if (promo) {
+                        e.currentTarget.style.borderColor = `${promo.badgeColor || '#22C55E'}80`;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (promo) {
+                        e.currentTarget.style.borderColor = `${promo.badgeColor || '#22C55E'}40`;
+                      }
+                    }}
                   >
                     {promo && (
-                      <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10">
+                      <div
+                        style={{ backgroundColor: promo.badgeColor || '#22C55E' }}
+                        className="absolute -top-2 -right-2 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10"
+                      >
                         <Tag className="w-3 h-3" />
                         {formatPromotionBadge(promo)}
                       </div>

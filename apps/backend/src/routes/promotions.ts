@@ -49,6 +49,7 @@ const promotionCreateSchema = z.object({
   isActive: z.boolean().default(true),
   priority: z.number().int().default(0),
   stackable: z.boolean().default(false),
+  badgeColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   metadata: z.any().optional(),
 });
 
