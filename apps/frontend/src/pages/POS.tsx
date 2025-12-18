@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -178,6 +178,17 @@ export default function POS() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
+  // Ref para el campo de búsqueda (mantener foco para lector de código de barras)
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Función para enfocar el campo de búsqueda
+  const focusSearchInput = useCallback(() => {
+    // Pequeño delay para asegurar que otros elementos perdieron el foco
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 50);
+  }, []);
+
   // Tickets - inicializar desde localStorage
   const [tickets, setTickets] = useState<Ticket[]>(() => loadTicketsFromStorage());
   const [activeTicketId, setActiveTicketId] = useState<string>(() => {
@@ -346,13 +357,14 @@ export default function POS() {
         return;
       }
 
-      // Escape: Cerrar modales
+      // Escape: Cerrar modales y volver al campo de búsqueda
       if (e.key === 'Escape') {
         if (ticketToDelete) {
           setTicketToDelete(null);
         } else if (showPayment) {
           setShowPayment(false);
         }
+        focusSearchInput();
         return;
       }
     };
@@ -455,6 +467,7 @@ export default function POS() {
 
     setSearchQuery('');
     setSearchResults([]);
+    focusSearchInput();
   };
 
   // Actualizar cantidad
@@ -539,6 +552,7 @@ export default function POS() {
         setShowPayment(false);
         setAmountTendered('');
         alert(`Venta #${response.data.saleNumber} registrada correctamente`);
+        focusSearchInput();
       }
     } catch (error) {
       console.error('Error procesando venta:', error);
@@ -605,6 +619,7 @@ export default function POS() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={e => handleSearch(e.target.value)}
@@ -1021,7 +1036,7 @@ export default function POS() {
               )}
 
               <div className="flex gap-2">
-                <button onClick={() => setShowPayment(false)} className="flex-1 btn btn-secondary py-3">
+                <button onClick={() => { setShowPayment(false); focusSearchInput(); }} className="flex-1 btn btn-secondary py-3">
                   <X className="w-5 h-5 mr-2" />
                   Cancelar
                 </button>
