@@ -33,6 +33,18 @@ export default function App() {
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
 
+      {/* POS - Full screen sin Layout */}
+      <Route
+        path="/pos"
+        element={
+          <AuthRoute>
+            <ProtectedRoute permissions={['pos:sell']}>
+              <POS />
+            </ProtectedRoute>
+          </AuthRoute>
+        }
+      />
+
       {/* Protected routes with Layout */}
       <Route
         element={
@@ -43,16 +55,6 @@ export default function App() {
       >
         {/* Dashboard - todos pueden acceder */}
         <Route path="/" element={<Dashboard />} />
-
-        {/* POS - requiere permiso pos:sell */}
-        <Route
-          path="/pos"
-          element={
-            <ProtectedRoute permissions={['pos:sell']}>
-              <POS />
-            </ProtectedRoute>
-          }
-        />
 
         {/* Productos - requiere permisos de inventario */}
         <Route
