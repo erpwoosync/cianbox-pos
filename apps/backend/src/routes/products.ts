@@ -64,6 +64,11 @@ router.get(
           tenantId: req.user!.tenantId,
           isActive: true,
         },
+        include: {
+          _count: {
+            select: { products: { where: { isActive: true } } },
+          },
+        },
         orderBy: [{ level: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
       });
 
