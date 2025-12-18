@@ -748,7 +748,6 @@ export default function POS() {
         ],
       };
 
-      console.log('Datos de venta:', JSON.stringify(saleData, null, 2));
       const response = await salesService.create(saleData);
 
       if (response.success) {
