@@ -128,6 +128,31 @@ app.use('/api/cash', cashRoutes); // Gestión de turnos de caja y arqueos
 app.use('/api/webhooks', mpWebhookRouter); // Webhooks Mercado Pago (público, sin auth)
 app.use('/api/cianboxwebhooks', cianboxWebhookRoutes); // Webhooks Cianbox (público, sin auth)
 
+// DEBUG TEMPORAL - Buscar órdenes MP sin autenticación - TODO: ELIMINAR
+import { PrismaClient } from '@prisma/client';
+const debugPrisma = new PrismaClient();
+app.get('/api/debug/mp-orders', async (req, res) => {
+  try {
+    const { paymentId, reference, all } = req.query;
+    let where: Record<string, unknown> = {};
+    if (paymentId) {
+      where.paymentId = paymentId as string;
+    } else if (reference) {
+      where.externalReference = { contains: reference as string };
+    } else if (all === 'orphans') {
+      where = { status: { in: ['PROCESSED', 'COMPLETED', 'APPROVED'] }, saleId: null };
+    }
+    const orders = await debugPrisma.mercadoPagoOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    res.json({ count: orders.length, data: orders });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // Ruta 404
 app.use((_req, res) => {
   res.status(404).json({
