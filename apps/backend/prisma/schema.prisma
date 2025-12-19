@@ -119,6 +119,7 @@ model Tenant {
   combos            Combo[]
   sales             Sale[]
   cashRegisters     CashRegister[]
+  cashSessions      CashSession[]
   printers          Printer[]
   printPoints       PrintPoint[]
   mercadoPagoConfigs MercadoPagoConfig[]  // Plural: puede tener config para Point y QR
@@ -165,6 +166,15 @@ model User {
   sales         Sale[]
   cashRegisters CashRegister[]
   sessions      UserSession[]
+
+  // Relaciones de Turnos de Caja
+  cashSessions         CashSession[]   @relation("CashSessionUser")
+  cashSessionsOpened   CashSession[]   @relation("CashSessionOpenedBy")
+  cashSessionsClosed   CashSession[]   @relation("CashSessionClosedBy")
+  movementsAuthorized  CashMovement[]  @relation("MovementAuthorizedBy")
+  movementsCreated     CashMovement[]  @relation("MovementCreatedBy")
+  cashCountsCounted    CashCount[]     @relation("CashCountCountedBy")
+  cashCountsVerified   CashCount[]     @relation("CashCountVerifiedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId, branchId])
@@ -283,6 +293,7 @@ model Branch {
   sales        Sale[]
   saleItems    SaleItem[]
   cashRegisters CashRegister[]
+  cashSessions  CashSession[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, cianboxBranchId])
@@ -320,6 +331,7 @@ model PointOfSale {
   printPoint    PrintPoint?   @relation(fields: [printPointId], references: [id])
   sales         Sale[]
   cashRegisters CashRegister[]
+  cashSessions  CashSession[]
   sessions      UserSession[]
 
   @@unique([tenantId, branchId, code])
@@ -765,6 +777,7 @@ model Sale {
   pointOfSaleId   String
   userId          String      // Cajero
   customerId      String?     // Cliente (opcional)
+  cashSessionId   String?     // Turno de caja activo
 
   // Numeración
   saleNumber      String      // "A-0001-00000001"
@@ -799,6 +812,7 @@ model Sale {
   pointOfSale      PointOfSale       @relation(fields: [pointOfSaleId], references: [id])
   user             User              @relation(fields: [userId], references: [id])
   customer         Customer?         @relation(fields: [customerId], references: [id])
+  cashSession      CashSession?      @relation(fields: [cashSessionId], references: [id])
   items            SaleItem[]
   payments         Payment[]
   mercadoPagoOrder MercadoPagoOrder?
@@ -808,6 +822,7 @@ model Sale {
   @@index([tenantId, branchId, saleDate])
   @@index([tenantId, customerId])
   @@index([tenantId, status])
+  @@index([cashSessionId])
   @@map("sales")
 }
 
@@ -978,7 +993,7 @@ enum PaymentStatus {
 }
 
 // ==============================================
-// CAJA / ARQUEO
+// CAJA / ARQUEO - MODELO LEGACY (mantener para compatibilidad)
 // ==============================================
 
 model CashRegister {
@@ -1015,7 +1030,6 @@ model CashRegister {
   branch      Branch      @relation(fields: [branchId], references: [id])
   pointOfSale PointOfSale @relation(fields: [pointOfSaleId], references: [id])
   user        User        @relation(fields: [userId], references: [id])
-  movements   CashMovement[]
 
   @@index([tenantId, branchId, openedAt])
   @@index([pointOfSaleId, status])
@@ -1028,27 +1042,231 @@ enum CashRegisterStatus {
   SUSPENDED
 }
 
-// Movimientos de caja (ingresos/egresos)
-model CashMovement {
-  id             String           @id @default(cuid())
-  cashRegisterId String
-  type           CashMovementType
-  amount         Decimal          @db.Decimal(12, 2)
-  reason         String           // "Pago a proveedor", "Ingreso por venta", etc.
-  reference      String?          // Referencia del movimiento
-  createdAt      DateTime         @default(now())
+// ==============================================
+// TURNOS DE CAJA (NUEVO SISTEMA)
+// ==============================================
+
+// Turno de caja (sesión de un cajero en una caja)
+model CashSession {
+  id               String            @id @default(cuid())
+  tenantId         String
+  branchId         String
+  pointOfSaleId    String
+  userId           String            // Cajero del turno
+  sessionNumber    String            // "T-001-20241219-001"
+
+  // === APERTURA ===
+  openingAmount    Decimal           @db.Decimal(12, 2)  // Fondo inicial
+  openedAt         DateTime          @default(now())
+  openedByUserId   String            // Quien autorizó apertura
+  openingNotes     String?
+
+  // === CIERRE ===
+  closingAmount    Decimal?          @db.Decimal(12, 2)  // Efectivo contado
+  expectedAmount   Decimal?          @db.Decimal(12, 2)  // Monto esperado (calculado)
+  difference       Decimal?          @db.Decimal(12, 2)  // Diferencia
+  closedAt         DateTime?
+  closedByUserId   String?           // Quien autorizó cierre
+  closingNotes     String?
+
+  // === TOTALES POR MÉTODO (calculados al cierre) ===
+  totalCash        Decimal           @default(0) @db.Decimal(12, 2)
+  totalDebit       Decimal           @default(0) @db.Decimal(12, 2)
+  totalCredit      Decimal           @default(0) @db.Decimal(12, 2)
+  totalQr          Decimal           @default(0) @db.Decimal(12, 2)
+  totalMpPoint     Decimal           @default(0) @db.Decimal(12, 2)
+  totalTransfer    Decimal           @default(0) @db.Decimal(12, 2)
+  totalOther       Decimal           @default(0) @db.Decimal(12, 2)
+
+  // === CONTADORES ===
+  salesCount       Int               @default(0)       // Cantidad de ventas
+  salesTotal       Decimal           @default(0) @db.Decimal(12, 2)
+  refundsCount     Int               @default(0)       // Cantidad de devoluciones
+  refundsTotal     Decimal           @default(0) @db.Decimal(12, 2)
+  cancelsCount     Int               @default(0)       // Cantidad de anulaciones
+
+  // === MOVIMIENTOS RESUMEN ===
+  withdrawalsTotal Decimal           @default(0) @db.Decimal(12, 2) // Total retiros
+  depositsTotal    Decimal           @default(0) @db.Decimal(12, 2) // Total ingresos
+
+  // === ESTADO ===
+  status           CashSessionStatus @default(OPEN)
+
+  // === RELEVO (cambio de turno) ===
+  previousSessionId String?  @unique  // Sesión anterior (si es relevo)
+  transferAmount    Decimal?         @db.Decimal(12, 2) // Monto transferido del turno anterior
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   // Relaciones
-  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch           Branch            @relation(fields: [branchId], references: [id])
+  pointOfSale      PointOfSale       @relation(fields: [pointOfSaleId], references: [id])
+  user             User              @relation("CashSessionUser", fields: [userId], references: [id])
+  openedBy         User              @relation("CashSessionOpenedBy", fields: [openedByUserId], references: [id])
+  closedBy         User?             @relation("CashSessionClosedBy", fields: [closedByUserId], references: [id])
+  previousSession  CashSession?      @relation("CashSessionRelay", fields: [previousSessionId], references: [id])
+  nextSession      CashSession?      @relation("CashSessionRelay")
 
-  @@index([cashRegisterId])
+  movements        CashMovement[]
+  counts           CashCount[]
+  sales            Sale[]
+
+  @@unique([tenantId, sessionNumber])
+  @@index([tenantId, branchId, openedAt])
+  @@index([pointOfSaleId, status])
+  @@index([userId, openedAt])
+  @@map("cash_sessions")
+}
+
+enum CashSessionStatus {
+  OPEN          // Turno abierto, operando
+  SUSPENDED     // Suspendido temporalmente (ej: almuerzo)
+  COUNTING      // En proceso de arqueo/cierre
+  CLOSED        // Cerrado
+  TRANSFERRED   // Cerrado por relevo a otro cajero
+}
+
+// Movimientos de caja (retiros, depósitos, ajustes)
+model CashMovement {
+  id               String              @id @default(cuid())
+  cashSessionId    String
+  type             CashMovementType
+  amount           Decimal             @db.Decimal(12, 2)
+
+  // Detalle
+  reason           CashMovementReason  // Razón predefinida
+  description      String?             // Descripción adicional
+  reference        String?             // Referencia externa
+
+  // Autorización (para retiros grandes)
+  authorizedByUserId String?           // Supervisor que autorizó
+  requiresAuth     Boolean             @default(false)
+
+  // Para retiros a caja fuerte
+  destinationType  String?             // "SAFE", "BANK", "OTHER"
+
+  // Auditoría
+  createdByUserId  String              // Quien registró el movimiento
+  createdAt        DateTime            @default(now())
+
+  // Relaciones
+  cashSession      CashSession         @relation(fields: [cashSessionId], references: [id], onDelete: Cascade)
+  authorizedBy     User?               @relation("MovementAuthorizedBy", fields: [authorizedByUserId], references: [id])
+  createdBy        User                @relation("MovementCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([cashSessionId])
+  @@index([createdAt])
   @@map("cash_movements")
 }
 
 enum CashMovementType {
-  INCOME        // Ingreso
-  EXPENSE       // Egreso
-  ADJUSTMENT    // Ajuste
+  DEPOSIT         // Ingreso de efectivo
+  WITHDRAWAL      // Retiro de efectivo
+  ADJUSTMENT_IN   // Ajuste positivo
+  ADJUSTMENT_OUT  // Ajuste negativo
+  TRANSFER_IN     // Recibido de otro turno
+  TRANSFER_OUT    // Transferido a otro turno
+  CHANGE_FUND     // Fondo para cambio adicional
+}
+
+enum CashMovementReason {
+  // Retiros
+  SAFE_DEPOSIT    // Depósito a caja fuerte
+  BANK_DEPOSIT    // Depósito bancario
+  SUPPLIER_PAYMENT // Pago a proveedor
+  EXPENSE         // Gasto menor
+
+  // Ingresos
+  CHANGE_FUND     // Fondo para cambio
+  INITIAL_FUND    // Fondo inicial
+  LOAN_RETURN     // Devolución de préstamo
+
+  // Ajustes
+  CORRECTION      // Corrección de error
+  COUNT_DIFFERENCE // Diferencia de arqueo
+
+  // Transferencias
+  SHIFT_TRANSFER  // Transferencia de turno
+
+  OTHER           // Otro
+}
+
+// Arqueo de caja (conteo de dinero)
+model CashCount {
+  id              String          @id @default(cuid())
+  cashSessionId   String
+  type            CashCountType   @default(PARTIAL)
+
+  // === CONTEO POR DENOMINACIÓN (Pesos Argentinos) ===
+  // Billetes
+  bills_10000     Int             @default(0)
+  bills_5000      Int             @default(0)
+  bills_2000      Int             @default(0)
+  bills_1000      Int             @default(0)
+  bills_500       Int             @default(0)
+  bills_200       Int             @default(0)
+  bills_100       Int             @default(0)
+  bills_50        Int             @default(0)
+  bills_20        Int             @default(0)
+  bills_10        Int             @default(0)
+
+  // Monedas
+  coins_500       Int             @default(0)
+  coins_200       Int             @default(0)
+  coins_100       Int             @default(0)
+  coins_50        Int             @default(0)
+  coins_25        Int             @default(0)
+  coins_10        Int             @default(0)
+  coins_5         Int             @default(0)
+  coins_2         Int             @default(0)
+  coins_1         Int             @default(0)
+
+  // === TOTALES CALCULADOS ===
+  totalBills      Decimal         @db.Decimal(12, 2)
+  totalCoins      Decimal         @db.Decimal(12, 2)
+  totalCash       Decimal         @db.Decimal(12, 2)
+
+  // === COMPARACIÓN ===
+  expectedAmount  Decimal         @db.Decimal(12, 2)
+  difference      Decimal         @db.Decimal(12, 2)
+  differenceType  DifferenceType?
+
+  // === OTROS VALORES EN CAJA ===
+  vouchers        Decimal         @default(0) @db.Decimal(12, 2)
+  checks          Decimal         @default(0) @db.Decimal(12, 2)
+  otherValues     Decimal         @default(0) @db.Decimal(12, 2)
+  otherValuesNote String?
+
+  // Observaciones
+  notes           String?
+
+  // Auditoría
+  countedByUserId String
+  verifiedByUserId String?
+  countedAt       DateTime        @default(now())
+
+  // Relaciones
+  cashSession     CashSession     @relation(fields: [cashSessionId], references: [id], onDelete: Cascade)
+  countedBy       User            @relation("CashCountCountedBy", fields: [countedByUserId], references: [id])
+  verifiedBy      User?           @relation("CashCountVerifiedBy", fields: [verifiedByUserId], references: [id])
+
+  @@index([cashSessionId])
+  @@map("cash_counts")
+}
+
+enum CashCountType {
+  OPENING         // Arqueo de apertura
+  PARTIAL         // Arqueo parcial (verificación)
+  CLOSING         // Arqueo de cierre
+  AUDIT           // Arqueo de auditoría
+  TRANSFER        // Arqueo para relevo
+}
+
+enum DifferenceType {
+  SURPLUS         // Sobrante
+  SHORTAGE        // Faltante
 }
 
 // ==============================================
