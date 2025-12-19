@@ -2187,4 +2187,141 @@ router.delete(
   }
 );
 
+/**
+ * POST /api/backoffice/mp-orphan-orders/sync
+ * Busca pagos en MP que tengan external_reference con patrón "POS-"
+ * y los importa como órdenes huérfanas si no existen en la DB
+ */
+router.post(
+  '/mp-orphan-orders/sync',
+  authorize('pos:sell', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+
+      // Obtener config de MP (QR primero, luego Point)
+      let mpConfig = await prisma.mercadoPagoConfig.findFirst({
+        where: { tenantId, appType: 'QR', isActive: true },
+      });
+
+      if (!mpConfig) {
+        mpConfig = await prisma.mercadoPagoConfig.findFirst({
+          where: { tenantId, appType: 'POINT', isActive: true },
+        });
+      }
+
+      if (!mpConfig) {
+        throw new ApiError(400, 'MP_NOT_CONFIGURED', 'No hay configuración de Mercado Pago activa');
+      }
+
+      // Buscar pagos en MP de los últimos 30 días con external_reference que empiece con "POS-"
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const searchUrl = new URL('https://api.mercadopago.com/v1/payments/search');
+      searchUrl.searchParams.set('sort', 'date_created');
+      searchUrl.searchParams.set('criteria', 'desc');
+      searchUrl.searchParams.set('range', 'date_created');
+      searchUrl.searchParams.set('begin_date', thirtyDaysAgo.toISOString().split('T')[0] + 'T00:00:00Z');
+      searchUrl.searchParams.set('end_date', new Date().toISOString().split('T')[0] + 'T23:59:59Z');
+      searchUrl.searchParams.set('status', 'approved');
+      searchUrl.searchParams.set('limit', '100');
+
+      const mpResponse = await fetch(searchUrl.toString(), {
+        headers: { Authorization: `Bearer ${mpConfig.accessToken}` },
+      });
+
+      if (!mpResponse.ok) {
+        const errorText = await mpResponse.text();
+        console.error('[MP Sync] Error buscando pagos:', errorText);
+        throw new ApiError(500, 'MP_API_ERROR', 'Error al consultar Mercado Pago');
+      }
+
+      interface MPPaymentResult {
+        id: number;
+        status: string;
+        external_reference?: string;
+        transaction_amount: number;
+        payment_method_id?: string;
+        payment_method?: { id?: string };
+        card?: { last_four_digits?: string };
+        installments?: number;
+        date_approved?: string;
+      }
+
+      const mpData = await mpResponse.json() as { results: MPPaymentResult[] };
+
+      // Filtrar solo los que tienen external_reference con patrón "POS-"
+      const posPayments = mpData.results.filter(
+        (p: MPPaymentResult) => p.external_reference?.startsWith('POS-')
+      );
+
+      console.log(`[MP Sync] Encontrados ${posPayments.length} pagos con patrón POS-`);
+
+      // Obtener IDs de pagos que ya existen en nuestra DB
+      const existingPaymentIds = await prisma.mercadoPagoOrder.findMany({
+        where: { tenantId },
+        select: { paymentId: true, externalReference: true },
+      });
+
+      const existingIds = new Set(existingPaymentIds.map(o => o.paymentId));
+      const existingRefs = new Set(existingPaymentIds.map(o => o.externalReference));
+
+      // Filtrar los que no existen
+      const newPayments = posPayments.filter(
+        (p: MPPaymentResult) =>
+          !existingIds.has(p.id.toString()) &&
+          !existingRefs.has(p.external_reference || '')
+      );
+
+      console.log(`[MP Sync] ${newPayments.length} pagos nuevos para importar`);
+
+      // Insertar los nuevos pagos
+      const imported: Array<{ paymentId: string; externalReference: string; amount: number }> = [];
+
+      for (const payment of newPayments) {
+        try {
+          await prisma.mercadoPagoOrder.create({
+            data: {
+              tenantId,
+              orderId: payment.id.toString(),
+              externalReference: payment.external_reference || `SYNC-${payment.id}`,
+              deviceId: 'MP-SYNC',
+              amount: payment.transaction_amount,
+              status: 'PROCESSED',
+              paymentId: payment.id.toString(),
+              paymentMethod: payment.payment_method_id,
+              cardBrand: payment.payment_method?.id,
+              cardLastFour: payment.card?.last_four_digits,
+              installments: payment.installments,
+              processedAt: payment.date_approved ? new Date(payment.date_approved) : new Date(),
+            },
+          });
+
+          imported.push({
+            paymentId: payment.id.toString(),
+            externalReference: payment.external_reference || '',
+            amount: payment.transaction_amount,
+          });
+        } catch (err) {
+          console.error(`[MP Sync] Error importando pago ${payment.id}:`, err);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Sincronización completada: ${imported.length} pagos importados`,
+        data: {
+          totalFound: posPayments.length,
+          alreadyExists: posPayments.length - newPayments.length,
+          imported: imported.length,
+          payments: imported,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

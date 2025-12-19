@@ -902,6 +902,13 @@ export interface CreateSaleFromOrphanDto {
   notes?: string;
 }
 
+export interface SyncResult {
+  totalFound: number;
+  alreadyExists: number;
+  imported: number;
+  payments: Array<{ paymentId: string; externalReference: string; amount: number }>;
+}
+
 export const orphanOrdersApi = {
   getAll: async (): Promise<OrphanMPOrder[]> => {
     const response = await api.get('/backoffice/mp-orphan-orders');
@@ -917,6 +924,10 @@ export const orphanOrdersApi = {
   },
   dismiss: async (orderId: string) => {
     const response = await api.delete(`/backoffice/mp-orphan-orders/${orderId}`);
+    return response.data;
+  },
+  syncFromMP: async (): Promise<{ success: boolean; message: string; data: SyncResult }> => {
+    const response = await api.post('/backoffice/mp-orphan-orders/sync');
     return response.data;
   },
 };

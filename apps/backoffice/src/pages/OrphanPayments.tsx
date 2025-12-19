@@ -10,8 +10,10 @@ import {
   Calendar,
   Clock,
   Trash2,
+  Download,
+  CheckCircle,
 } from 'lucide-react';
-import { orphanOrdersApi, OrphanMPOrder } from '../services/api';
+import { orphanOrdersApi, OrphanMPOrder, SyncResult } from '../services/api';
 
 export default function OrphanPayments() {
   const navigate = useNavigate();
@@ -19,6 +21,8 @@ export default function OrphanPayments() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -52,6 +56,25 @@ export default function OrphanPayments() {
       setError('Error al descartar el pago');
     } finally {
       setDismissingId(null);
+    }
+  };
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    setError(null);
+    setSyncResult(null);
+    try {
+      const result = await orphanOrdersApi.syncFromMP();
+      setSyncResult(result.data);
+      // Recargar la lista si se importaron pagos
+      if (result.data.imported > 0) {
+        await loadOrders();
+      }
+    } catch (err) {
+      console.error('Error syncing from MP:', err);
+      setError('Error al sincronizar con Mercado Pago');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -97,15 +120,55 @@ export default function OrphanPayments() {
             Pagos procesados en Mercado Pago sin venta asociada
           </p>
         </div>
-        <button
-          onClick={loadOrders}
-          disabled={isLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-          Actualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSync}
+            disabled={isSyncing || isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Download className={`w-5 h-5 ${isSyncing ? 'animate-pulse' : ''}`} />
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar con MP'}
+          </button>
+          <button
+            onClick={loadOrders}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
+        </div>
       </div>
+
+      {/* Sync Result */}
+      {syncResult && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-green-800">
+                Sincronizacion completada
+              </h3>
+              <p className="text-sm text-green-700 mt-1">
+                Encontrados: {syncResult.totalFound} pagos con patron POS- |
+                Ya existentes: {syncResult.alreadyExists} |
+                Importados: {syncResult.imported}
+              </p>
+              {syncResult.imported > 0 && (
+                <p className="text-sm text-green-600 mt-1">
+                  Se importaron {syncResult.imported} pago(s) nuevo(s)
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setSyncResult(null)}
+              className="ml-auto text-green-600 hover:text-green-800"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Info */}
       {orders.length > 0 && (
