@@ -555,8 +555,8 @@ router.post('/qr/orders', authenticate, async (req: AuthenticatedRequest, res: R
       });
     }
 
-    // Usar el código del POS como external_id
-    const externalPosId = `POS_${pointOfSale.code}`;
+    // Usar el código del POS como external_id (alfanumérico, sin guiones)
+    const externalPosId = pointOfSale.code.replace(/[^a-zA-Z0-9]/g, '');
 
     const result = await mercadoPagoService.createQROrder({
       tenantId,

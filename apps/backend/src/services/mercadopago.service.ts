@@ -804,20 +804,32 @@ class MercadoPagoService {
       throw new Error('No se encontró el user_id de Mercado Pago');
     }
 
+    // Preparar items con unit_measure requerido por MP
+    const items = params.items
+      ? params.items.map(item => ({
+          ...item,
+          unit_measure: 'unit',
+          total_amount: item.unit_price * item.quantity,
+        }))
+      : [
+          {
+            title: params.description || 'Venta POS',
+            unit_price: params.amount,
+            quantity: 1,
+            unit_measure: 'unit',
+            total_amount: params.amount,
+          },
+        ];
+
+    // Calcular total_amount como suma de items
+    const totalAmount = items.reduce((sum, item) => sum + item.total_amount, 0);
+
     const orderData = {
       external_reference: params.externalReference,
       title: params.description || 'Venta POS',
       description: params.description || 'Venta desde Cianbox POS',
-      total_amount: params.amount,
-      items: params.items || [
-        {
-          title: params.description || 'Venta POS',
-          unit_price: params.amount,
-          quantity: 1,
-          unit_measure: 'unit',
-          total_amount: params.amount,
-        },
-      ],
+      total_amount: totalAmount,
+      items,
       expiration_date: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutos
       notification_url: `${process.env.API_BASE_URL || 'https://api.cianbox-pos.ews-cdn.link'}/api/webhooks/mercadopago`,
     };
@@ -842,7 +854,9 @@ class MercadoPagoService {
       throw new Error(errorData.message || 'Error al crear orden QR');
     }
 
-    const data = await response.json() as { in_store_order_id?: string; qr_data?: string };
+    // MP puede devolver 200/201 con body vacío o con datos
+    const responseText = await response.text();
+    const data = responseText ? JSON.parse(responseText) as { in_store_order_id?: string; qr_data?: string } : {};
 
     // Guardar la orden en BD
     await prisma.mercadoPagoOrder.create({

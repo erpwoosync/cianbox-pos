@@ -986,7 +986,10 @@ export default function POS() {
         items: cart.map(item => ({
           title: item.product.name,
           quantity: item.quantity,
-          unit_price: item.unitPrice,
+          // Calcular precio unitario con descuento aplicado
+          // subtotal = quantity * unitPrice - discount
+          // precio unitario efectivo = subtotal / quantity
+          unit_price: Math.round((item.subtotal / item.quantity) * 100) / 100,
         })),
       });
 
