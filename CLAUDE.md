@@ -6,6 +6,8 @@
 - Responder en espanol
 - Ejecutar comandos y editar archivos directamente
 - Seguir la guia tecnica en `docs/GUIA-TECNICA-POS-CIANBOX.md`
+- **Despliegue a produccion:** Los deploys se realizan mediante commit/push a GitHub. El self-hosted runner en el servidor ejecuta automaticamente los GitHub Actions. NO hacer deploy manual por SSH.
+- **Migraciones Prisma:** Los cambios en `schema.prisma` se aplican automaticamente en el deploy via `prisma db push`. No requiere intervencion manual.
 
 ## Proyecto
 
@@ -191,7 +193,73 @@ VITE_API_URL=http://localhost:3000/api
 4. **Manejar errores** con ApiError
 5. **No commitear:** .env, node_modules, dist
 
+## Infraestructura de Produccion
+
+### Servidores
+
+| Servidor | IP | Hostname | Rol |
+|----------|-----|----------|-----|
+| APP Server | 172.16.1.61 | cianbox-pos-app | Backend + Frontends + GitHub Runner |
+| DB Server | 172.16.1.62 | cianbox-pos-db1 | PostgreSQL 15.14 |
+
+### Conexion SSH
+
+```bash
+# Llave SSH: ssh key/root_servers_ssh_key
+
+# Servidor APP
+ssh -i "ssh key/root_servers_ssh_key" root@172.16.1.61
+
+# Servidor DB
+ssh -i "ssh key/root_servers_ssh_key" root@172.16.1.62
+```
+
+### Despliegue de Aplicaciones
+
+| App | Puerto | Carpeta en Servidor |
+|-----|--------|---------------------|
+| POS Frontend | 80 | `/var/www/cianbox-pos/frontend` |
+| Agency Backoffice | 8083 | `/var/www/cianbox-pos/apps/agency/dist` |
+| Client Backoffice | 8084 | `/var/www/cianbox-pos/apps/backoffice/dist` |
+| Backend API | 3001 | `/var/www/cianbox-pos/apps/backend/dist` |
+
+### Servicios en Servidor APP
+
+- **PM2:** `cianbox-pos-api` (Node.js backend en puerto 3001)
+- **Nginx:** Reverse proxy para las 3 apps frontend
+- **GitHub Runner:** `/opt/actions-runner` (CI/CD automatico)
+
+### Comandos Utiles
+
+```bash
+# PM2 - Backend
+pm2 status
+pm2 logs cianbox-pos-api
+pm2 restart cianbox-pos-api
+
+# Nginx
+nginx -t && systemctl reload nginx
+
+# GitHub Runner
+systemctl status actions.runner.erpwoosync-cianbox-pos.cianbox-pos-runner
+
+# PostgreSQL (en servidor DB)
+sudo -u postgres psql -d cianbox_pos
+```
+
+### Base de Datos
+
+- **Host:** 172.16.1.62
+- **Puerto:** 5432
+- **Database:** cianbox_pos
+- **Usuario:** cianbox_pos
+
+### Documentacion Completa
+
+Ver `docs/INFRAESTRUCTURA.md` para configuraciones detalladas de Nginx, troubleshooting y procedimientos de despliegue.
+
 ## Documentacion de Referencia
 
 - **Guia Tecnica Completa:** `docs/GUIA-TECNICA-POS-CIANBOX.md`
+- **Infraestructura:** `docs/INFRAESTRUCTURA.md`
 - **Codigo de referencia:** Proyecto warehouse-picking (mismo stack)

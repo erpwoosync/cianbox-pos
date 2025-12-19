@@ -110,6 +110,171 @@ interface OAuthTokenResponse {
   public_key: string;
 }
 
+// Respuesta completa de un pago de MP
+interface MPFullPaymentResponse {
+  id: number;
+  status: string;
+  status_detail: string;
+  operation_type: string;
+  transaction_amount: number;
+  currency_id: string;
+  description: string;
+  external_reference: string;
+  date_approved: string;
+  date_created: string;
+  authorization_code?: string;
+  installments?: number;
+  payment_method_id?: string;
+  payment_type_id?: string;
+  payment_method?: {
+    id: string;
+    type: string;
+    issuer_id?: string;
+  };
+  order?: {
+    id: string;
+    type: string;
+  };
+  payer?: {
+    id?: string;
+    email?: string;
+    identification?: {
+      type?: string;
+      number?: string;
+    };
+  };
+  card?: {
+    first_six_digits?: string;
+    last_four_digits?: string;
+    expiration_month?: number;
+    expiration_year?: number;
+    cardholder?: {
+      name?: string;
+      identification?: {
+        type?: string;
+        number?: string;
+      };
+    };
+    tags?: string[];
+  };
+  amounts?: {
+    collector?: {
+      net_received?: number;
+      transaction?: number;
+    };
+  };
+  transaction_details?: {
+    net_received_amount?: number;
+    total_paid_amount?: number;
+    installment_amount?: number;
+    bank_transfer_id?: number;
+    transaction_id?: string;
+  };
+  fee_details?: Array<{
+    type: string;
+    amount: number;
+    fee_payer: string;
+  }>;
+  charges_details?: Array<{
+    name: string;
+    type: string;
+    amounts: {
+      original: number;
+      refunded?: number;
+    };
+    rate?: number;
+  }>;
+  point_of_interaction?: {
+    type: string;
+    device?: {
+      serial_number?: string;
+    };
+    transaction_data?: {
+      bank_info?: {
+        origin_bank_id?: string;
+        payer?: {
+          long_name?: string;
+          account_id?: number;
+        };
+        collector?: {
+          account_id?: number;
+          long_name?: string;
+        };
+      };
+      transaction_id?: string;
+    };
+  };
+  additional_info?: {
+    poi_id?: string;
+    items?: Array<{
+      title: string;
+      quantity: number;
+      unit_price: number;
+    }>;
+  };
+  pos_id?: string;
+  store_id?: string;
+}
+
+// Detalles de pago procesados para guardar en Payment
+interface MPPaymentDetails {
+  // IDs
+  mpPaymentId?: string;
+  mpOrderId?: string;
+
+  // Tipo de operación
+  mpOperationType?: string;
+  mpPointType?: string;
+
+  // Datos de la tarjeta
+  cardBrand?: string;
+  cardLastFour?: string;
+  cardFirstSix?: string;
+  cardExpirationMonth?: number;
+  cardExpirationYear?: number;
+  cardholderName?: string;
+  cardType?: string;
+
+  // Método de pago
+  paymentMethodType?: string;
+  installments?: number;
+
+  // Datos del pagador
+  payerEmail?: string;
+  payerIdType?: string;
+  payerIdNumber?: string;
+
+  // Autorización
+  authorizationCode?: string;
+
+  // Montos
+  transactionAmount?: number;
+  netReceivedAmount?: number;
+  mpFeeAmount?: number;
+  mpFeeRate?: number;
+
+  // Banco (para QR/transferencia)
+  bankOriginId?: string;
+  bankOriginName?: string;
+  bankTransferId?: string;
+
+  // Dispositivo
+  mpDeviceId?: string;
+  mpPosId?: string;
+  mpStoreId?: string;
+
+  // Status
+  status?: string;
+  statusDetail?: string;
+
+  // Fechas
+  dateApproved?: string;
+  dateCreated?: string;
+
+  // Datos completos
+  rawData?: MPFullPaymentResponse;
+}
+
 // ============================================
 // SERVICIO DE MERCADO PAGO POINT
 // ============================================
@@ -524,6 +689,92 @@ class MercadoPagoService {
       cardLastFour: payment?.card?.last_four_digits,
       installments: payment?.installments,
       amount: payment?.amount,
+    };
+  }
+
+  /**
+   * Obtiene los detalles completos de un pago de MP por su ID
+   * Devuelve toda la información para guardar en Payment
+   */
+  async getPaymentDetails(tenantId: string, paymentId: string, appType: MercadoPagoAppType = 'POINT'): Promise<MPPaymentDetails> {
+    const accessToken = await this.getValidAccessToken(tenantId, appType);
+
+    const response = await fetch(`${this.baseUrl}/v1/payments/${paymentId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error al consultar pago: ${response.status}`);
+    }
+
+    const data = await response.json() as MPFullPaymentResponse;
+
+    // Extraer comisión
+    const feeDetail = data.fee_details?.find((f: { type: string }) => f.type === 'mercadopago_fee');
+    const chargeDetail = data.charges_details?.find((c: { name: string }) => c.name === 'mercadopago_fee');
+
+    // Datos de transferencia bancaria (para QR)
+    const bankInfo = data.point_of_interaction?.transaction_data?.bank_info;
+
+    return {
+      // IDs
+      mpPaymentId: data.id?.toString(),
+      mpOrderId: data.order?.id?.toString(),
+
+      // Tipo de operación
+      mpOperationType: data.operation_type,
+      mpPointType: data.point_of_interaction?.type,
+
+      // Datos de la tarjeta
+      cardBrand: data.payment_method?.id || data.payment_method_id,
+      cardLastFour: data.card?.last_four_digits,
+      cardFirstSix: data.card?.first_six_digits,
+      cardExpirationMonth: data.card?.expiration_month,
+      cardExpirationYear: data.card?.expiration_year,
+      cardholderName: data.card?.cardholder?.name?.trim(),
+      cardType: data.card?.tags?.[0], // credit, debit
+
+      // Método de pago
+      paymentMethodType: data.payment_method?.type || data.payment_type_id,
+      installments: data.installments,
+
+      // Datos del pagador
+      payerEmail: data.payer?.email,
+      payerIdType: data.payer?.identification?.type,
+      payerIdNumber: data.payer?.identification?.number,
+
+      // Autorización
+      authorizationCode: data.authorization_code,
+
+      // Montos
+      transactionAmount: data.transaction_amount,
+      netReceivedAmount: data.amounts?.collector?.net_received || data.transaction_details?.net_received_amount,
+      mpFeeAmount: feeDetail?.amount || chargeDetail?.amounts?.original,
+      mpFeeRate: chargeDetail?.rate,
+
+      // Banco (para QR/transferencia)
+      bankOriginId: bankInfo?.origin_bank_id,
+      bankOriginName: bankInfo?.payer?.long_name,
+      bankTransferId: data.transaction_details?.bank_transfer_id?.toString(),
+
+      // Dispositivo
+      mpDeviceId: data.point_of_interaction?.device?.serial_number || data.additional_info?.poi_id,
+      mpPosId: data.pos_id?.toString(),
+      mpStoreId: data.store_id?.toString(),
+
+      // Status
+      status: data.status,
+      statusDetail: data.status_detail,
+
+      // Fechas
+      dateApproved: data.date_approved,
+      dateCreated: data.date_created,
+
+      // Datos completos para referencia
+      rawData: data,
     };
   }
 

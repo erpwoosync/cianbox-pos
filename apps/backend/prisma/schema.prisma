@@ -901,6 +901,46 @@ model Payment {
   transactionId String?       // ID de transacción externa
   providerData  Json?         // Datos del proveedor (MP, etc)
 
+  // === MERCADO PAGO - Datos completos del pago ===
+
+  // IDs de Mercado Pago
+  mpPaymentId       String?   // ID del pago en MP (ej: 138523920736)
+  mpOrderId         String?   // ID de la orden en MP
+
+  // Tipo de operación
+  mpOperationType   String?   // pos_payment, regular_payment
+  mpPointType       String?   // POINT, INSTORE (Point vs QR)
+
+  // Datos de la tarjeta
+  cardFirstSix      String?   // BIN (primeros 6 dígitos)
+  cardExpirationMonth Int?    // Mes de vencimiento
+  cardExpirationYear  Int?    // Año de vencimiento
+  cardholderName    String?   // Nombre del titular
+  cardType          String?   // credit, debit
+
+  // Datos del pagador
+  payerEmail        String?   // Email del pagador
+  payerIdType       String?   // CUIT, DNI, etc
+  payerIdNumber     String?   // Número de identificación
+
+  // Autorización
+  authorizationCode String?   // Código de autorización del banco
+
+  // Comisiones y montos
+  mpFeeAmount       Decimal?  @db.Decimal(12, 2) // Comisión de MP
+  mpFeeRate         Decimal?  @db.Decimal(5, 2)  // Tasa de comisión (%)
+  netReceivedAmount Decimal?  @db.Decimal(12, 2) // Monto neto recibido
+
+  // Para QR con transferencia bancaria
+  bankOriginId      String?   // ID del banco origen (ej: 011 = BNA)
+  bankOriginName    String?   // Nombre del banco (ej: Banco de la Nación Argentina)
+  bankTransferId    String?   // ID de la transferencia
+
+  // Dispositivo
+  mpDeviceId        String?   // ID o serial del dispositivo (terminal Point)
+  mpPosId           String?   // ID del POS en MP
+  mpStoreId         String?   // ID de la sucursal en MP
+
   // Estado
   status        PaymentStatus @default(COMPLETED)
 
@@ -910,6 +950,7 @@ model Payment {
   sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
+  @@index([mpPaymentId])
   @@map("payments")
 }
 

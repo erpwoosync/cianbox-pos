@@ -293,6 +293,32 @@ router.get('/orders-pending', authenticate, async (req: AuthenticatedRequest, re
   }
 });
 
+/**
+ * GET /api/mercadopago/payments/:paymentId/details
+ * Obtiene los detalles completos de un pago de MP
+ * Query params: appType=POINT|QR (default: POINT)
+ */
+router.get('/payments/:paymentId/details', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { paymentId } = req.params;
+    const appType = appTypeSchema.parse(req.query.appType) as MercadoPagoAppType;
+
+    const details = await mercadoPagoService.getPaymentDetails(tenantId, paymentId, appType);
+
+    res.json({
+      success: true,
+      data: details,
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalles del pago:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
 // ============================================
 // RUTAS DE DISPOSITIVOS
 // ============================================
