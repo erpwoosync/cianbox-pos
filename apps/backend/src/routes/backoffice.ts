@@ -1487,6 +1487,17 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
         branch: true,
         pointOfSale: true,
         user: { select: { id: true, name: true, email: true } },
+        cashSession: {
+          select: {
+            id: true,
+            sessionNumber: true,
+            status: true,
+            openedAt: true,
+            closedAt: true,
+            user: { select: { id: true, name: true } },
+            pointOfSale: { select: { id: true, name: true, code: true } },
+          },
+        },
       },
     });
 

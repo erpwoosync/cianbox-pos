@@ -801,7 +801,8 @@ export const cashApi = {
     };
   }> => {
     const response = await api.get('/cash/sessions', { params });
-    return response.data;
+    // El backend devuelve { success, data: { sessions, pagination } }
+    return response.data.data || response.data;
   },
 
   // Reporte diario
@@ -825,7 +826,7 @@ export const cashApi = {
     };
   }> => {
     const response = await api.get('/cash/report/daily', { params: { date, branchId } });
-    return response.data;
+    return response.data.data || response.data;
   },
 
   // Reporte de sesion
@@ -843,7 +844,7 @@ export const cashApi = {
     };
   }> => {
     const response = await api.get(`/cash/report/session/${sessionId}`);
-    return response.data;
+    return response.data.data || response.data;
   },
 
   // Movimientos de una sesion
@@ -852,7 +853,7 @@ export const cashApi = {
     session: CashSession;
   }> => {
     const response = await api.get(`/cash/movements/${sessionId}`);
-    return response.data;
+    return response.data.data || response.data;
   },
 
   // Arqueos de una sesion
@@ -861,7 +862,7 @@ export const cashApi = {
     session: CashSession;
   }> => {
     const response = await api.get(`/cash/counts/${sessionId}`);
-    return response.data;
+    return response.data.data || response.data;
   },
 };
 

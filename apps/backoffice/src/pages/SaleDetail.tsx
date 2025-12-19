@@ -115,6 +115,15 @@ interface Sale {
     id: string;
     name: string;
   };
+  cashSession?: {
+    id: string;
+    sessionNumber: string;
+    status: string;
+    openedAt: string;
+    closedAt?: string;
+    user: { id: string; name: string };
+    pointOfSale: { id: string; name: string; code: string };
+  };
   items: SaleItem[];
   payments: Payment[];
 }
@@ -335,6 +344,32 @@ export default function SaleDetail() {
               <span className="text-sm font-medium text-gray-500">Cliente</span>
               <p className="text-lg font-semibold text-gray-900">{sale.customer.name}</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sesión de Caja */}
+      {sale.cashSession && (
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Banknote className="w-5 h-5 text-green-600" />
+              <div>
+                <span className="text-sm font-medium text-gray-500">Sesión de Caja</span>
+                <p className="text-lg font-semibold text-gray-900">
+                  #{sale.cashSession.sessionNumber}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {sale.cashSession.pointOfSale.name} • {sale.cashSession.user.name}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate(`/cash-sessions/${sale.cashSession!.id}`)}
+              className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Ver sesión
+            </button>
           </div>
         </div>
       )}
