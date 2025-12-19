@@ -515,7 +515,7 @@ router.post(
       res.status(201).json({
         success: true,
         message: 'Turno de caja abierto correctamente',
-        session,
+        data: { session },
       });
     } catch (error) {
       next(error);
@@ -663,18 +663,20 @@ router.post(
       res.json({
         success: true,
         message: 'Turno de caja cerrado correctamente',
-        session: closedSession,
-        summary: {
-          openingAmount: Number(session.openingAmount),
-          closingAmount,
-          expectedAmount,
-          difference,
-          differenceType,
-          ...paymentTotals,
-          withdrawalsTotal,
-          depositsTotal,
+        data: {
+          session: closedSession,
+          summary: {
+            openingAmount: Number(session.openingAmount),
+            closingAmount,
+            expectedAmount,
+            difference,
+            differenceType,
+            ...paymentTotals,
+            withdrawalsTotal,
+            depositsTotal,
+          },
+          count: cashCount,
         },
-        count: cashCount,
       });
     } catch (error) {
       next(error);
@@ -712,7 +714,7 @@ router.post(
       res.json({
         success: true,
         message: 'Turno suspendido',
-        session: updatedSession,
+        data: { session: updatedSession },
       });
     } catch (error) {
       next(error);
@@ -750,7 +752,7 @@ router.post(
       res.json({
         success: true,
         message: 'Turno reanudado',
-        session: updatedSession,
+        data: { session: updatedSession },
       });
     } catch (error) {
       next(error);
@@ -898,8 +900,10 @@ router.post(
       res.json({
         success: true,
         message: 'Relevo de turno completado',
-        closedSession: result.closedSession,
-        newSession: result.newSession,
+        data: {
+          closedSession: result.closedSession,
+          newSession: result.newSession,
+        },
       });
     } catch (error) {
       next(error);
@@ -968,7 +972,7 @@ router.post(
       res.status(201).json({
         success: true,
         message: 'Ingreso registrado',
-        movement,
+        data: { movement },
       });
     } catch (error) {
       next(error);
@@ -1040,7 +1044,7 @@ router.post(
       res.status(201).json({
         success: true,
         message: 'Retiro registrado',
-        movement,
+        data: { movement },
       });
     } catch (error) {
       next(error);
@@ -1220,16 +1224,18 @@ router.post(
       res.status(201).json({
         success: true,
         message: 'Arqueo registrado',
-        count: cashCount,
-        summary: {
-          ...totals,
-          vouchers,
-          checks,
-          otherValues,
-          totalWithOthers,
-          expectedAmount,
-          difference,
-          differenceType,
+        data: {
+          count: cashCount,
+          summary: {
+            ...totals,
+            vouchers,
+            checks,
+            otherValues,
+            totalWithOthers,
+            expectedAmount,
+            difference,
+            differenceType,
+          },
         },
       });
     } catch (error) {
