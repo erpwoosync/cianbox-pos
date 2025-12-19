@@ -1760,6 +1760,36 @@ router.get('/cash-sessions/report/daily', async (req: AuthenticatedRequest, res:
 // =============================================
 
 /**
+ * GET /api/backoffice/mp-orders/search
+ * Buscar órdenes de MP por paymentId, orderId o externalReference
+ */
+router.get('/mp-orders/search', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { paymentId, orderId, reference } = req.query;
+
+    const where: Record<string, unknown> = { tenantId };
+    if (paymentId) where.paymentId = paymentId as string;
+    if (orderId) where.orderId = orderId as string;
+    if (reference) where.externalReference = { contains: reference as string };
+
+    const orders = await prisma.mercadoPagoOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    res.json({
+      success: true,
+      data: orders,
+      count: orders.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/backoffice/mp-orphan-orders
  * Lista órdenes de MP procesadas que no tienen venta asociada
  * Excluye órdenes cuyo paymentId ya existe en algún Payment de una Sale
