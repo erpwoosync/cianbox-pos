@@ -526,19 +526,31 @@ class MercadoPagoService {
 
   /**
    * Cancela una orden pendiente (Point)
+   * Nota: Solo se puede cancelar cuando status = 'created'.
+   * Si está 'at_terminal', debe cancelarse desde el dispositivo físico.
    */
   async cancelOrder(tenantId: string, orderId: string): Promise<void> {
     const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
 
-    const response = await fetch(`${this.baseUrl}/v1/orders/${orderId}`, {
-      method: 'DELETE',
+    const response = await fetch(`${this.baseUrl}/v1/orders/${orderId}/cancel`, {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Idempotency-Key': `cancel-${orderId}-${Date.now()}`,
       },
     });
 
     if (!response.ok && response.status !== 404) {
-      throw new Error(`Error al cancelar orden: ${response.status}`);
+      const errorData = await response.json().catch(() => ({})) as { errors?: Array<{ message?: string }> };
+      const errorMsg = errorData.errors?.[0]?.message || `Error ${response.status}`;
+
+      // Si la orden ya está en el terminal, no se puede cancelar via API
+      if (errorMsg.includes('at_terminal')) {
+        throw new Error('La orden ya está en el terminal. Cancelá desde el dispositivo físico.');
+      }
+
+      throw new Error(`Error al cancelar orden: ${errorMsg}`);
     }
 
     // Actualizar en nuestra DB
