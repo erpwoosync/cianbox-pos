@@ -697,6 +697,180 @@ router.post('/qr/orders', authenticate, async (req: AuthenticatedRequest, res: R
 });
 
 // ============================================
+// SINCRONIZACIÓN DE PAGOS EXISTENTES
+// ============================================
+
+/**
+ * POST /api/mercadopago/payments/sync
+ * Sincroniza los pagos existentes con los datos de MP
+ * Busca pagos que tengan transactionId (paymentId de MP) pero no tengan mpPaymentId
+ */
+router.post('/payments/sync', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+
+    // Buscar pagos que tienen transactionId pero no tienen mpPaymentId
+    // Estos son pagos de MP que se hicieron antes de implementar los campos detallados
+    const paymentsToSync = await prisma.payment.findMany({
+      where: {
+        sale: { tenantId },
+        transactionId: { not: null },
+        mpPaymentId: null,
+        // Solo pagos con métodos de MP
+        method: { in: ['CREDIT_CARD', 'DEBIT_CARD', 'QR', 'TRANSFER'] },
+      },
+      include: {
+        sale: { select: { id: true, saleNumber: true } },
+      },
+      take: 100, // Limitar para no sobrecargar
+    });
+
+    if (paymentsToSync.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No hay pagos pendientes de sincronizar',
+        synced: 0,
+        errors: 0,
+      });
+    }
+
+    let synced = 0;
+    let errors = 0;
+    const results: Array<{ paymentId: string; saleNumber: string; status: string; error?: string }> = [];
+
+    for (const payment of paymentsToSync) {
+      try {
+        // Determinar si es QR o Point basándose en el método
+        const isQR = payment.method === 'QR' || payment.method === 'TRANSFER';
+        const appType = isQR ? 'QR' : 'POINT';
+
+        // Obtener detalles del pago desde MP
+        const details = await mercadoPagoService.getPaymentDetails(
+          tenantId,
+          payment.transactionId!,
+          appType as 'POINT' | 'QR'
+        );
+
+        // Actualizar el pago con los datos de MP
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            mpPaymentId: details.mpPaymentId,
+            mpOrderId: details.mpOrderId,
+            mpOperationType: details.mpOperationType,
+            mpPointType: details.mpPointType,
+            cardBrand: details.cardBrand || payment.cardBrand,
+            cardLastFour: details.cardLastFour || payment.cardLastFour,
+            cardFirstSix: details.cardFirstSix,
+            cardExpirationMonth: details.cardExpirationMonth,
+            cardExpirationYear: details.cardExpirationYear,
+            cardholderName: details.cardholderName,
+            cardType: details.cardType,
+            payerEmail: details.payerEmail,
+            payerIdType: details.payerIdType,
+            payerIdNumber: details.payerIdNumber,
+            authorizationCode: details.authorizationCode,
+            mpFeeAmount: details.mpFeeAmount,
+            mpFeeRate: details.mpFeeRate,
+            netReceivedAmount: details.netReceivedAmount,
+            bankOriginId: details.bankOriginId,
+            bankOriginName: details.bankOriginName,
+            bankTransferId: details.bankTransferId,
+            mpDeviceId: details.mpDeviceId,
+            mpPosId: details.mpPosId,
+            mpStoreId: details.mpStoreId,
+            installments: details.installments || payment.installments,
+          },
+        });
+
+        synced++;
+        results.push({
+          paymentId: payment.id,
+          saleNumber: payment.sale.saleNumber,
+          status: 'synced',
+        });
+
+        console.log(`[MP Sync] Pago ${payment.id} sincronizado (Venta: ${payment.sale.saleNumber})`);
+      } catch (err) {
+        errors++;
+        const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
+        results.push({
+          paymentId: payment.id,
+          saleNumber: payment.sale.saleNumber,
+          status: 'error',
+          error: errorMsg,
+        });
+        console.error(`[MP Sync] Error sincronizando pago ${payment.id}:`, errorMsg);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Sincronización completada: ${synced} exitosos, ${errors} errores`,
+      synced,
+      errors,
+      total: paymentsToSync.length,
+      results,
+    });
+  } catch (error) {
+    console.error('Error sincronizando pagos MP:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * GET /api/mercadopago/payments/pending-sync
+ * Lista los pagos que necesitan sincronización
+ */
+router.get('/payments/pending-sync', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+
+    const pendingPayments = await prisma.payment.findMany({
+      where: {
+        sale: { tenantId },
+        transactionId: { not: null },
+        mpPaymentId: null,
+        method: { in: ['CREDIT_CARD', 'DEBIT_CARD', 'QR', 'TRANSFER'] },
+      },
+      select: {
+        id: true,
+        method: true,
+        amount: true,
+        transactionId: true,
+        cardBrand: true,
+        cardLastFour: true,
+        createdAt: true,
+        sale: {
+          select: {
+            id: true,
+            saleNumber: true,
+            total: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({
+      success: true,
+      data: pendingPayments,
+      count: pendingPayments.length,
+    });
+  } catch (error) {
+    console.error('Error listando pagos pendientes:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+// ============================================
 // WEBHOOK (público, sin autenticación)
 // ============================================
 
