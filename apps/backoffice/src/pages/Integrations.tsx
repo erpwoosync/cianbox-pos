@@ -182,7 +182,7 @@ export default function Integrations() {
   };
 
   const handleChangeDeviceMode = async (deviceId: string, currentMode: string) => {
-    const newMode = currentMode === 'PDV' ? 'STANDALONE' : 'PDV';
+    const newMode: 'PDV' | 'STANDALONE' = currentMode === 'PDV' ? 'STANDALONE' : 'PDV';
     const modeLabel = newMode === 'PDV' ? 'Integrado (PDV)' : 'Independiente (STANDALONE)';
 
     if (!confirm(`¿Cambiar el dispositivo a modo ${modeLabel}?\n\nIMPORTANTE: Deberás reiniciar el dispositivo para que el cambio tome efecto.`)) {
@@ -191,7 +191,8 @@ export default function Integrations() {
 
     setChangingModeDeviceId(deviceId);
     try {
-      await mercadoPagoApi.changeDeviceOperatingMode(deviceId, newMode);
+      const result = await mercadoPagoApi.changeDeviceOperatingMode(deviceId, newMode);
+      console.log('Resultado cambio modo:', result);
       setNotification({
         type: 'success',
         message: `Modo cambiado a ${modeLabel}. Reinicia el dispositivo para aplicar el cambio.`,
@@ -199,11 +200,11 @@ export default function Integrations() {
       // Recargar dispositivos para ver el nuevo estado
       await loadDevices();
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { error?: string } } };
       console.error('Error changing device mode:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
       setNotification({
         type: 'error',
-        message: err.response?.data?.error || 'Error al cambiar modo de operación',
+        message: err.response?.data?.error || err.message || 'Error al cambiar modo de operación',
       });
     } finally {
       setChangingModeDeviceId(null);
