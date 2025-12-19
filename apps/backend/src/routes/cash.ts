@@ -171,14 +171,12 @@ async function calculateExpectedCash(sessionId: string): Promise<number> {
   let expected = Number(session.openingAmount);
 
   // Sumar ventas en efectivo
+  // payment.amount es el monto neto de la venta (lo que queda en caja)
+  // changeAmount es solo informativo (lo que se devolvió al cliente)
   for (const sale of session.sales) {
     for (const payment of sale.payments) {
       if (payment.method === 'CASH' && payment.status === 'COMPLETED') {
         expected += Number(payment.amount);
-        // Restar vuelto
-        if (payment.changeAmount) {
-          expected -= Number(payment.changeAmount);
-        }
       }
     }
   }

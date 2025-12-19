@@ -1179,6 +1179,21 @@ class MercadoPagoService {
       throw new Error('No se encontró el user_id de Mercado Pago');
     }
 
+    // Mercado Pago requiere latitude y longitude - usamos coordenadas por defecto de Buenos Aires
+    const locationWithCoords = {
+      ...data.location,
+      latitude: -34.6037,
+      longitude: -58.3816,
+    };
+
+    const requestBody = {
+      name: data.name,
+      external_id: data.external_id,
+      location: locationWithCoords,
+    };
+
+    console.log('Creando store en MP:', JSON.stringify(requestBody, null, 2));
+
     const response = await fetch(
       `${this.baseUrl}/users/${config.mpUserId}/stores`,
       {
@@ -1187,18 +1202,24 @@ class MercadoPagoService {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name: data.name,
-          external_id: data.external_id,
-          location: data.location,
-        }),
+        body: JSON.stringify(requestBody),
       }
     );
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({})) as { message?: string; error?: string };
-      console.error('Error creando store MP:', error);
-      throw new Error(error.message || error.error || 'Error al crear local en Mercado Pago');
+      const errorText = await response.text();
+      console.error('Error creando store MP - Status:', response.status, 'Response:', errorText);
+
+      let errorMessage = 'Error al crear local en Mercado Pago';
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.message || errorJson.error || errorMessage;
+      } catch {
+        // Si no es JSON, usar el texto como mensaje
+        if (errorText) errorMessage = errorText;
+      }
+
+      throw new Error(errorMessage);
     }
 
     const store = await response.json() as { id: string; name: string; external_id: string };
