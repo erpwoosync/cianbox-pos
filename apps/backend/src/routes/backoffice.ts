@@ -1790,6 +1790,47 @@ router.get('/mp-orders/search', async (req: AuthenticatedRequest, res: Response,
 });
 
 /**
+ * GET /api/backoffice/debug/mp-orders
+ * DEBUG TEMPORAL - Buscar órdenes MP sin autenticación
+ * TODO: ELIMINAR DESPUÉS DE DEBUG
+ */
+router.get('/debug/mp-orders', async (req, res) => {
+  try {
+    const { paymentId, reference, all } = req.query;
+
+    let where: Record<string, unknown> = {};
+
+    if (paymentId) {
+      where.paymentId = paymentId as string;
+    } else if (reference) {
+      where.externalReference = { contains: reference as string };
+    } else if (all === 'orphans') {
+      where = {
+        status: { in: ['PROCESSED', 'COMPLETED', 'APPROVED'] },
+        saleId: null,
+      };
+    } else {
+      // Últimas 20 órdenes
+      const orders = await prisma.mercadoPagoOrder.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      });
+      return res.json({ count: orders.length, data: orders });
+    }
+
+    const orders = await prisma.mercadoPagoOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    res.json({ count: orders.length, data: orders });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+/**
  * GET /api/backoffice/mp-orphan-orders
  * Lista órdenes de MP procesadas que no tienen venta asociada
  * Excluye órdenes cuyo paymentId ya existe en algún Payment de una Sale
