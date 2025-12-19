@@ -150,37 +150,6 @@ export const productsService = {
   },
 };
 
-// Servicios de categorías (incluyendo acceso rápido)
-export const categoriesService = {
-  list: async () => {
-    const response = await api.get('/products/categories');
-    return response.data;
-  },
-
-  getQuickAccess: async () => {
-    const response = await api.get('/products/categories/quick-access');
-    return response.data;
-  },
-
-  updateQuickAccess: async (
-    categoryId: string,
-    data: {
-      isQuickAccess: boolean;
-      quickAccessOrder?: number;
-      quickAccessColor?: string | null;
-      quickAccessIcon?: string | null;
-    }
-  ) => {
-    const response = await api.put(`/products/categories/${categoryId}/quick-access`, data);
-    return response.data;
-  },
-
-  reorderQuickAccess: async (categoryIds: string[]) => {
-    const response = await api.put('/products/categories/quick-access/reorder', { categoryIds });
-    return response.data;
-  },
-};
-
 // Servicios de ventas
 export const salesService = {
   create: async (saleData: {
@@ -208,6 +177,30 @@ export const salesService = {
       installments?: number;
       amountTendered?: number;
       transactionId?: string;
+      // Campos de Mercado Pago
+      mpPaymentId?: string;
+      mpOrderId?: string;
+      mpOperationType?: string;
+      mpPointType?: string;
+      cardFirstSix?: string;
+      cardExpirationMonth?: number;
+      cardExpirationYear?: number;
+      cardholderName?: string;
+      cardType?: string;
+      payerEmail?: string;
+      payerIdType?: string;
+      payerIdNumber?: string;
+      authorizationCode?: string;
+      mpFeeAmount?: number;
+      mpFeeRate?: number;
+      netReceivedAmount?: number;
+      bankOriginId?: string;
+      bankOriginName?: string;
+      bankTransferId?: string;
+      mpDeviceId?: string;
+      mpPosId?: string;
+      mpStoreId?: string;
+      providerData?: Record<string, unknown>;
     }>;
     notes?: string;
   }) => {
@@ -303,40 +296,58 @@ export const cianboxService = {
   },
 };
 
-// Servicios de Mercado Pago Point
+// Tipos de Mercado Pago
+export interface MPOrderResult {
+  orderId: string;
+  status: string;
+  paymentId?: string;
+  paymentMethod?: string;
+  cardBrand?: string;
+  cardLastFour?: string;
+  installments?: number;
+  amount?: number;
+}
+
+export interface MPQRData {
+  qrData: string;
+  qrBase64?: string;
+  orderId: string;
+  externalReference: string;
+}
+
+// Servicios de Mercado Pago
 export const mercadoPagoService = {
-  // Crear orden de pago en terminal Point
-  createOrder: async (data: {
+  // Verificar si MP Point está configurado para el POS
+  checkPointConfig: async (pointOfSaleId: string) => {
+    const response = await api.get(`/backoffice/points-of-sale/${pointOfSaleId}`);
+    return {
+      success: response.data.success,
+      hasDevice: !!response.data.data?.mpDeviceId,
+      deviceId: response.data.data?.mpDeviceId,
+      deviceName: response.data.data?.mpDeviceName,
+    };
+  },
+
+  // Crear orden en terminal Point
+  createPointOrder: async (data: {
     pointOfSaleId: string;
     amount: number;
     externalReference: string;
     description?: string;
-  }) => {
+  }): Promise<ApiResponse<{ orderId: string; status: string }>> => {
     const response = await api.post('/mercadopago/orders', data);
     return response.data;
   },
 
-  // Consultar estado de una orden
-  getOrderStatus: async (orderId: string) => {
+  // Consultar estado de orden
+  getOrderStatus: async (orderId: string): Promise<ApiResponse<MPOrderResult>> => {
     const response = await api.get(`/mercadopago/orders/${orderId}`);
     return response.data;
   },
 
-  // Cancelar una orden pendiente
-  cancelOrder: async (orderId: string) => {
+  // Cancelar orden
+  cancelOrder: async (orderId: string): Promise<ApiResponse<void>> => {
     const response = await api.post(`/mercadopago/orders/${orderId}/cancel`);
-    return response.data;
-  },
-
-  // Listar dispositivos Point disponibles
-  listDevices: async () => {
-    const response = await api.get('/mercadopago/devices');
-    return response.data;
-  },
-
-  // Obtener configuración de MP
-  getConfig: async () => {
-    const response = await api.get('/mercadopago/config');
     return response.data;
   },
 
@@ -345,7 +356,7 @@ export const mercadoPagoService = {
     const response = await api.get('/mercadopago/config?appType=QR');
     return {
       success: response.data.success,
-      isConnected: response.data.isConnected || false,
+      isConnected: response.data.isConnected,
     };
   },
 
@@ -360,16 +371,57 @@ export const mercadoPagoService = {
       quantity: number;
       unit_price: number;
     }>;
-  }) => {
+  }): Promise<ApiResponse<MPQRData>> => {
     const response = await api.post('/mercadopago/qr/orders', data);
     return response.data;
   },
 
-  // Consultar estado de orden QR por external_reference
-  getQROrderStatus: async (externalReference: string) => {
+  // Consultar estado de orden QR
+  getQROrderStatus: async (externalReference: string): Promise<ApiResponse<MPOrderResult>> => {
     const response = await api.get(`/mercadopago/qr/status/${encodeURIComponent(externalReference)}`);
     return response.data;
   },
+
+  // Obtener detalles completos de un pago de MP
+  getPaymentDetails: async (paymentId: string, appType: 'POINT' | 'QR' = 'POINT'): Promise<ApiResponse<MPPaymentDetails>> => {
+    const response = await api.get(`/mercadopago/payments/${paymentId}/details?appType=${appType}`);
+    return response.data;
+  },
 };
+
+// Detalles completos de un pago de MP
+export interface MPPaymentDetails {
+  mpPaymentId?: string;
+  mpOrderId?: string;
+  mpOperationType?: string;
+  mpPointType?: string;
+  cardBrand?: string;
+  cardLastFour?: string;
+  cardFirstSix?: string;
+  cardExpirationMonth?: number;
+  cardExpirationYear?: number;
+  cardholderName?: string;
+  cardType?: string;
+  paymentMethodType?: string;
+  installments?: number;
+  payerEmail?: string;
+  payerIdType?: string;
+  payerIdNumber?: string;
+  authorizationCode?: string;
+  transactionAmount?: number;
+  netReceivedAmount?: number;
+  mpFeeAmount?: number;
+  mpFeeRate?: number;
+  bankOriginId?: string;
+  bankOriginName?: string;
+  bankTransferId?: string;
+  mpDeviceId?: string;
+  mpPosId?: string;
+  mpStoreId?: string;
+  status?: string;
+  statusDetail?: string;
+  dateApproved?: string;
+  dateCreated?: string;
+}
 
 export default api;
