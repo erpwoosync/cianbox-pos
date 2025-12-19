@@ -320,6 +320,73 @@ setInterval(async () => {
 
 ---
 
+## Verificación de Supervisor
+
+### POST /api/auth/verify-supervisor
+
+Verifica el PIN de un supervisor para autorizar operaciones sensibles (como retiros de caja).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Body:**
+```json
+{
+  "pin": "1234",
+  "requiredPermission": "cash:movements"
+}
+```
+
+**Validaciones:**
+- `pin`: debe ser 4 dígitos numéricos
+- `requiredPermission`: permiso que debe tener el supervisor
+
+**Respuesta exitosa:**
+```json
+{
+  "success": true,
+  "data": {
+    "supervisor": {
+      "id": "user_456",
+      "name": "Carlos Supervisor",
+      "email": "supervisor@demo.com",
+      "role": "manager"
+    }
+  }
+}
+```
+
+**Errores:**
+```json
+// PIN inválido
+{
+  "success": false,
+  "statusCode": 401,
+  "error": "PIN inválido"
+}
+
+// Supervisor sin permiso
+{
+  "success": false,
+  "statusCode": 403,
+  "error": "El usuario no tiene permiso para autorizar esta operación"
+}
+```
+
+**Flujo de uso típico:**
+```
+1. Cajero intenta hacer retiro de efectivo
+2. Frontend muestra modal solicitando PIN de supervisor
+3. Usuario ingresa PIN de supervisor
+4. Frontend llama a POST /api/auth/verify-supervisor
+5. Si es válido, frontend guarda el supervisorId
+6. Frontend procede con POST /api/cash/withdraw incluyendo authorizedByUserId
+```
+
+---
+
 ## Cambio de Contraseña
 
 ### POST /api/auth/change-password

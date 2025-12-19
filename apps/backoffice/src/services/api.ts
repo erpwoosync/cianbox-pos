@@ -873,4 +873,60 @@ export const cashApi = {
   },
 };
 
+// ============ PAGOS MP HUÉRFANOS ============
+
+export interface OrphanMPOrder {
+  id: string;
+  orderId: string;
+  externalReference: string;
+  deviceId: string;
+  amount: number;
+  status: string;
+  paymentId?: string;
+  paymentMethod?: string;
+  cardBrand?: string;
+  cardLastFour?: string;
+  installments?: number;
+  createdAt: string;
+  processedAt?: string;
+}
+
+export interface CreateSaleFromOrphanDto {
+  items: Array<{
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    discount?: number;
+  }>;
+  customerId?: string;
+  notes?: string;
+}
+
+export const orphanOrdersApi = {
+  getAll: async (): Promise<OrphanMPOrder[]> => {
+    const response = await api.get('/backoffice/mp-orphan-orders');
+    return response.data.data;
+  },
+  createSale: async (orderId: string, data: CreateSaleFromOrphanDto) => {
+    const response = await api.post(`/backoffice/mp-orphan-orders/${orderId}/create-sale`, data);
+    return response.data;
+  },
+  linkSale: async (orderId: string, saleId: string) => {
+    const response = await api.post(`/backoffice/mp-orphan-orders/${orderId}/link-sale`, { saleId });
+    return response.data;
+  },
+};
+
+// Sales API
+export const salesApi = {
+  getAll: async (params?: { page?: number; pageSize?: number; status?: string; dateFrom?: string; dateTo?: string }) => {
+    const response = await api.get('/backoffice/sales', { params });
+    return response.data;
+  },
+  getById: async (id: string) => {
+    const response = await api.get(`/backoffice/sales/${id}`);
+    return response.data.data;
+  },
+};
+
 export default api;

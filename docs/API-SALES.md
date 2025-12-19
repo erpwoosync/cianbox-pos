@@ -42,6 +42,7 @@ Authorization: Bearer {token}
 {
   "branchId": "branch_001",
   "pointOfSaleId": "pos_001",
+  "cashSessionId": "session_123",
   "customerId": "customer_123",
   "receiptType": "TICKET",
   "items": [
@@ -223,12 +224,20 @@ Authorization: Bearer {token}
 - El punto de venta debe pertenecer al tenant
 - La sucursal debe pertenecer al tenant
 - Si se especifica `productId`, el producto debe existir
+- Si se especifica `cashSessionId`, debe ser una sesión abierta del usuario
 
 **Efectos secundarios:**
 1. Se genera un número de venta secuencial: `{branchCode}-{posCode}-{YYYYMMDD}-{NNNN}`
 2. Se actualiza el stock si el producto tiene `trackStock: true`
 3. Se emite evento Socket.io: `new-sale` a usuarios del tenant
 4. Si el pago es CASH, se calcula el vuelto automáticamente
+5. **Se vincula la venta a la sesión de caja activa (cashSessionId)**
+6. **Se actualizan los totales de la sesión de caja** (totalCash, totalDebit, totalCredit, etc.)
+
+**Vinculación con sesión de caja:**
+- Si el usuario tiene una sesión de caja abierta, la venta debe vincularse a ella
+- Al completar la venta, se actualizan automáticamente los totales de la sesión
+- Esto permite que el sistema de caja calcule correctamente el efectivo esperado
 
 **Errores:**
 ```json

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi } from '../services/api';
+import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi, stockApi } from '../services/api';
 import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin, ToggleLeft, ToggleRight, Plus, X } from 'lucide-react';
 
 interface QRStore {
@@ -27,7 +27,17 @@ interface SystemPOS {
   name: string;
   mpQrPosId?: number | null;
   mpQrExternalId?: string | null;
-  branch?: { name: string };
+  branch?: { id: string; name: string; code: string };
+  branchId: string;
+}
+
+interface SystemBranch {
+  id: string;
+  code: string;
+  name: string;
+  address?: string;
+  city?: string;
+  state?: string;
 }
 
 export default function Integrations() {
@@ -53,6 +63,7 @@ export default function Integrations() {
   const [loadingQrData, setLoadingQrData] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [systemPOSList, setSystemPOSList] = useState<SystemPOS[]>([]);
+  const [systemBranches, setSystemBranches] = useState<SystemBranch[]>([]);
   const [linkingCashier, setLinkingCashier] = useState<number | null>(null);
   const [changingModeDeviceId, setChangingModeDeviceId] = useState<string | null>(null);
 
@@ -129,6 +140,7 @@ export default function Integrations() {
       if (result.isQrConnected) {
         loadQRData();
         loadSystemPOS();
+        loadSystemBranches();
       }
     } catch (error) {
       console.error('Error loading MP config:', error);
@@ -159,6 +171,44 @@ export default function Integrations() {
       setSystemPOSList(posList);
     } catch (error) {
       console.error('Error loading system POS:', error);
+    }
+  };
+
+  const loadSystemBranches = async () => {
+    try {
+      const branches = await stockApi.getBranches();
+      setSystemBranches(branches);
+    } catch (error) {
+      console.error('Error loading system branches:', error);
+    }
+  };
+
+  // Autocompletar datos de local desde sucursal seleccionada
+  const handleBranchSelect = (branchId: string) => {
+    const branch = systemBranches.find(b => b.id === branchId);
+    if (branch) {
+      setNewStoreData({
+        name: branch.name,
+        external_id: branch.code.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+        street_name: branch.address || '',
+        street_number: '',
+        city_name: branch.city || '',
+        state_name: branch.state || '',
+      });
+    }
+  };
+
+  // Autocompletar datos de caja desde POS seleccionado
+  const handlePosSelectForCashier = (posId: string) => {
+    setLinkToPosId(posId);
+    if (posId) {
+      const pos = systemPOSList.find(p => p.id === posId);
+      if (pos) {
+        setNewCashierData({
+          name: pos.name,
+          external_id: pos.code.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+        });
+      }
     }
   };
 
@@ -947,6 +997,27 @@ export default function Integrations() {
               </button>
             </div>
             <div className="p-4 space-y-4">
+              {/* Selector de sucursal del sistema para autocompletar */}
+              {systemBranches.length > 0 && (
+                <div className="pb-3 border-b">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Crear desde sucursal del sistema <span className="text-gray-400 font-normal">(opcional)</span>
+                  </label>
+                  <select
+                    onChange={(e) => handleBranchSelect(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value="">Seleccionar sucursal para autocompletar...</option>
+                    {systemBranches.map(branch => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name} ({branch.code})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Se autocompletarán los datos del local desde la sucursal</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del local *</label>
                 <input
@@ -1072,25 +1143,25 @@ export default function Integrations() {
                 <p className="text-xs text-gray-500 mt-1">Solo letras y números, sin espacios</p>
               </div>
 
-              {/* Selector de POS para vincular */}
+              {/* Selector de POS para vincular y autocompletar */}
               {systemPOSList.filter(pos => !pos.mpQrPosId).length > 0 && (
-                <div className="pt-2 border-t">
+                <div className="pb-3 border-b">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Vincular a Punto de Venta <span className="text-gray-400 font-normal">(opcional)</span>
+                    Crear desde Punto de Venta del sistema <span className="text-gray-400 font-normal">(opcional)</span>
                   </label>
                   <select
                     value={linkToPosId}
-                    onChange={(e) => setLinkToPosId(e.target.value)}
+                    onChange={(e) => handlePosSelectForCashier(e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   >
-                    <option value="">No vincular ahora</option>
+                    <option value="">Seleccionar POS para autocompletar...</option>
                     {systemPOSList.filter(pos => !pos.mpQrPosId).map(pos => (
                       <option key={pos.id} value={pos.id}>
                         {pos.name} ({pos.code}) - {pos.branch?.name || 'Sin sucursal'}
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">La caja QR se vinculará automáticamente al punto de venta seleccionado</p>
+                  <p className="text-xs text-gray-500 mt-1">Se autocompletará nombre y ID externo, y se vinculará al POS al crear</p>
                 </div>
               )}
             </div>

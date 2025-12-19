@@ -309,11 +309,12 @@ Authorization: Bearer {token}
 **Cálculo del monto esperado:**
 ```
 expectedCash = openingAmount
-             + sumaVentasEfectivo
-             - vueltos
+             + payment.amount (solo CASH, ya neto sin vuelto)
              + depositsTotal
              - withdrawalsTotal
 ```
+
+**Nota importante:** Los pagos en efectivo (CASH) ya vienen con el monto neto (total de la venta menos vuelto). El campo `changeAmount` es solo informativo y no se resta del expectedCash.
 
 ---
 
@@ -486,14 +487,12 @@ Authorization: Bearer {token}
 
 ### POST /api/cash/withdraw
 
-Registra un retiro de efectivo.
+Registra un retiro de efectivo. **Requiere autorización de supervisor mediante PIN.**
 
 **Headers:**
 ```
 Authorization: Bearer {token}
 ```
-
-**Permisos:** `cash:withdraw`
 
 **Body:**
 ```json
@@ -502,9 +501,13 @@ Authorization: Bearer {token}
   "reason": "SAFE_DEPOSIT",
   "description": "Retiro a caja fuerte",
   "reference": "CF-002",
-  "destinationType": "SAFE"
+  "destinationType": "SAFE",
+  "authorizedByUserId": "user_supervisor_123"
 }
 ```
+
+**Campos requeridos:**
+- `authorizedByUserId`: ID del supervisor que autorizó el retiro (obtenido mediante `/api/auth/verify-supervisor`)
 
 **Tipos de movimiento (egreso):**
 - `WITHDRAWAL` - Retiro genérico
@@ -537,12 +540,38 @@ Authorization: Bearer {token}
 }
 ```
 
+**Flujo de autorización:**
+```
+1. Frontend POS: Usuario solicita retiro
+2. Frontend: Muestra modal "Ingrese PIN de supervisor"
+3. Frontend: POST /api/auth/verify-supervisor { pin, requiredPermission: "cash:movements" }
+4. Backend: Valida PIN y permiso, devuelve supervisor.id
+5. Frontend: Guarda authorizedByUserId
+6. Frontend: POST /api/cash/withdraw { amount, ..., authorizedByUserId }
+7. Backend: Verifica que authorizedByUserId sea válido y tenga permiso
+8. Backend: Registra movimiento con authorizedByUserId
+```
+
 **Error:**
 ```json
 {
   "success": false,
   "statusCode": 400,
   "error": "No hay suficiente efectivo. Disponible: $8230.50"
+}
+
+// Falta autorización de supervisor
+{
+  "success": false,
+  "statusCode": 400,
+  "error": "Se requiere autorización de supervisor"
+}
+
+// Supervisor no válido
+{
+  "success": false,
+  "statusCode": 400,
+  "error": "Supervisor no válido"
 }
 ```
 
@@ -725,6 +754,52 @@ Authorization: Bearer {token}
 
 ---
 
+## Comportamiento del POS
+
+### Auto-selección de POS con Sesión Abierta
+
+Cuando un usuario accede al POS o actualiza la página:
+
+1. El sistema verifica si el usuario tiene una sesión de caja abierta (`GET /api/cash/current`)
+2. Si existe sesión abierta:
+   - Se auto-selecciona el POS vinculado a esa sesión
+   - Se carga el estado de la sesión
+   - Se muestra el estado de caja en la interfaz
+3. Si no hay sesión abierta:
+   - El usuario debe seleccionar un POS
+   - Se verifica si ese POS tiene sesión abierta por otro usuario (`GET /api/cash/status/:posId`)
+
+**Beneficio:** El usuario no pierde contexto al refrescar la página.
+
+---
+
+### Restricciones de Cambio de POS
+
+**Regla:** No se puede cambiar de punto de venta mientras hay una sesión de caja abierta.
+
+**Flujo:**
+```
+1. Usuario intenta cambiar POS
+2. Frontend verifica: ¿Hay sesión de caja abierta?
+   ├─> Sí → Muestra mensaje: "Debe cerrar la sesión de caja antes de cambiar de punto de venta"
+   └─> No → Permite cambio de POS
+```
+
+**Motivo:** Prevenir inconsistencias en los registros de caja y ventas.
+
+---
+
+### Limpieza de Carrito al Cambiar POS
+
+Cuando se cambia de punto de venta:
+- Se limpia automáticamente el carrito de compras
+- Se resetea el estado de la venta en progreso
+- Se limpian las promociones aplicadas
+
+**Motivo:** Evitar que productos agregados en un POS se registren en otro POS diferente.
+
+---
+
 ## Reportes
 
 ### GET /api/cash/report/session/:id
@@ -863,6 +938,45 @@ Authorization: Bearer {token}
 - `dateTo`
 - `page` (default: 1)
 - `pageSize` (default: 20)
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "data": {
+    "sessions": [
+      {
+        "id": "session_123",
+        "sessionNumber": "T-POS001-20251219-001",
+        "status": "OPEN",
+        "openedAt": "2025-12-19T08:00:00Z",
+        "pointOfSale": {
+          "id": "pos_001",
+          "code": "POS001",
+          "name": "Caja 1"
+        },
+        "user": {
+          "id": "user_123",
+          "name": "María González"
+        },
+        "_count": {
+          "sales": 15,
+          "movements": 3,
+          "counts": 1
+        }
+      }
+    ],
+    "pagination": {
+      "total": 45,
+      "page": 1,
+      "pageSize": 20,
+      "totalPages": 3
+    }
+  }
+}
+```
+
+**Nota:** Este endpoint está diseñado para el backoffice y requiere permisos elevados.
 
 ---
 

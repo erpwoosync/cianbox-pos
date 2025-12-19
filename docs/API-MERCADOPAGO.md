@@ -355,9 +355,70 @@ Authorization: Bearer {token}
     {
       "id": "123456",
       "name": "Sucursal Centro",
-      "external_id": "SUC-001"
+      "external_id": "SUC-001",
+      "location": {
+        "address_line": "Av. Corrientes 1234"
+      }
     }
   ]
+}
+```
+
+---
+
+### POST /api/mercadopago/qr/stores
+
+Crea una nueva sucursal en Mercado Pago para generar cajas QR.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Body:**
+```json
+{
+  "name": "Sucursal Centro",
+  "external_id": "SUC001",
+  "location": {
+    "address_line": "Av. Corrientes 1234",
+    "reference": "Entre Av. 9 de Julio y Reconquista",
+    "latitude": -34.603722,
+    "longitude": -58.381592
+  }
+}
+```
+
+**Campos:**
+- `name`: Nombre de la sucursal (requerido)
+- `external_id`: ID externo único (requerido, se formatea automáticamente a mayúsculas alfanumérico)
+- `location.address_line`: Dirección de la sucursal (requerido)
+- `location.reference`: Referencia adicional (opcional)
+- `location.latitude`: Latitud (opcional)
+- `location.longitude`: Longitud (opcional)
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "123456",
+    "name": "Sucursal Centro",
+    "external_id": "SUC001",
+    "location": {
+      "address_line": "Av. Corrientes 1234"
+    }
+  }
+}
+```
+
+**Errores:**
+```json
+// External ID ya existe
+{
+  "success": false,
+  "statusCode": 400,
+  "error": "Ya existe una sucursal con ese external_id"
 }
 ```
 
@@ -394,6 +455,64 @@ Authorization: Bearer {token}
       }
     }
   ]
+}
+```
+
+---
+
+### POST /api/mercadopago/qr/cashiers
+
+Crea una nueva caja QR en Mercado Pago.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Body:**
+```json
+{
+  "name": "Caja 1",
+  "external_id": "CAJA01",
+  "store_id": "123456",
+  "category": 5611203
+}
+```
+
+**Campos:**
+- `name`: Nombre de la caja (requerido)
+- `external_id`: ID externo único (requerido, se formatea automáticamente a mayúsculas alfanumérico)
+- `store_id`: ID de la sucursal MP donde se creará la caja (requerido)
+- `category`: Código de categoría MCC (opcional, default: 5611203 - Comercio minorista)
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 789012,
+    "name": "Caja 1",
+    "external_id": "CAJA01",
+    "store_id": "123456",
+    "qr": {
+      "image": "https://www.mercadopago.com/instore/merchant/qr/...",
+      "template_document": "https://...",
+      "template_image": "https://..."
+    }
+  },
+  "message": "Caja QR creada exitosamente. Ahora puedes vincularla a un punto de venta."
+}
+```
+
+**Nota:** Después de crear la caja QR, se sugiere vincularla a un POS existente usando `PUT /api/mercadopago/points-of-sale/:id/qr-cashier`.
+
+**Errores:**
+```json
+// External ID ya existe
+{
+  "success": false,
+  "statusCode": 400,
+  "error": "Ya existe una caja con ese external_id"
 }
 ```
 
@@ -538,11 +657,43 @@ Authorization: Bearer {token}
   "success": true,
   "data": {
     "id": "pos_123",
-    "code": "POS-001",
+    "code": "POS001",
     "name": "Caja 1",
     "mpDeviceId": "PAX_A910__8701012345",
     "mpDeviceName": "Point Caja 1"
   }
+}
+```
+
+**Nota:** Si el POS no tiene código asignado, se auto-genera como CAJA-01, CAJA-02, etc.
+
+---
+
+### PUT /api/mercadopago/devices/:deviceId/operating-mode
+
+Cambia el modo operativo de un dispositivo Point.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Body:**
+```json
+{
+  "operatingMode": "PDV"
+}
+```
+
+**Modos disponibles:**
+- `PDV` - Modo punto de venta (default)
+- `STANDALONE` - Modo autónomo
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Modo operativo actualizado a PDV"
 }
 ```
 

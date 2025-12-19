@@ -8,6 +8,13 @@
 - Responder en espanol
 - Ejecutar comandos y editar archivos directamente
 - Seguir la guia tecnica en `docs/GUIA-TECNICA-POS-CIANBOX.md`
+- **Build local antes de push:** SIEMPRE ejecutar build local antes de hacer push para no subir codigo con errores:
+  ```bash
+  cd apps/backend && npm run build
+  cd apps/frontend && npm run build
+  cd apps/backoffice && npm run build
+  cd apps/agency && npm run build
+  ```
 - **Despliegue a produccion:** Los deploys se realizan mediante commit/push a GitHub. El self-hosted runner en el servidor ejecuta automaticamente los GitHub Actions. NO hacer deploy manual por SSH.
 - **Migraciones Prisma:** Los cambios en `schema.prisma` se aplican automaticamente en el deploy via `prisma db push`. No requiere intervencion manual.
 

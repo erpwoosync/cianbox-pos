@@ -23,6 +23,7 @@ import {
   Gift,
   Plug,
   Banknote,
+  AlertTriangle,
 } from 'lucide-react';
 
 const menuItems = [
@@ -37,6 +38,7 @@ const menuItems = [
   { path: '/stock', label: 'Stock', icon: Warehouse },
   { path: '/promotions', label: 'Promociones', icon: Gift },
   { path: '/sales', label: 'Ventas', icon: ShoppingCart },
+  { path: '/orphan-payments', label: 'Pagos Huerfanos', icon: AlertTriangle },
   { path: '/cash-sessions', label: 'Caja', icon: Banknote },
   { path: '/roles', label: 'Roles', icon: Shield },
   { path: '/users', label: 'Usuarios', icon: Users },

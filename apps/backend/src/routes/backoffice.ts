@@ -1853,6 +1853,7 @@ router.post(
 
       const saleItems: Array<{
         productId: string;
+        productName: string;
         quantity: number;
         unitPrice: number;
         discount: number;
@@ -1876,6 +1877,7 @@ router.post(
 
         saleItems.push({
           productId: item.productId,
+          productName: product.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           discount: itemDiscount,
