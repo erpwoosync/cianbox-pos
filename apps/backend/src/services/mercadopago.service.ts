@@ -695,7 +695,10 @@ class MercadoPagoService {
   /**
    * Obtiene los detalles completos de un pago de MP por su ID
    * Devuelve toda la información para guardar en Payment
-   * Si el ID es un orderId (empieza con "ORD"), primero obtiene el paymentId de la orden
+   * Maneja diferentes formatos de ID:
+   * - orderId (empieza con "ORD"): consulta la orden primero
+   * - externalReference (formato POS-*): busca por external_reference (QR)
+   * - paymentId numérico: consulta directamente
    */
   async getPaymentDetails(tenantId: string, paymentIdOrOrderId: string, appType: MercadoPagoAppType = 'POINT'): Promise<MPPaymentDetails> {
     const accessToken = await this.getValidAccessToken(tenantId, appType);
@@ -725,6 +728,30 @@ class MercadoPagoService {
         throw new Error('La orden no tiene un pago asociado');
       }
       actualPaymentId = payment.id.toString();
+    }
+    // Si es un externalReference (formato POS-* o similar, no numérico), buscar por external_reference
+    else if (isNaN(Number(paymentIdOrOrderId))) {
+      const searchResponse = await fetch(
+        `${this.baseUrl}/v1/payments/search?external_reference=${encodeURIComponent(paymentIdOrOrderId)}&sort=date_created&criteria=desc`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!searchResponse.ok) {
+        throw new Error(`Error al buscar pago por external_reference: ${searchResponse.status}`);
+      }
+
+      const searchData = await searchResponse.json() as { results: Array<{ id: number }> };
+      const foundPayment = searchData.results?.[0];
+
+      if (!foundPayment?.id) {
+        throw new Error('No se encontró un pago con esa referencia externa');
+      }
+      actualPaymentId = foundPayment.id.toString();
     }
 
     const response = await fetch(`${this.baseUrl}/v1/payments/${actualPaymentId}`, {
