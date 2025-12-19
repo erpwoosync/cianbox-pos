@@ -145,7 +145,7 @@ export default function SaleDetail() {
     }
   };
 
-  const syncPaymentFromMP = async (paymentId: string, transactionId: string) => {
+  const syncPaymentFromMP = async (paymentId: string) => {
     setSyncingPaymentId(paymentId);
     try {
       // Llamar al endpoint de sync
@@ -527,7 +527,7 @@ export default function SaleDetail() {
                 {payment.transactionId && !payment.mpPaymentId && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <button
-                      onClick={() => syncPaymentFromMP(payment.id, payment.transactionId!)}
+                      onClick={() => syncPaymentFromMP(payment.id)}
                       disabled={syncingPaymentId === payment.id}
                       className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
