@@ -1,7 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType } from '../services/api';
-import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode } from 'lucide-react';
+import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi } from '../services/api';
+import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin } from 'lucide-react';
+
+interface QRStore {
+  id: string;
+  name: string;
+  external_id: string;
+}
+
+interface QRCashier {
+  id: number;
+  name: string;
+  external_id: string;
+  store_id: string;
+  qr?: {
+    image: string;
+    template_document: string;
+    template_image: string;
+  };
+}
+
+interface SystemPOS {
+  id: string;
+  code: string;
+  name: string;
+  mpQrPosId?: number | null;
+  mpQrExternalId?: string | null;
+  branch?: { name: string };
+}
 
 export default function Integrations() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -19,6 +46,14 @@ export default function Integrations() {
   const [mpDevices, setMpDevices] = useState<MercadoPagoDevice[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // QR Stores and Cashiers
+  const [qrStores, setQrStores] = useState<QRStore[]>([]);
+  const [qrCashiers, setQrCashiers] = useState<QRCashier[]>([]);
+  const [loadingQrData, setLoadingQrData] = useState(false);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+  const [systemPOSList, setSystemPOSList] = useState<SystemPOS[]>([]);
+  const [linkingCashier, setLinkingCashier] = useState<number | null>(null);
 
   useEffect(() => {
     // Check for OAuth callback params
@@ -64,10 +99,72 @@ export default function Integrations() {
       if (result.isPointConnected) {
         loadDevices();
       }
+
+      // Load QR data if QR is connected
+      if (result.isQrConnected) {
+        loadQRData();
+        loadSystemPOS();
+      }
     } catch (error) {
       console.error('Error loading MP config:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadQRData = async () => {
+    setLoadingQrData(true);
+    try {
+      const stores = await mercadoPagoApi.listQRStores();
+      setQrStores(stores);
+
+      // Load all cashiers
+      const cashiers = await mercadoPagoApi.listQRCashiers();
+      setQrCashiers(cashiers);
+    } catch (error) {
+      console.error('Error loading QR data:', error);
+    } finally {
+      setLoadingQrData(false);
+    }
+  };
+
+  const loadSystemPOS = async () => {
+    try {
+      const posList = await pointsOfSaleApi.getAll();
+      setSystemPOSList(posList);
+    } catch (error) {
+      console.error('Error loading system POS:', error);
+    }
+  };
+
+  const handleLinkCashierToPOS = async (cashierId: number, cashierExternalId: string, posId: string) => {
+    setLinkingCashier(cashierId);
+    try {
+      await mercadoPagoApi.linkQRCashierToPOS(posId, {
+        mpQrPosId: cashierId,
+        mpQrPosExternalId: cashierExternalId,
+      });
+      await loadSystemPOS();
+      setNotification({ type: 'success', message: 'Caja QR vinculada exitosamente' });
+    } catch (error) {
+      console.error('Error linking cashier:', error);
+      setNotification({ type: 'error', message: 'Error al vincular caja QR' });
+    } finally {
+      setLinkingCashier(null);
+    }
+  };
+
+  const handleUnlinkCashier = async (posId: string) => {
+    try {
+      await mercadoPagoApi.linkQRCashierToPOS(posId, {
+        mpQrPosId: null,
+        mpQrPosExternalId: null,
+      });
+      await loadSystemPOS();
+      setNotification({ type: 'success', message: 'Caja QR desvinculada' });
+    } catch (error) {
+      console.error('Error unlinking cashier:', error);
+      setNotification({ type: 'error', message: 'Error al desvincular' });
     }
   };
 
@@ -460,6 +557,176 @@ export default function Integrations() {
                 y edita el POS deseado.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Stores and Cashiers Section - Only show if QR is connected */}
+      {isQrConnected && (
+        <div className="bg-white rounded-xl shadow-sm mt-6">
+          <div className="p-4 border-b flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Store size={20} className="text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Locales y Cajas QR</h2>
+                <p className="text-sm text-gray-500">
+                  Vincula las cajas de Mercado Pago a tus puntos de venta
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={loadQRData}
+              disabled={loadingQrData}
+              className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border rounded-lg hover:bg-gray-50"
+            >
+              <RefreshCw size={18} className={loadingQrData ? 'animate-spin' : ''} />
+              Actualizar
+            </button>
+          </div>
+
+          <div className="p-4">
+            {loadingQrData ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="w-6 h-6 animate-spin text-purple-600" />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Store filter */}
+                {qrStores.length > 1 && (
+                  <div className="flex items-center gap-4">
+                    <label className="text-sm font-medium text-gray-700">Filtrar por local:</label>
+                    <select
+                      value={selectedStoreId}
+                      onChange={(e) => setSelectedStoreId(e.target.value)}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    >
+                      <option value="">Todos los locales</option>
+                      {qrStores.map(store => (
+                        <option key={store.id} value={store.id}>{store.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Stores list */}
+                <div className="space-y-4">
+                  {qrStores
+                    .filter(store => !selectedStoreId || store.id === selectedStoreId)
+                    .map(store => {
+                      const storeCashiers = qrCashiers.filter(c => c.store_id === store.id);
+
+                      return (
+                        <div key={store.id} className="border rounded-lg overflow-hidden">
+                          {/* Store header */}
+                          <div className="bg-gray-50 px-4 py-3 flex items-center gap-3">
+                            <MapPin size={18} className="text-gray-500" />
+                            <span className="font-medium text-gray-900">{store.name}</span>
+                            <span className="text-xs text-gray-500">({storeCashiers.length} cajas)</span>
+                          </div>
+
+                          {/* Cashiers */}
+                          {storeCashiers.length === 0 ? (
+                            <div className="p-4 text-center text-gray-500 text-sm">
+                              No hay cajas en este local
+                            </div>
+                          ) : (
+                            <div className="divide-y">
+                              {storeCashiers.map(cashier => {
+                                const linkedPOS = systemPOSList.find(pos => pos.mpQrPosId === cashier.id);
+
+                                return (
+                                  <div key={cashier.id} className="p-4 flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                        <QrCode size={20} className="text-purple-600" />
+                                      </div>
+                                      <div>
+                                        <p className="font-medium text-gray-900">{cashier.name}</p>
+                                        <p className="text-xs text-gray-500">
+                                          ID: {cashier.id} | External: {cashier.external_id || '-'}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                      {/* Print QR button */}
+                                      {cashier.qr?.template_document && (
+                                        <a
+                                          href={cashier.qr.template_document}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100"
+                                        >
+                                          <Printer size={16} />
+                                          Imprimir QR
+                                        </a>
+                                      )}
+
+                                      {/* Link status / selector */}
+                                      {linkedPOS ? (
+                                        <div className="flex items-center gap-2">
+                                          <span className="px-3 py-1.5 text-sm text-green-700 bg-green-100 rounded-lg flex items-center gap-2">
+                                            <CheckCircle size={14} />
+                                            Vinculado a: {linkedPOS.name}
+                                          </span>
+                                          <button
+                                            onClick={() => handleUnlinkCashier(linkedPOS.id)}
+                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                                            title="Desvincular"
+                                          >
+                                            <Unlink size={16} />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-2">
+                                          <select
+                                            disabled={linkingCashier === cashier.id}
+                                            onChange={(e) => {
+                                              if (e.target.value) {
+                                                handleLinkCashierToPOS(cashier.id, cashier.external_id, e.target.value);
+                                              }
+                                            }}
+                                            className="px-3 py-1.5 text-sm border rounded-lg"
+                                            defaultValue=""
+                                          >
+                                            <option value="">Vincular a POS...</option>
+                                            {systemPOSList
+                                              .filter(pos => !pos.mpQrPosId)
+                                              .map(pos => (
+                                                <option key={pos.id} value={pos.id}>
+                                                  {pos.name} {pos.branch?.name ? `(${pos.branch.name})` : ''}
+                                                </option>
+                                              ))}
+                                          </select>
+                                          {linkingCashier === cashier.id && (
+                                            <RefreshCw size={16} className="animate-spin text-purple-600" />
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {qrStores.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Store size={48} className="mx-auto mb-3 text-gray-300" />
+                    <p>No se encontraron locales en Mercado Pago</p>
+                    <p className="text-sm mt-1">
+                      Crea locales y cajas en tu cuenta de Mercado Pago para verlos aquí
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

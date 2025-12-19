@@ -306,6 +306,10 @@ model PointOfSale {
   mpDeviceId    String?  // device_id del terminal MP Point
   mpDeviceName  String?  // Nombre del dispositivo MP Point
 
+  // Mercado Pago QR
+  mpQrPosId     Int?     // ID de la caja/POS en MP para QR
+  mpQrExternalId String? // external_id de la caja en MP
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

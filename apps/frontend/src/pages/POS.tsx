@@ -99,6 +99,7 @@ type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' |
 
 interface MPQRState {
   orderId: string;
+  externalReference: string;
   qrData?: string;
   qrBase64?: string;
   status: 'PENDING' | 'PROCESSED' | 'CANCELED' | 'FAILED' | 'EXPIRED';
@@ -996,6 +997,7 @@ export default function POS() {
       if (response.success) {
         setMpQR({
           orderId: response.data.orderId,
+          externalReference,
           qrData: response.data.qrData,
           qrBase64: response.data.qrBase64,
           status: 'PENDING',
@@ -1015,10 +1017,10 @@ export default function POS() {
           });
         }, 1000);
 
-        // Iniciar polling para verificar estado
+        // Iniciar polling para verificar estado usando external_reference
         mpQRPollingRef.current = setInterval(async () => {
           try {
-            const statusResponse = await mercadoPagoService.getOrderStatus(response.data.orderId);
+            const statusResponse = await mercadoPagoService.getQROrderStatus(externalReference);
             if (statusResponse.success) {
               const newStatus = statusResponse.data.status;
 
@@ -1037,7 +1039,7 @@ export default function POS() {
 
                 // Si se procesó exitosamente, crear la venta
                 if (newStatus === 'PROCESSED') {
-                  await processSaleWithMPQRPayment(response.data.orderId);
+                  await processSaleWithMPQRPayment(externalReference);
                 }
               }
             }

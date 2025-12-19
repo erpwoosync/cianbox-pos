@@ -528,6 +528,77 @@ class MercadoPagoService {
   }
 
   /**
+   * Consulta el estado de una orden QR buscando pagos por external_reference
+   */
+  async getQROrderStatus(tenantId: string, externalReference: string) {
+    const accessToken = await this.getValidAccessToken(tenantId, 'QR');
+
+    // Buscar pagos por external_reference
+    const response = await fetch(
+      `${this.baseUrl}/v1/payments/search?external_reference=${encodeURIComponent(externalReference)}&sort=date_created&criteria=desc`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Error al consultar pagos QR: ${response.status}`);
+    }
+
+    const data = (await response.json()) as { results: Array<{ id: string; status: string; status_detail: string; transaction_amount: number; payment_method_id: string; card?: { last_four_digits?: string }; installments?: number }> };
+
+    const payment = data.results?.[0];
+
+    if (!payment) {
+      return {
+        status: 'PENDING',
+        externalReference,
+      };
+    }
+
+    // Mapear status de pago a nuestro status
+    let status = 'PENDING';
+    if (payment.status === 'approved') {
+      status = 'PROCESSED';
+    } else if (payment.status === 'cancelled' || payment.status === 'refunded') {
+      status = 'CANCELED';
+    } else if (payment.status === 'rejected') {
+      status = 'FAILED';
+    }
+
+    // Actualizar en nuestra DB si existe
+    try {
+      await prisma.mercadoPagoOrder.updateMany({
+        where: { externalReference },
+        data: {
+          status,
+          paymentId: payment.id?.toString(),
+          paymentMethod: payment.payment_method_id,
+          cardLastFour: payment.card?.last_four_digits,
+          installments: payment.installments,
+          updatedAt: new Date(),
+          ...(status === 'PROCESSED' ? { processedAt: new Date() } : {}),
+        },
+      });
+    } catch (e) {
+      console.error('Error actualizando orden QR en DB:', e);
+    }
+
+    return {
+      status,
+      externalReference,
+      paymentId: payment.id?.toString(),
+      paymentMethod: payment.payment_method_id,
+      cardLastFour: payment.card?.last_four_digits,
+      installments: payment.installments,
+      amount: payment.transaction_amount,
+    };
+  }
+
+  /**
    * Cancela una orden pendiente (Point)
    * Nota: Solo se puede cancelar cuando status = 'created'.
    * Si está 'at_terminal', debe cancelarse desde el dispositivo físico.
@@ -756,7 +827,17 @@ class MercadoPagoService {
   /**
    * Lista cajas (POS) de una sucursal para QR
    */
-  async listQRCashiers(tenantId: string, storeId?: string): Promise<Array<{ id: number; name: string; external_id: string; store_id: string }>> {
+  async listQRCashiers(tenantId: string, storeId?: string): Promise<Array<{
+    id: number;
+    name: string;
+    external_id: string;
+    store_id: string;
+    qr?: {
+      image: string;
+      template_document: string;
+      template_image: string;
+    };
+  }>> {
     const accessToken = await this.getValidAccessToken(tenantId, 'QR');
 
     // Obtener el user_id de la config
@@ -784,7 +865,19 @@ class MercadoPagoService {
       throw new Error('Error al obtener cajas de Mercado Pago');
     }
 
-    const data = await response.json() as { results?: Array<{ id: number; name: string; external_id: string; store_id: string }> };
+    interface MPPosResult {
+      id: number;
+      name: string;
+      external_id: string;
+      store_id: string;
+      qr?: {
+        image: string;
+        template_document: string;
+        template_image: string;
+      };
+    }
+
+    const data = await response.json() as { results?: MPPosResult[] };
     return data.results || [];
   }
 

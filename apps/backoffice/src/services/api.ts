@@ -669,6 +669,35 @@ export const mercadoPagoApi = {
     const response = await api.put(`/mercadopago/points-of-sale/${posId}/device`, data);
     return response.data.data;
   },
+
+  // Listar sucursales/locales de MP QR
+  listQRStores: async (): Promise<Array<{ id: string; name: string; external_id: string }>> => {
+    const response = await api.get('/mercadopago/qr/stores');
+    return response.data.data;
+  },
+
+  // Listar cajas/POS de MP QR
+  listQRCashiers: async (storeId?: string): Promise<Array<{
+    id: number;
+    name: string;
+    external_id: string;
+    store_id: string;
+    qr?: {
+      image: string;
+      template_document: string;
+      template_image: string;
+    };
+  }>> => {
+    const params = storeId ? `?storeId=${storeId}` : '';
+    const response = await api.get(`/mercadopago/qr/cashiers${params}`);
+    return response.data.data;
+  },
+
+  // Vincular caja QR a un PointOfSale del sistema
+  linkQRCashierToPOS: async (posId: string, data: { mpQrPosId: number | null; mpQrPosExternalId?: string | null }) => {
+    const response = await api.put(`/mercadopago/points-of-sale/${posId}/qr-cashier`, data);
+    return response.data.data;
+  },
 };
 
 export default api;

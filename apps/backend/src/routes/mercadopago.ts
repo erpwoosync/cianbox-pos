@@ -223,6 +223,30 @@ router.get('/orders/:orderId', authenticate, async (req: AuthenticatedRequest, r
 });
 
 /**
+ * GET /api/mercadopago/qr/status/:externalReference
+ * Consulta el estado de una orden QR por external_reference
+ */
+router.get('/qr/status/:externalReference', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { externalReference } = req.params;
+
+    const result = await mercadoPagoService.getQROrderStatus(tenantId, externalReference);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error consultando orden QR:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
  * POST /api/mercadopago/orders/:orderId/cancel
  * Cancela una orden pendiente
  */
@@ -332,6 +356,63 @@ router.put('/points-of-sale/:id/device', authenticate, async (req: Authenticated
     });
   } catch (error) {
     console.error('Error actualizando device en POS:', error);
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos inválidos',
+        details: error.errors,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+const updateQRCashierSchema = z.object({
+  mpQrPosId: z.number().nullable(),
+  mpQrPosExternalId: z.string().nullable().optional(),
+});
+
+/**
+ * PUT /api/mercadopago/points-of-sale/:id/qr-cashier
+ * Vincula una caja QR de MP a un punto de venta del sistema
+ */
+router.put('/points-of-sale/:id/qr-cashier', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+    const data = updateQRCashierSchema.parse(req.body);
+
+    // Verificar que el POS pertenece al tenant
+    const pos = await prisma.pointOfSale.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!pos) {
+      return res.status(404).json({
+        success: false,
+        error: 'Punto de venta no encontrado',
+      });
+    }
+
+    const updated = await prisma.pointOfSale.update({
+      where: { id },
+      data: {
+        mpQrPosId: data.mpQrPosId,
+        mpQrExternalId: data.mpQrPosExternalId,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: updated,
+    });
+  } catch (error) {
+    console.error('Error vinculando QR cashier a POS:', error);
 
     if (error instanceof z.ZodError) {
       return res.status(400).json({

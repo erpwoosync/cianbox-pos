@@ -364,6 +364,12 @@ export const mercadoPagoService = {
     const response = await api.post('/mercadopago/qr/orders', data);
     return response.data;
   },
+
+  // Consultar estado de orden QR por external_reference
+  getQROrderStatus: async (externalReference: string) => {
+    const response = await api.get(`/mercadopago/qr/status/${encodeURIComponent(externalReference)}`);
+    return response.data;
+  },
 };
 
 export default api;
