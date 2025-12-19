@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { X, ArrowDownCircle, ArrowUpCircle, Loader2, AlertCircle } from 'lucide-react';
-import { cashService } from '../services/api';
+import { X, ArrowDownCircle, ArrowUpCircle, Loader2, AlertCircle, ShieldCheck, KeyRound } from 'lucide-react';
+import { cashService, authService } from '../services/api';
 
 type MovementType = 'deposit' | 'withdraw';
 
@@ -42,41 +42,111 @@ export default function CashMovementModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Estado para autorización de supervisor (solo retiros)
+  const [step, setStep] = useState<'form' | 'authorize'>('form');
+  const [supervisorPin, setSupervisorPin] = useState('');
+  const [supervisorInfo, setSupervisorInfo] = useState<{ id: string; name: string } | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
+
   const isWithdraw = type === 'withdraw';
   const reasons = REASONS[type];
 
-  const handleSubmit = async () => {
+  const validateForm = (): boolean => {
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setError('Ingrese un monto valido');
-      return;
+      return false;
     }
 
     if (!reason) {
       setError('Seleccione una razon');
-      return;
+      return false;
     }
 
     if (isWithdraw && parsedAmount > availableCash) {
       setError(`No hay suficiente efectivo. Disponible: $${availableCash.toLocaleString()}`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleRequestAuthorization = () => {
+    if (!validateForm()) return;
+    setError(null);
+    setStep('authorize');
+  };
+
+  const handleVerifyPin = async () => {
+    if (supervisorPin.length !== 4) {
+      setPinError('El PIN debe tener 4 dígitos');
       return;
     }
+
+    setIsLoading(true);
+    setPinError(null);
+
+    try {
+      const response = await authService.verifySupervisor(supervisorPin, 'cash:movements');
+      if (response.success && response.data.supervisor) {
+        setSupervisorInfo({
+          id: response.data.supervisor.id,
+          name: response.data.supervisor.name,
+        });
+        // Ejecutar el retiro con autorización
+        await executeWithdraw(response.data.supervisor.id);
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { message?: string } } };
+        setPinError(axiosError.response?.data?.message || 'PIN inválido o sin permisos');
+      } else {
+        setPinError('Error al verificar PIN');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const executeWithdraw = async (authorizedByUserId: string) => {
+    try {
+      const data = {
+        amount: parseFloat(amount),
+        reason,
+        description: description || undefined,
+        reference: reference || undefined,
+        ...(destinationType ? { destinationType } : {}),
+        authorizedByUserId,
+      };
+
+      const response = await cashService.withdraw(data);
+
+      if (response.success) {
+        onSuccess();
+        handleClose();
+      }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al registrar el retiro';
+      setError(errorMessage);
+      setStep('form');
+    }
+  };
+
+  const handleDepositSubmit = async () => {
+    if (!validateForm()) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
       const data = {
-        amount: parsedAmount,
+        amount: parseFloat(amount),
         reason,
         description: description || undefined,
         reference: reference || undefined,
-        ...(isWithdraw && destinationType ? { destinationType } : {}),
       };
 
-      const response = isWithdraw
-        ? await cashService.withdraw(data)
-        : await cashService.deposit(data);
+      const response = await cashService.deposit(data);
 
       if (response.success) {
         onSuccess();
@@ -97,11 +167,121 @@ export default function CashMovementModal({
     setReference('');
     setDestinationType('');
     setError(null);
+    setStep('form');
+    setSupervisorPin('');
+    setSupervisorInfo(null);
+    setPinError(null);
     onClose();
+  };
+
+  const handleBackToForm = () => {
+    setStep('form');
+    setSupervisorPin('');
+    setPinError(null);
   };
 
   if (!isOpen) return null;
 
+  // Paso de autorización de supervisor (solo para retiros)
+  if (step === 'authorize') {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-sm mx-4">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b bg-amber-50">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-amber-600" />
+              <h2 className="text-lg font-semibold">Autorización Requerida</h2>
+            </div>
+            <button onClick={handleClose} className="p-1 hover:bg-gray-200 rounded">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-4 space-y-4">
+            <div className="text-center">
+              <p className="text-gray-600 mb-2">
+                Para realizar este retiro se requiere autorización de un supervisor.
+              </p>
+              <div className="bg-gray-100 rounded-lg p-3 mb-4">
+                <p className="text-sm text-gray-500">Monto a retirar</p>
+                <p className="text-2xl font-bold text-red-600">
+                  ${parseFloat(amount).toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            {pinError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                <p className="text-sm text-red-700">{pinError}</p>
+              </div>
+            )}
+
+            {supervisorInfo && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm text-green-700">
+                  Autorizado por: <span className="font-medium">{supervisorInfo.name}</span>
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
+                <KeyRound className="w-4 h-4 inline mr-1" />
+                PIN de Supervisor
+              </label>
+              <input
+                type="password"
+                value={supervisorPin}
+                onChange={(e) => setSupervisorPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="••••"
+                maxLength={4}
+                className="w-full px-4 py-4 text-3xl text-center tracking-widest border rounded-lg focus:ring-2 focus:ring-amber-500 font-mono"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && supervisorPin.length === 4) {
+                    handleVerifyPin();
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Ingrese el PIN de 4 dígitos del supervisor
+              </p>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex gap-3 p-4 border-t bg-gray-50">
+            <button
+              onClick={handleBackToForm}
+              className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+              disabled={isLoading}
+            >
+              Volver
+            </button>
+            <button
+              onClick={handleVerifyPin}
+              disabled={isLoading || supervisorPin.length !== 4}
+              className="flex-1 py-2 px-4 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                'Autorizar'
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Formulario principal
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
@@ -224,6 +404,15 @@ export default function CashMovementModal({
               placeholder="Nro. de comprobante, factura, etc."
             />
           </div>
+
+          {isWithdraw && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-xs text-amber-700 flex items-center gap-1">
+                <ShieldCheck className="w-4 h-4" />
+                Los retiros requieren autorización de un supervisor
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -236,7 +425,7 @@ export default function CashMovementModal({
             Cancelar
           </button>
           <button
-            onClick={handleSubmit}
+            onClick={isWithdraw ? handleRequestAuthorization : handleDepositSubmit}
             disabled={isLoading || !amount || !reason}
             className={`flex-1 py-2 px-4 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
               isWithdraw ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
@@ -248,7 +437,7 @@ export default function CashMovementModal({
                 Procesando...
               </>
             ) : isWithdraw ? (
-              'Registrar Retiro'
+              'Solicitar Retiro'
             ) : (
               'Registrar Ingreso'
             )}

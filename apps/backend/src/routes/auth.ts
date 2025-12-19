@@ -13,7 +13,7 @@ import {
   verifyToken,
   AuthenticatedRequest,
 } from '../middleware/auth.js';
-import { ApiError, AuthenticationError, ValidationError } from '../utils/errors.js';
+import { ApiError, AuthenticationError, AuthorizationError, ValidationError } from '../utils/errors.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -245,6 +245,63 @@ router.post('/login/pin', async (req, res: Response, next: NextFunction) => {
           logo: tenant.logo,
         },
         sessionId: session.id,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/auth/verify-supervisor
+ * Verificar PIN de supervisor para autorización de operaciones
+ */
+const verifySupervisorSchema = z.object({
+  pin: z.string().length(4, 'PIN debe tener 4 dígitos'),
+  requiredPermission: z.string().min(1, 'Permiso requerido'),
+});
+
+router.post('/verify-supervisor', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const validation = verifySupervisorSchema.safeParse(req.body);
+    if (!validation.success) {
+      throw new ValidationError('Datos inválidos', validation.error.errors);
+    }
+
+    const { pin, requiredPermission } = validation.data;
+    const tenantId = req.user!.tenantId;
+
+    // Buscar usuario por PIN en el mismo tenant
+    const supervisor = await prisma.user.findFirst({
+      where: {
+        tenantId,
+        pin,
+        status: 'ACTIVE',
+      },
+      include: {
+        role: true,
+      },
+    });
+
+    if (!supervisor) {
+      throw new AuthenticationError('PIN inválido');
+    }
+
+    // Verificar que tenga el permiso requerido
+    const permissions = supervisor.role.permissions as string[];
+    if (!permissions.includes(requiredPermission) && !permissions.includes('*')) {
+      throw new AuthorizationError('El usuario no tiene permiso para autorizar esta operación');
+    }
+
+    res.json({
+      success: true,
+      data: {
+        supervisor: {
+          id: supervisor.id,
+          name: supervisor.name,
+          email: supervisor.email,
+          role: supervisor.role.name,
+        },
       },
     });
   } catch (error) {

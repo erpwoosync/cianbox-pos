@@ -346,6 +346,47 @@ router.get('/devices', authenticate, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
+const changeOperatingModeSchema = z.object({
+  operatingMode: z.enum(['PDV', 'STANDALONE']),
+});
+
+/**
+ * PATCH /api/mercadopago/devices/:deviceId/operating-mode
+ * Cambia el modo de operación de un dispositivo Point (PDV <-> STANDALONE)
+ *
+ * IMPORTANTE: El dispositivo debe reiniciarse después del cambio para que tome efecto
+ */
+router.patch('/devices/:deviceId/operating-mode', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { deviceId } = req.params;
+    const { operatingMode } = changeOperatingModeSchema.parse(req.body);
+
+    const device = await mercadoPagoService.changeDeviceOperatingMode(tenantId, deviceId, operatingMode);
+
+    res.json({
+      success: true,
+      data: device,
+      message: `Modo de operación cambiado a ${operatingMode}. Reinicia el dispositivo para aplicar el cambio.`,
+    });
+  } catch (error) {
+    console.error('Error cambiando modo de operación:', error);
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos inválidos',
+        details: error.errors,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
 /**
  * PUT /api/mercadopago/points-of-sale/:id/device
  * Asocia un dispositivo MP Point a un punto de venta

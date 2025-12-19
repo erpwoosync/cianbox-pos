@@ -1,5 +1,7 @@
 # CLAUDE.md - Cianbox POS
 
+**Ruta del proyecto:** `C:\Users\gabri\Drive\Carpetas\Documentos\GitHub\cianbox-pos`
+
 ## Reglas
 
 - Proceder sin pedir confirmacion

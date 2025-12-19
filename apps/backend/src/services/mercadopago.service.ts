@@ -998,6 +998,41 @@ class MercadoPagoService {
     return data.devices || [];
   }
 
+  /**
+   * Cambia el modo de operación de un dispositivo Point
+   * @param tenantId - ID del tenant
+   * @param deviceId - ID del dispositivo Point
+   * @param operatingMode - Modo de operación: 'PDV' (integrado) o 'STANDALONE' (no integrado)
+   * @returns Dispositivo actualizado
+   *
+   * IMPORTANTE: El dispositivo debe reiniciarse después del cambio para que tome efecto
+   */
+  async changeDeviceOperatingMode(
+    tenantId: string,
+    deviceId: string,
+    operatingMode: 'PDV' | 'STANDALONE'
+  ): Promise<MPDevice> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
+
+    const response = await fetch(`${this.baseUrl}/point/integration-api/devices/${deviceId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ operating_mode: operatingMode }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as { message?: string; error?: string };
+      console.error('Error cambiando modo de operación:', errorData);
+      throw new Error(errorData.message || errorData.error || `Error al cambiar modo de operación: ${response.status}`);
+    }
+
+    const device = (await response.json()) as MPDevice;
+    return device;
+  }
+
   // ============================================
   // WEBHOOKS
   // ============================================

@@ -1317,7 +1317,7 @@ const loadMore = () => setPage(prev => prev + 1);
 - **Agency Backoffice:**
   - URL: `http://172.16.1.61:8083`
   - Usuario: `admin@cianboxpos.com`
-  - Contraseña: `Admin2024!`
+  - Contraseña: `Admin123!`
 
 - **Tenant Demo:**
   - URL: `http://172.16.1.61`

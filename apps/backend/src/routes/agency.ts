@@ -999,54 +999,53 @@ router.get(
       const [
         totalTenants,
         activeTenants,
-        totalServers,
-        healthyServers,
-        tenantsByPlan,
-        recentTenants,
+        totalDbServers,
+        totalUsers,
+        recentSyncs,
       ] = await Promise.all([
         prisma.tenant.count(),
         prisma.tenant.count({ where: { status: 'ACTIVE' } }),
         prisma.databaseServer.count({ where: { isActive: true } }),
-        prisma.databaseServer.count({
-          where: { isActive: true, healthStatus: 'HEALTHY' },
-        }),
-        prisma.tenant.groupBy({
-          by: ['plan'],
-          _count: true,
-        }),
-        prisma.tenant.findMany({
+        prisma.agencyUser.count({ where: { status: 'ACTIVE' } }),
+        // Obtener sincronizaciones recientes
+        prisma.cianboxConnection.findMany({
+          where: {
+            lastSync: { not: null },
+          },
           take: 5,
-          orderBy: { createdAt: 'desc' },
+          orderBy: { lastSync: 'desc' },
           select: {
-            id: true,
-            name: true,
-            slug: true,
-            plan: true,
-            status: true,
-            createdAt: true,
+            tenantId: true,
+            lastSync: true,
+            syncStatus: true,
+            tenant: {
+              select: {
+                id: true,
+                name: true,
+                _count: { select: { products: true } },
+              },
+            },
           },
         }),
       ]);
 
+      // Formatear sincronizaciones para el frontend
+      const formattedSyncs = recentSyncs.map((sync) => ({
+        tenantId: sync.tenantId,
+        tenantName: sync.tenant?.name || 'Unknown',
+        lastSync: sync.lastSync?.toISOString() || '',
+        status: sync.syncStatus === 'SUCCESS' ? 'success' : sync.syncStatus === 'FAILED' ? 'failed' : 'pending',
+        productsCount: sync.tenant?._count?.products || 0,
+      }));
+
       res.json({
         success: true,
         data: {
-          tenants: {
-            total: totalTenants,
-            active: activeTenants,
-            byPlan: tenantsByPlan.reduce(
-              (acc, item) => ({
-                ...acc,
-                [item.plan]: item._count,
-              }),
-              {}
-            ),
-          },
-          servers: {
-            total: totalServers,
-            healthy: healthyServers,
-          },
-          recentTenants,
+          totalTenants,
+          activeTenants,
+          totalDbServers,
+          totalUsers,
+          recentSyncs: formattedSyncs,
         },
       });
     } catch (error) {

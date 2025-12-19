@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi } from '../services/api';
-import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin, ToggleLeft, ToggleRight } from 'lucide-react';
 
 interface QRStore {
   id: string;
@@ -54,6 +54,7 @@ export default function Integrations() {
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [systemPOSList, setSystemPOSList] = useState<SystemPOS[]>([]);
   const [linkingCashier, setLinkingCashier] = useState<number | null>(null);
+  const [changingModeDeviceId, setChangingModeDeviceId] = useState<string | null>(null);
 
   useEffect(() => {
     // Check for OAuth callback params
@@ -177,6 +178,35 @@ export default function Integrations() {
       console.error('Error loading devices:', error);
     } finally {
       setLoadingDevices(false);
+    }
+  };
+
+  const handleChangeDeviceMode = async (deviceId: string, currentMode: string) => {
+    const newMode = currentMode === 'PDV' ? 'STANDALONE' : 'PDV';
+    const modeLabel = newMode === 'PDV' ? 'Integrado (PDV)' : 'Independiente (STANDALONE)';
+
+    if (!confirm(`¿Cambiar el dispositivo a modo ${modeLabel}?\n\nIMPORTANTE: Deberás reiniciar el dispositivo para que el cambio tome efecto.`)) {
+      return;
+    }
+
+    setChangingModeDeviceId(deviceId);
+    try {
+      await mercadoPagoApi.changeDeviceOperatingMode(deviceId, newMode);
+      setNotification({
+        type: 'success',
+        message: `Modo cambiado a ${modeLabel}. Reinicia el dispositivo para aplicar el cambio.`,
+      });
+      // Recargar dispositivos para ver el nuevo estado
+      await loadDevices();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      console.error('Error changing device mode:', error);
+      setNotification({
+        type: 'error',
+        message: err.response?.data?.error || 'Error al cambiar modo de operación',
+      });
+    } finally {
+      setChangingModeDeviceId(null);
     }
   };
 
@@ -522,29 +552,66 @@ export default function Integrations() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mpDevices.map((device) => (
-                  <div
-                    key={device.id}
-                    className="p-4 border rounded-lg hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Smartphone size={24} className="text-blue-600" />
+                {mpDevices.map((device) => {
+                  const isPDV = device.operating_mode === 'PDV';
+                  const isChanging = changingModeDeviceId === device.id;
+
+                  return (
+                    <div
+                      key={device.id}
+                      className="p-4 border rounded-lg hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <Smartphone size={24} className="text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                isPDV
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}
+                            >
+                              {isPDV ? 'Integrado (PDV)' : 'Independiente'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500 font-mono mt-1">
+                            ...{device.id.slice(-12)}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{device.operating_mode}</p>
-                        <p className="text-sm text-gray-500 font-mono">
-                          ...{device.id.slice(-12)}
+
+                      {device.external_pos_id && (
+                        <p className="mt-2 text-xs text-gray-400">
+                          POS ID: {device.external_pos_id}
                         </p>
-                      </div>
+                      )}
+
+                      {/* Botón para cambiar modo */}
+                      <button
+                        onClick={() => handleChangeDeviceMode(device.id, device.operating_mode)}
+                        disabled={isChanging}
+                        className={`mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                          isPDV
+                            ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            : 'bg-green-50 text-green-700 hover:bg-green-100'
+                        } disabled:opacity-50`}
+                        title={isPDV ? 'Cambiar a modo Independiente' : 'Cambiar a modo Integrado (PDV)'}
+                      >
+                        {isChanging ? (
+                          <RefreshCw size={16} className="animate-spin" />
+                        ) : isPDV ? (
+                          <ToggleRight size={16} />
+                        ) : (
+                          <ToggleLeft size={16} />
+                        )}
+                        {isPDV ? 'Cambiar a Independiente' : 'Cambiar a PDV'}
+                      </button>
                     </div>
-                    {device.external_pos_id && (
-                      <p className="mt-2 text-xs text-gray-400">
-                        POS ID: {device.external_pos_id}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

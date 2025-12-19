@@ -670,6 +670,12 @@ export const mercadoPagoApi = {
     return response.data.data;
   },
 
+  // Cambiar modo de operación de un dispositivo Point (PDV <-> STANDALONE)
+  changeDeviceOperatingMode: async (deviceId: string, operatingMode: 'PDV' | 'STANDALONE') => {
+    const response = await api.patch(`/mercadopago/devices/${deviceId}/operating-mode`, { operatingMode });
+    return response.data;
+  },
+
   // Listar sucursales/locales de MP QR
   listQRStores: async (): Promise<Array<{ id: string; name: string; external_id: string }>> => {
     const response = await api.get('/mercadopago/qr/stores');

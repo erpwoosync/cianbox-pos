@@ -982,27 +982,61 @@ router.post(
 
 /**
  * POST /api/cash/withdraw
- * Registrar retiro de efectivo
+ * Registrar retiro de efectivo (requiere autorización de supervisor)
  */
+const withdrawSchema = z.object({
+  amount: z.number().positive(),
+  reason: z.enum([
+    'SAFE_DEPOSIT',
+    'BANK_DEPOSIT',
+    'SUPPLIER_PAYMENT',
+    'EXPENSE',
+    'CHANGE_FUND',
+    'LOAN_RETURN',
+    'CORRECTION',
+    'OTHER',
+  ]),
+  description: z.string().optional(),
+  reference: z.string().optional(),
+  destinationType: z.string().optional(),
+  authorizedByUserId: z.string().min(1, 'Se requiere autorización de supervisor'),
+});
+
 router.post(
   '/withdraw',
   authenticate,
-  authorize('cash:movements'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const validation = movementSchema.safeParse({
-        ...req.body,
-        type: 'WITHDRAWAL',
-      });
+      const validation = withdrawSchema.safeParse(req.body);
       if (!validation.success) {
         throw new ValidationError(validation.error.message);
       }
 
-      const { amount, reason, description, reference, destinationType } = validation.data;
+      const { amount, reason, description, reference, destinationType, authorizedByUserId } = validation.data;
+      const tenantId = req.user!.tenantId;
+
+      // Verificar que el supervisor existe y tiene permiso
+      const supervisor = await prisma.user.findFirst({
+        where: {
+          id: authorizedByUserId,
+          tenantId,
+          status: 'ACTIVE',
+        },
+        include: { role: true },
+      });
+
+      if (!supervisor) {
+        throw new ApiError(400, 'Supervisor no válido');
+      }
+
+      const supervisorPermissions = supervisor.role.permissions as string[];
+      if (!supervisorPermissions.includes('cash:movements') && !supervisorPermissions.includes('*')) {
+        throw new ApiError(403, 'El supervisor no tiene permiso para autorizar retiros');
+      }
 
       const session = await prisma.cashSession.findFirst({
         where: {
-          tenantId: req.user!.tenantId,
+          tenantId,
           userId: req.user!.userId,
           status: 'OPEN',
         },
@@ -1028,6 +1062,11 @@ router.post(
           reference,
           destinationType,
           createdByUserId: req.user!.userId,
+          authorizedByUserId,
+          requiresAuth: true,
+        },
+        include: {
+          authorizedBy: { select: { id: true, name: true } },
         },
       });
 

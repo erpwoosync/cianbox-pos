@@ -112,6 +112,16 @@ export const authService = {
     const response = await api.get('/auth/me');
     return response.data;
   },
+
+  verifySupervisor: async (pin: string, requiredPermission: string): Promise<ApiResponse<{
+    supervisor: { id: string; name: string; email: string; role: string };
+  }>> => {
+    const response = await api.post('/auth/verify-supervisor', {
+      pin,
+      requiredPermission,
+    });
+    return response.data;
+  },
 };
 
 // Servicios de productos
@@ -633,6 +643,7 @@ export const cashService = {
     description?: string;
     reference?: string;
     destinationType?: string;
+    authorizedByUserId: string;
   }): Promise<ApiResponse<{ movement: CashMovement }>> => {
     const response = await api.post('/cash/withdraw', data);
     return response.data;
