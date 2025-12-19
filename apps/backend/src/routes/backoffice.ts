@@ -2214,18 +2214,14 @@ router.post(
         throw new ApiError(400, 'MP_NOT_CONFIGURED', 'No hay configuración de Mercado Pago activa');
       }
 
-      // Buscar pagos en MP de los últimos 30 días con external_reference que empiece con "POS-"
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
+      // Buscar pagos aprobados en MP (últimos 100)
       const searchUrl = new URL('https://api.mercadopago.com/v1/payments/search');
       searchUrl.searchParams.set('sort', 'date_created');
       searchUrl.searchParams.set('criteria', 'desc');
-      searchUrl.searchParams.set('range', 'date_created');
-      searchUrl.searchParams.set('begin_date', thirtyDaysAgo.toISOString().split('T')[0] + 'T00:00:00Z');
-      searchUrl.searchParams.set('end_date', new Date().toISOString().split('T')[0] + 'T23:59:59Z');
       searchUrl.searchParams.set('status', 'approved');
       searchUrl.searchParams.set('limit', '100');
+
+      console.log('[MP Sync] Buscando pagos en:', searchUrl.toString());
 
       const mpResponse = await fetch(searchUrl.toString(), {
         headers: { Authorization: `Bearer ${mpConfig.accessToken}` },
@@ -2233,8 +2229,8 @@ router.post(
 
       if (!mpResponse.ok) {
         const errorText = await mpResponse.text();
-        console.error('[MP Sync] Error buscando pagos:', errorText);
-        throw new ApiError(500, 'MP_API_ERROR', 'Error al consultar Mercado Pago');
+        console.error('[MP Sync] Error buscando pagos:', mpResponse.status, errorText);
+        throw new ApiError(500, 'MP_API_ERROR', `Error al consultar Mercado Pago: ${mpResponse.status}`);
       }
 
       interface MPPaymentResult {
