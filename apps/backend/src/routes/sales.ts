@@ -233,6 +233,16 @@ router.post(
         data.pointOfSaleId
       );
 
+      // Buscar sesión de caja abierta del usuario
+      const cashSession = await prisma.cashSession.findFirst({
+        where: {
+          tenantId,
+          userId,
+          pointOfSaleId: data.pointOfSaleId,
+          status: 'OPEN',
+        },
+      });
+
       // Crear venta con items y pagos en una transacción
       const sale = await prisma.$transaction(async (tx) => {
         // Crear venta
@@ -243,6 +253,7 @@ router.post(
             pointOfSaleId: data.pointOfSaleId,
             userId,
             customerId: data.customerId,
+            cashSessionId: cashSession?.id,
             saleNumber,
             receiptType: data.receiptType,
             subtotal,
@@ -352,6 +363,62 @@ router.post(
               });
             }
           }
+        }
+
+        // Actualizar totales de la sesión de caja si existe
+        if (cashSession) {
+          // Calcular totales por método de pago
+          const paymentTotals = {
+            totalCash: 0,
+            totalDebit: 0,
+            totalCredit: 0,
+            totalQr: 0,
+            totalMpPoint: 0,
+            totalTransfer: 0,
+            totalOther: 0,
+          };
+
+          for (const payment of data.payments) {
+            switch (payment.method) {
+              case 'CASH':
+                // Para efectivo, restamos el vuelto
+                paymentTotals.totalCash += payment.amount;
+                break;
+              case 'DEBIT_CARD':
+                paymentTotals.totalDebit += payment.amount;
+                break;
+              case 'CREDIT_CARD':
+              case 'CREDIT':
+                paymentTotals.totalCredit += payment.amount;
+                break;
+              case 'QR':
+                paymentTotals.totalQr += payment.amount;
+                break;
+              case 'MP_POINT':
+                paymentTotals.totalMpPoint += payment.amount;
+                break;
+              case 'TRANSFER':
+                paymentTotals.totalTransfer += payment.amount;
+                break;
+              default:
+                paymentTotals.totalOther += payment.amount;
+            }
+          }
+
+          await tx.cashSession.update({
+            where: { id: cashSession.id },
+            data: {
+              salesCount: { increment: 1 },
+              salesTotal: { increment: total.toNumber() },
+              totalCash: { increment: paymentTotals.totalCash },
+              totalDebit: { increment: paymentTotals.totalDebit },
+              totalCredit: { increment: paymentTotals.totalCredit },
+              totalQr: { increment: paymentTotals.totalQr },
+              totalMpPoint: { increment: paymentTotals.totalMpPoint },
+              totalTransfer: { increment: paymentTotals.totalTransfer },
+              totalOther: { increment: paymentTotals.totalOther },
+            },
+          });
         }
 
         return newSale;
