@@ -1109,31 +1109,55 @@ export default function POS() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-semibold mb-4">Seleccionar Punto de Venta</h3>
+            {cashSession && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-700">
+                  Tiene un turno de caja abierto. Debe cerrarlo antes de cambiar de punto de venta.
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
-              {pointsOfSale.map((pos) => (
-                <button
-                  key={pos.id}
-                  onClick={() => {
-                    setSelectedPOS(pos);
-                    setShowPOSSelector(false);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
-                    selectedPOS?.id === pos.id
-                      ? 'border-primary-600 bg-primary-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <p className="font-medium">{pos.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {pos.code} {pos.branch && `• ${pos.branch.name}`}
-                  </p>
-                  {pos.priceList && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      Lista: {pos.priceList.name}
-                    </p>
-                  )}
-                </button>
-              ))}
+              {pointsOfSale.map((pos) => {
+                const isCurrentPOS = selectedPOS?.id === pos.id;
+                const isDisabled = !!(cashSession && !isCurrentPOS);
+                return (
+                  <button
+                    key={pos.id}
+                    onClick={() => {
+                      if (isDisabled) return;
+                      setSelectedPOS(pos);
+                      setShowPOSSelector(false);
+                    }}
+                    disabled={isDisabled}
+                    className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
+                      isCurrentPOS
+                        ? 'border-primary-600 bg-primary-50'
+                        : isDisabled
+                        ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">{pos.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {pos.code} {pos.branch && `• ${pos.branch.name}`}
+                        </p>
+                        {pos.priceList && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            Lista: {pos.priceList.name}
+                          </p>
+                        )}
+                      </div>
+                      {isCurrentPOS && cashSession && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                          Caja abierta
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             {pointsOfSale.length === 0 && (
               <p className="text-gray-500 text-center py-4">
@@ -1231,12 +1255,20 @@ export default function POS() {
 
             {/* Indicador de POS */}
             <button
-              onClick={() => pointsOfSale.length > 1 && setShowPOSSelector(true)}
+              onClick={() => {
+                if (cashSession) {
+                  alert('Debe cerrar el turno de caja actual antes de cambiar de punto de venta');
+                  return;
+                }
+                if (pointsOfSale.length > 1) {
+                  setShowPOSSelector(true);
+                }
+              }}
               className={`px-3 py-1 rounded-lg text-sm ${
                 selectedPOS
                   ? 'bg-emerald-100 text-emerald-700'
                   : 'bg-red-100 text-red-700'
-              } ${pointsOfSale.length > 1 ? 'cursor-pointer hover:opacity-80' : ''}`}
+              } ${pointsOfSale.length > 1 && !cashSession ? 'cursor-pointer hover:opacity-80' : ''}`}
             >
               {selectedPOS ? `Caja: ${selectedPOS.name}` : 'Sin caja'}
             </button>
