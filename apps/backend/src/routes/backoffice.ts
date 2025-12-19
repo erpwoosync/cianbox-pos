@@ -1851,7 +1851,15 @@ router.post(
       let subtotal = 0;
       let totalDiscount = 0;
 
-      const saleItems = [];
+      const saleItems: Array<{
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+        discount: number;
+        subtotal: number;
+        total: number;
+        taxRate: number;
+      }> = [];
       for (const item of items) {
         const product = await prisma.product.findFirst({
           where: { id: item.productId, tenantId },
