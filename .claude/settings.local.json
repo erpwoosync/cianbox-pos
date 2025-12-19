@@ -48,7 +48,8 @@
       "Bash(grep:*)",
       "Bash(wc:*)",
       "Bash(ls:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:cianbox-pos-backoffice.ews-cdn.link)"
     ]
   }
 }

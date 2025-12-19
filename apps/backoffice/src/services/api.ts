@@ -787,21 +787,20 @@ export const cashApi = {
     pointOfSaleId?: string;
     userId?: string;
     status?: string;
-    dateFrom?: string;
-    dateTo?: string;
+    from?: string;
+    to?: string;
     page?: number;
-    pageSize?: number;
+    limit?: number;
   }): Promise<{
     sessions: CashSession[];
     pagination: {
       total: number;
       page: number;
-      pageSize: number;
+      limit: number;
       totalPages: number;
     };
   }> => {
-    const response = await api.get('/cash/sessions', { params });
-    // El backend devuelve { success, data: { sessions, pagination } }
+    const response = await api.get('/backoffice/cash-sessions', { params });
     return response.data.data || response.data;
   },
 
@@ -825,11 +824,11 @@ export const cashApi = {
       totalDeposits: number;
     };
   }> => {
-    const response = await api.get('/cash/report/daily', { params: { date, branchId } });
+    const response = await api.get('/backoffice/cash-sessions/report/daily', { params: { date, branchId } });
     return response.data.data || response.data;
   },
 
-  // Reporte de sesion
+  // Detalle de sesion con movimientos, arqueos y ventas
   getSessionReport: async (sessionId: string): Promise<{
     session: CashSession & {
       movements: CashMovement[];
@@ -837,31 +836,14 @@ export const cashApi = {
       sales: Array<{
         id: string;
         saleNumber: string;
+        saleDate: string;
         total: number;
         status: string;
         payments: Array<{ method: string; amount: number }>;
       }>;
     };
   }> => {
-    const response = await api.get(`/cash/report/session/${sessionId}`);
-    return response.data.data || response.data;
-  },
-
-  // Movimientos de una sesion
-  getMovements: async (sessionId: string): Promise<{
-    movements: CashMovement[];
-    session: CashSession;
-  }> => {
-    const response = await api.get(`/cash/movements/${sessionId}`);
-    return response.data.data || response.data;
-  },
-
-  // Arqueos de una sesion
-  getCounts: async (sessionId: string): Promise<{
-    counts: CashCount[];
-    session: CashSession;
-  }> => {
-    const response = await api.get(`/cash/counts/${sessionId}`);
+    const response = await api.get(`/backoffice/cash-sessions/${sessionId}`);
     return response.data.data || response.data;
   },
 };
