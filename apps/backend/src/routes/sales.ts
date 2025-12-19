@@ -421,6 +421,20 @@ router.post(
           });
         }
 
+        // Vincular MercadoPagoOrder si existe mpOrderId en algún pago
+        for (const payment of data.payments) {
+          if (payment.mpOrderId) {
+            await tx.mercadoPagoOrder.updateMany({
+              where: {
+                orderId: payment.mpOrderId,
+                tenantId,
+                saleId: null,
+              },
+              data: { saleId: newSale.id },
+            });
+          }
+        }
+
         return newSale;
       });
 
