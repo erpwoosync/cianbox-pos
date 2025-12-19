@@ -2477,8 +2477,8 @@ router.post(
         throw ApiError.notFound('Conexión Cianbox no encontrada');
       }
 
-      // Construir la URL del webhook
-      const baseUrl = process.env.WEBHOOK_BASE_URL || 'https://cianbox-pos.ews-cdn.link/api';
+      // Construir la URL del webhook (usar dominio del POS frontend)
+      const baseUrl = process.env.WEBHOOK_BASE_URL || 'https://cianbox-pos-point.ews-cdn.link/api';
       const webhookUrl = `${baseUrl}/cianboxwebhooks/${tenantId}`;
 
       const cianbox = await CianboxService.forTenant(tenantId);
