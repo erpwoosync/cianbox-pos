@@ -45,7 +45,13 @@ const QUICK_ACCESS_COLORS = [
 
 export default function Categories() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [quickAccessCategories, setQuickAccessCategories] = useState<Category[]>([]);
+  const [quickAccessCategories, setQuickAccessCategories] = useState<Array<{
+    id: string;
+    name: string;
+    quickAccessColor?: string | null;
+    quickAccessOrder?: number;
+    _count?: { products: number };
+  }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'quick-access'>('all');
   const [editingColor, setEditingColor] = useState<string | null>(null);
@@ -71,7 +77,7 @@ export default function Categories() {
     }
   };
 
-  const toggleQuickAccess = async (category: Category) => {
+  const toggleQuickAccess = async (category: Category | { id: string; isQuickAccess?: boolean; quickAccessColor?: string | null }) => {
     setSavingId(category.id);
     try {
       const newValue = !category.isQuickAccess;
@@ -82,6 +88,21 @@ export default function Categories() {
       await loadData();
     } catch (error) {
       console.error('Error toggling quick access:', error);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const removeFromQuickAccess = async (categoryId: string) => {
+    setSavingId(categoryId);
+    try {
+      await categoriesService.updateQuickAccess(categoryId, {
+        isQuickAccess: false,
+        quickAccessColor: null,
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Error removing from quick access:', error);
     } finally {
       setSavingId(null);
     }
@@ -422,7 +443,7 @@ export default function Categories() {
 
                     {/* Remove Button */}
                     <button
-                      onClick={() => toggleQuickAccess(category)}
+                      onClick={() => removeFromQuickAccess(category.id)}
                       disabled={savingId === category.id}
                       className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                       title="Quitar de acceso rápido"

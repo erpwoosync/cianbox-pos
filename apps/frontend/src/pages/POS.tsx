@@ -118,7 +118,7 @@ interface PointOfSale {
   mpDeviceName?: string;
 }
 
-type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR';
+type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR' | 'TRANSFER';
 
 interface SaleData {
   branchId: string;
@@ -181,7 +181,7 @@ export default function POS() {
   const [showTicketList, setShowTicketList] = useState(false);
 
   // Estado del carrito (computed from current ticket)
-  const cart = tickets.find((t) => t.id === currentTicketId)?.items || [];
+  const cart = tickets.find((t: Ticket) => t.id === currentTicketId)?.items || [];
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -413,7 +413,7 @@ export default function POS() {
       items: [],
       createdAt: new Date().toISOString(),
     };
-    setTickets((prev) => [...prev, newTicket]);
+    setTickets((prev: Ticket[]) => [...prev, newTicket]);
     setCurrentTicketId(newTicket.id);
     setShowTicketList(false);
   };
@@ -424,8 +424,8 @@ export default function POS() {
   };
 
   const deleteTicket = (ticketId: string) => {
-    setTickets((prev) => {
-      const filtered = prev.filter((t) => t.id !== ticketId);
+    setTickets((prev: Ticket[]) => {
+      const filtered = prev.filter((t: Ticket) => t.id !== ticketId);
 
       // Si no quedan tickets, crear uno nuevo inmediatamente
       if (filtered.length === 0) {
@@ -452,8 +452,8 @@ export default function POS() {
   // Actualizar items del ticket actual
   const updateCart = (updater: (items: CartItem[]) => CartItem[]) => {
     if (!currentTicketId) return;
-    setTickets((prev) =>
-      prev.map((ticket) =>
+    setTickets((prev: Ticket[]) =>
+      prev.map((ticket: Ticket) =>
         ticket.id === currentTicketId
           ? { ...ticket, items: updater(ticket.items) }
           : ticket
@@ -555,10 +555,10 @@ export default function POS() {
   };
 
   // Calcular totales
-  const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
-  const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0);
+  const subtotal = cart.reduce((sum: number, item: CartItem) => sum + item.subtotal, 0);
+  const totalDiscount = cart.reduce((sum: number, item: CartItem) => sum + item.discount, 0);
   const total = subtotal;
-  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const itemCount = cart.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
 
   // Calcular vuelto
   const tenderedAmount = parseFloat(amountTendered) || 0;
@@ -752,7 +752,7 @@ export default function POS() {
       const saleData = {
         branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         pointOfSaleId: selectedPOS.id,
-        items: cart.map((item) => ({
+        items: cart.map((item: CartItem) => ({
           productId: item.product.id,
           productCode: item.product.sku,
           productName: item.product.name,
@@ -818,7 +818,7 @@ export default function POS() {
       const saleData = {
         branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         pointOfSaleId: selectedPOS.id,
-        items: cart.map((item) => ({
+        items: cart.map((item: CartItem) => ({
           productId: item.product.id,
           productCode: item.product.sku,
           productName: item.product.name,
@@ -1156,7 +1156,7 @@ export default function POS() {
               className="flex-1 flex items-center justify-between px-3 py-2 bg-white border rounded-lg hover:bg-gray-50"
             >
               <span className="text-sm font-medium">
-                {tickets.find((t) => t.id === currentTicketId)?.name || 'Seleccionar ticket'}
+                {tickets.find((t: Ticket) => t.id === currentTicketId)?.name || 'Seleccionar ticket'}
               </span>
               <span className="text-xs text-gray-500">
                 ({tickets.length} {tickets.length === 1 ? 'ticket' : 'tickets'})
@@ -1174,7 +1174,7 @@ export default function POS() {
           {/* Lista de tickets */}
           {showTicketList && (
             <div className="mt-2 max-h-64 overflow-y-auto bg-white border rounded-lg shadow-lg">
-              {tickets.map((ticket) => (
+              {tickets.map((ticket: Ticket) => (
                 <div
                   key={ticket.id}
                   className={`p-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer ${
@@ -1241,7 +1241,7 @@ export default function POS() {
             </div>
           ) : (
             <div className="space-y-3">
-              {cart.map((item) => (
+              {cart.map((item: CartItem) => (
                 <div
                   key={item.id}
                   className="bg-gray-50 rounded-lg p-3 flex gap-3"

@@ -731,4 +731,38 @@ export const cashService = {
   },
 };
 
+// ==============================================
+// SERVICIOS DE CATEGORIAS
+// ==============================================
+
+export const categoriesService = {
+  // Obtener categorias de acceso rapido
+  getQuickAccess: async (): Promise<ApiResponse<Array<{
+    id: string;
+    name: string;
+    quickAccessColor?: string | null;
+    quickAccessOrder?: number;
+    _count?: { products: number };
+  }>>> => {
+    const response = await api.get('/categories/quick-access');
+    return response.data;
+  },
+
+  // Actualizar acceso rapido de una categoria
+  updateQuickAccess: async (categoryId: string, data: {
+    isQuickAccess?: boolean;
+    quickAccessColor?: string | null;
+    quickAccessOrder?: number;
+  }): Promise<ApiResponse<{ category: { id: string; name: string } }>> => {
+    const response = await api.patch(`/categories/${categoryId}/quick-access`, data);
+    return response.data;
+  },
+
+  // Reordenar categorias de acceso rapido
+  reorderQuickAccess: async (categoryIds: string[]): Promise<ApiResponse<{ updated: number }>> => {
+    const response = await api.post('/categories/quick-access/reorder', { categoryIds });
+    return response.data;
+  },
+};
+
 export default api;
