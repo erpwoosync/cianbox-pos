@@ -134,39 +134,59 @@ ssh cianbox-db     # Servidor de base de datos
 | SSH | 22 | Acceso remoto |
 | GitHub Runner | - | CI/CD self-hosted |
 
-### Estructura de Directorios
+### Estructura de Directorios y Despliegue
 
 ```
 /var/www/cianbox-pos/
+│
+├── frontend/                      # ★ POS Frontend (Puerto 80)
+│   ├── index.html
+│   ├── manifest.json
+│   ├── sw.js                      # Service Worker (PWA)
+│   ├── offline.html
+│   └── assets/                    # JS, CSS, imagenes
+│
 ├── apps/
-│   ├── backend/           # Backend API
-│   │   ├── dist/          # Build compilado (ejecutado por PM2)
-│   │   ├── src/           # Codigo fuente
-│   │   ├── prisma/        # Schema y migraciones
+│   ├── backend/                   # ★ Backend API (Puerto 3001)
+│   │   ├── dist/                  # Build compilado (PM2 ejecuta esto)
+│   │   ├── src/                   # Codigo fuente TypeScript
+│   │   ├── prisma/                # Schema y migraciones
 │   │   ├── node_modules/
-│   │   ├── .env           # Variables de entorno
+│   │   ├── .env                   # Variables de entorno
 │   │   └── package.json
 │   │
-│   ├── backoffice/        # Backoffice Admin (:8084)
-│   │   └── dist/          # Build estatico
+│   ├── agency/                    # ★ Agency Backoffice (Puerto 8083)
+│   │   └── dist/
+│   │       ├── index.html
+│   │       └── assets/
 │   │
-│   ├── agency/            # Agency Backoffice (:8083)
-│   │   └── dist/          # Build estatico
+│   ├── backoffice/                # ★ Client Backoffice (Puerto 8084)
+│   │   └── dist/
+│   │       ├── index.html
+│   │       └── assets/
 │   │
-│   └── frontend/          # (legacy/dev)
-│
-└── frontend/              # Frontend POS (:80)
-    └── (archivos estaticos)
+│   └── frontend/                  # (dev/legacy - no usado en prod)
+│       ├── src/
+│       └── dist/
 
-/opt/actions-runner/       # GitHub Actions Runner
-├── _work/                 # Workspace de builds
-├── .runner                # Configuracion del runner
-└── svc.sh                 # Script de control del servicio
+/opt/actions-runner/               # GitHub Actions Runner
+├── _work/                         # Workspace de builds
+├── .runner                        # Configuracion del runner
+└── svc.sh                         # Script de control del servicio
 
-/var/log/pm2/              # Logs de PM2
+/var/log/pm2/                      # Logs de PM2
 ├── cianbox-pos-error-0.log
 └── cianbox-pos-out-0.log
 ```
+
+### Mapeo de Aplicaciones
+
+| App | Puerto | Root Nginx | Contenido |
+|-----|--------|------------|-----------|
+| **POS Frontend** | 80 | `/var/www/cianbox-pos/frontend` | SPA React (PWA) |
+| **Agency Backoffice** | 8083 | `/var/www/cianbox-pos/apps/agency/dist` | SPA React |
+| **Client Backoffice** | 8084 | `/var/www/cianbox-pos/apps/backoffice/dist` | SPA React |
+| **Backend API** | 3001 | N/A (PM2) | Node.js Express |
 
 ### PM2 - Gestion del Backend
 
@@ -225,7 +245,7 @@ cd /opt/actions-runner
 
 ### Nginx - Configuracion de Sites
 
-#### Frontend POS (Puerto 80)
+#### POS Frontend (Puerto 80)
 
 Archivo: `/etc/nginx/sites-available/cianbox-pos`
 
@@ -236,7 +256,10 @@ server {
     root /var/www/cianbox-pos/frontend;
     index index.html;
 
-    # Proxy API al backend
+    # CORS headers para assets
+    add_header Access-Control-Allow-Origin *;
+
+    # Proxy API requests to backend
     location /api/ {
         proxy_pass http://127.0.0.1:3001/api/;
         proxy_http_version 1.1;
@@ -244,14 +267,48 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
 
-    # Socket.io
+    # Health check endpoint
+    location /health {
+        proxy_pass http://127.0.0.1:3001/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+
+    # Socket.io support
     location /socket.io/ {
         proxy_pass http://127.0.0.1:3001/socket.io/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Cache static assets
+    location /assets/ {
+        add_header Access-Control-Allow-Origin *;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # PWA manifest and service worker
+    location /manifest.webmanifest {
+        add_header Content-Type application/manifest+json;
+        add_header Access-Control-Allow-Origin *;
+    }
+
+    location /sw.js {
+        add_header Cache-Control "no-cache";
+        add_header Service-Worker-Allowed /;
+        add_header Access-Control-Allow-Origin *;
     }
 
     # SPA fallback
@@ -271,19 +328,113 @@ server {
     server_name _;
     root /var/www/cianbox-pos/apps/agency/dist;
     index index.html;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types text/plain text/css text/xml text/javascript
+               application/x-javascript application/xml
+               application/javascript application/json;
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # API proxy to backend
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+
+    # SPA fallback
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
 }
 ```
 
-#### Backoffice Admin (Puerto 8084)
+#### Client Backoffice (Puerto 8084)
 
 Archivo: `/etc/nginx/sites-available/cianbox-pos-backoffice`
 
+```nginx
+server {
+    listen 8084;
+    server_name _;
+    root /var/www/cianbox-pos/apps/backoffice/dist;
+    index index.html;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types text/plain text/css text/xml text/javascript
+               application/x-javascript application/xml
+               application/javascript application/json;
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # API proxy to backend
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+
+    # SPA fallback
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+}
+```
+
+#### Comandos Nginx
+
 ```bash
-# Comandos Nginx
 nginx -t                    # Verificar configuracion
 systemctl reload nginx      # Recargar configuracion
 systemctl restart nginx     # Reiniciar
 systemctl status nginx      # Ver estado
+
+# Ver logs
+tail -f /var/log/nginx/access.log
+tail -f /var/log/nginx/error.log
 ```
 
 ---

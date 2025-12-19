@@ -345,7 +345,7 @@ export const mercadoPagoService = {
     const response = await api.get('/mercadopago/config?appType=QR');
     return {
       success: response.data.success,
-      isConnected: response.data.isQrConnected || false,
+      isConnected: response.data.isConnected || false,
     };
   },
 

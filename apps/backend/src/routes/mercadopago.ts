@@ -471,6 +471,125 @@ router.post('/refresh-token', authenticate, async (req: AuthenticatedRequest, re
 });
 
 // ============================================
+// RUTAS DE QR
+// ============================================
+
+/**
+ * GET /api/mercadopago/qr/stores
+ * Lista las sucursales de MP para QR
+ */
+router.get('/qr/stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const stores = await mercadoPagoService.listQRStores(tenantId);
+
+    res.json({
+      success: true,
+      data: stores,
+    });
+  } catch (error) {
+    console.error('Error listando stores QR:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * GET /api/mercadopago/qr/cashiers
+ * Lista las cajas de MP para QR
+ */
+router.get('/qr/cashiers', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { storeId } = req.query;
+    const cashiers = await mercadoPagoService.listQRCashiers(tenantId, storeId as string | undefined);
+
+    res.json({
+      success: true,
+      data: cashiers,
+    });
+  } catch (error) {
+    console.error('Error listando cashiers QR:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+const createQROrderSchema = z.object({
+  pointOfSaleId: z.string().min(1, 'El punto de venta es requerido'),
+  amount: z.number().positive('El monto debe ser mayor a 0'),
+  externalReference: z.string().min(1, 'La referencia externa es requerida'),
+  description: z.string().optional(),
+  items: z.array(z.object({
+    title: z.string(),
+    quantity: z.number(),
+    unit_price: z.number(),
+  })).optional(),
+});
+
+/**
+ * POST /api/mercadopago/qr/orders
+ * Crea una orden QR dinámica
+ */
+router.post('/qr/orders', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const data = createQROrderSchema.parse(req.body);
+
+    // Verificar que el POS existe y tiene QR configurado
+    const pointOfSale = await prisma.pointOfSale.findFirst({
+      where: {
+        id: data.pointOfSaleId,
+        tenantId,
+      },
+    });
+
+    if (!pointOfSale) {
+      return res.status(404).json({
+        success: false,
+        error: 'Punto de venta no encontrado',
+      });
+    }
+
+    // Usar el código del POS como external_id
+    const externalPosId = `POS_${pointOfSale.code}`;
+
+    const result = await mercadoPagoService.createQROrder({
+      tenantId,
+      externalPosId,
+      amount: data.amount,
+      externalReference: data.externalReference,
+      description: data.description,
+      items: data.items,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error creando orden QR:', error);
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos inválidos',
+        details: error.errors,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+// ============================================
 // WEBHOOK (público, sin autenticación)
 // ============================================
 
