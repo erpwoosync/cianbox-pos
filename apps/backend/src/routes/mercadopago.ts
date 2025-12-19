@@ -708,14 +708,18 @@ router.post('/qr/orders', authenticate, async (req: AuthenticatedRequest, res: R
 router.post('/payments/sync', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId;
+    const { paymentIds } = req.body as { paymentIds?: string[] };
 
     // Buscar pagos que tienen transactionId pero no tienen mpPaymentId
-    // Estos son pagos de MP que se hicieron antes de implementar los campos detallados
+    // Si se pasan paymentIds específicos, filtrar por ellos
     const paymentsToSync = await prisma.payment.findMany({
       where: {
         sale: { tenantId },
         transactionId: { not: null },
-        mpPaymentId: null,
+        // Si hay paymentIds específicos, ignorar el filtro de mpPaymentId para forzar re-sync
+        ...(paymentIds && paymentIds.length > 0
+          ? { id: { in: paymentIds } }
+          : { mpPaymentId: null }),
         // Solo pagos con métodos de MP
         method: { in: ['CREDIT_CARD', 'DEBIT_CARD', 'QR', 'TRANSFER', 'MP_POINT'] },
       },
@@ -745,11 +749,22 @@ router.post('/payments/sync', authenticate, async (req: AuthenticatedRequest, re
         const appType = isQR ? 'QR' : 'POINT';
 
         // Obtener detalles del pago desde MP
+        console.log(`[MP Sync] Sincronizando pago ${payment.id}, método: ${payment.method}, transactionId: ${payment.transactionId}, appType: ${appType}`);
+
         const details = await mercadoPagoService.getPaymentDetails(
           tenantId,
           payment.transactionId!,
           appType as 'POINT' | 'QR'
         );
+
+        console.log(`[MP Sync] Detalles obtenidos:`, {
+          mpPaymentId: details.mpPaymentId,
+          mpOrderId: details.mpOrderId,
+          mpFeeAmount: details.mpFeeAmount,
+          netReceivedAmount: details.netReceivedAmount,
+          cardholderName: details.cardholderName,
+          status: details.status,
+        });
 
         // Actualizar el pago con los datos de MP
         await prisma.payment.update({
