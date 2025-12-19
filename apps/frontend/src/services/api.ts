@@ -742,9 +742,10 @@ export const categoriesService = {
     name: string;
     quickAccessColor?: string | null;
     quickAccessOrder?: number;
+    isDefaultQuickAccess?: boolean;
     _count?: { products: number };
   }>>> => {
-    const response = await api.get('/categories/quick-access');
+    const response = await api.get('/products/categories/quick-access');
     return response.data;
   },
 
@@ -754,13 +755,13 @@ export const categoriesService = {
     quickAccessColor?: string | null;
     quickAccessOrder?: number;
   }): Promise<ApiResponse<{ category: { id: string; name: string } }>> => {
-    const response = await api.patch(`/categories/${categoryId}/quick-access`, data);
+    const response = await api.put(`/products/categories/${categoryId}/quick-access`, data);
     return response.data;
   },
 
   // Reordenar categorias de acceso rapido
   reorderQuickAccess: async (categoryIds: string[]): Promise<ApiResponse<{ updated: number }>> => {
-    const response = await api.post('/categories/quick-access/reorder', { categoryIds });
+    const response = await api.put('/products/categories/quick-access/reorder', { categoryIds });
     return response.data;
   },
 };
