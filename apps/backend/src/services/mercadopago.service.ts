@@ -706,28 +706,55 @@ class MercadoPagoService {
     let actualPaymentId = paymentIdOrOrderId;
     let orderId: string | undefined;
 
-    // Si es un orderId (empieza con "ORD"), primero obtener el paymentId de la orden
+    // Si es un orderId (empieza con "ORD"), buscar primero en nuestra BD local
     if (paymentIdOrOrderId.startsWith('ORD')) {
-      const orderResponse = await fetch(`${this.baseUrl}/v1/orders/${paymentIdOrOrderId}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!orderResponse.ok) {
-        throw new Error(`Error al consultar orden: ${orderResponse.status}`);
-      }
-
-      const orderData = await orderResponse.json() as MPOrderResponse;
       orderId = paymentIdOrOrderId;
 
-      // Obtener el paymentId del primer pago de la orden
-      const payment = orderData.transactions?.payments?.[0];
-      if (!payment?.id) {
-        throw new Error('La orden no tiene un pago asociado');
+      // Buscar en nuestra tabla de órdenes MP que tiene el responseData con el reference_id
+      const mpOrder = await prisma.mercadoPagoOrder.findUnique({
+        where: { orderId: paymentIdOrOrderId },
+        select: { responseData: true, paymentId: true },
+      });
+
+      if (mpOrder?.responseData) {
+        const responseData = mpOrder.responseData as {
+          transactions?: {
+            payments?: Array<{
+              reference_id?: string;
+              id?: string;
+            }>;
+          };
+        };
+        // El reference_id es el paymentId numérico real de MP
+        const referenceId = responseData.transactions?.payments?.[0]?.reference_id;
+        if (referenceId) {
+          actualPaymentId = referenceId;
+          console.log(`[MP] Orden ${paymentIdOrOrderId} -> referenceId: ${referenceId}`);
+        } else {
+          throw new Error('La orden no tiene reference_id en nuestra BD');
+        }
+      } else {
+        // Si no está en nuestra BD, intentar consultar la API de MP
+        const orderResponse = await fetch(`${this.baseUrl}/v1/orders/${paymentIdOrOrderId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!orderResponse.ok) {
+          throw new Error(`Error al consultar orden: ${orderResponse.status}`);
+        }
+
+        const orderData = await orderResponse.json() as MPOrderResponse;
+
+        // Obtener el paymentId del primer pago de la orden
+        const payment = orderData.transactions?.payments?.[0];
+        if (!payment?.id) {
+          throw new Error('La orden no tiene un pago asociado');
+        }
+        actualPaymentId = payment.id.toString();
       }
-      actualPaymentId = payment.id.toString();
     }
     // Si es un externalReference (formato POS-* o similar, no numérico), buscar por external_reference
     else if (isNaN(Number(paymentIdOrOrderId))) {
