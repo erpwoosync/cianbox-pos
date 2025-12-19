@@ -434,14 +434,36 @@ export default function POS() {
         );
         setPointsOfSale(activePOS);
 
-        // Auto-seleccionar si solo hay uno
+        if (activePOS.length === 0) {
+          alert('No hay puntos de venta configurados para esta sucursal');
+          return;
+        }
+
+        // Verificar si el usuario ya tiene una sesión de caja abierta
+        try {
+          const cashRes = await cashService.getCurrent();
+          const openSession = cashRes.data?.session;
+          if (cashRes.success && cashRes.data.hasOpenSession && openSession) {
+            // Auto-seleccionar el POS de la sesión abierta
+            const sessionPOS = activePOS.find(
+              (pos: PointOfSale) => pos.id === openSession.pointOfSaleId
+            );
+            if (sessionPOS) {
+              setSelectedPOS(sessionPOS);
+              setCashSession(openSession);
+              setExpectedCash(cashRes.data.expectedCash || 0);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('Error verificando sesión de caja:', error);
+        }
+
+        // Si no hay sesión abierta, auto-seleccionar si solo hay un POS o mostrar selector
         if (activePOS.length === 1) {
           setSelectedPOS(activePOS[0]);
-        } else if (activePOS.length > 1) {
-          // Mostrar selector si hay múltiples
+        } else {
           setShowPOSSelector(true);
-        } else if (activePOS.length === 0) {
-          alert('No hay puntos de venta configurados para esta sucursal');
         }
       }
     } catch (error) {
