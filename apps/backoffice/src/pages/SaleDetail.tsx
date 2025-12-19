@@ -14,6 +14,10 @@ import {
   CreditCard,
   Package,
   AlertCircle,
+  RefreshCw,
+  Banknote,
+  Percent,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -53,6 +57,30 @@ interface Payment {
   amountTendered?: number;
   changeAmount?: number;
   status: string;
+  transactionId?: string;
+  // Campos de Mercado Pago
+  mpPaymentId?: string;
+  mpOrderId?: string;
+  mpOperationType?: string;
+  mpPointType?: string;
+  cardFirstSix?: string;
+  cardExpirationMonth?: number;
+  cardExpirationYear?: number;
+  cardholderName?: string;
+  cardType?: string;
+  payerEmail?: string;
+  payerIdType?: string;
+  payerIdNumber?: string;
+  authorizationCode?: string;
+  mpFeeAmount?: number;
+  mpFeeRate?: number;
+  netReceivedAmount?: number;
+  bankOriginId?: string;
+  bankOriginName?: string;
+  bankTransferId?: string;
+  mpDeviceId?: string;
+  mpPosId?: string;
+  mpStoreId?: string;
 }
 
 interface Sale {
@@ -97,6 +125,7 @@ export default function SaleDetail() {
   const { tenant } = useAuth();
   const [sale, setSale] = useState<Sale | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [syncingPaymentId, setSyncingPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     loadSale();
@@ -113,6 +142,30 @@ export default function SaleDetail() {
       console.error('Error loading sale:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const syncPaymentFromMP = async (paymentId: string, transactionId: string) => {
+    setSyncingPaymentId(paymentId);
+    try {
+      // Llamar al endpoint de sync
+      const response = await api.post('/mercadopago/payments/sync', {
+        paymentIds: [paymentId]
+      });
+
+      if (response.data.success) {
+        // Recargar la venta para ver los datos actualizados
+        await loadSale();
+        alert('Pago sincronizado correctamente');
+      } else {
+        alert('Error al sincronizar: ' + (response.data.error?.message || 'Error desconocido'));
+      }
+    } catch (error: unknown) {
+      console.error('Error syncing payment:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert('Error al sincronizar pago: ' + errorMessage);
+    } finally {
+      setSyncingPaymentId(null);
     }
   };
 
@@ -371,30 +424,121 @@ export default function SaleDetail() {
           </div>
           <div className="p-4 space-y-3">
             {sale.payments.map((payment) => (
-              <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <div className="font-medium text-gray-900">{getPaymentMethodText(payment.method)}</div>
-                  {payment.cardBrand && (
-                    <div className="text-xs text-gray-500">
-                      {payment.cardBrand} **** {payment.cardLastFour}
-                      {payment.installments > 1 && ` (${payment.installments} cuotas)`}
+              <div key={payment.id} className="p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="font-medium text-gray-900">{getPaymentMethodText(payment.method)}</div>
+                    {payment.cardBrand && (
+                      <div className="text-xs text-gray-500">
+                        {payment.cardBrand} **** {payment.cardLastFour}
+                        {payment.installments > 1 && ` (${payment.installments} cuotas)`}
+                      </div>
+                    )}
+                    {payment.reference && (
+                      <div className="text-xs text-gray-500">Ref: {payment.reference}</div>
+                    )}
+                    {payment.method === 'CASH' && payment.amountTendered && (
+                      <div className="text-xs text-gray-500">
+                        Entregado: {formatCurrency(payment.amountTendered)}
+                        {payment.changeAmount && payment.changeAmount > 0 && (
+                          <> • Cambio: {formatCurrency(payment.changeAmount)}</>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {formatCurrency(payment.amount)}
+                  </div>
+                </div>
+
+                {/* Datos de Mercado Pago */}
+                {payment.mpPaymentId && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                      <CreditCard className="w-4 h-4" />
+                      Datos Mercado Pago
                     </div>
-                  )}
-                  {payment.reference && (
-                    <div className="text-xs text-gray-500">Ref: {payment.reference}</div>
-                  )}
-                  {payment.method === 'CASH' && payment.amountTendered && (
-                    <div className="text-xs text-gray-500">
-                      Entregado: {formatCurrency(payment.amountTendered)}
-                      {payment.changeAmount && payment.changeAmount > 0 && (
-                        <> • Cambio: {formatCurrency(payment.changeAmount)}</>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {payment.mpPaymentId && (
+                        <div>
+                          <span className="text-gray-500">ID Pago:</span>{' '}
+                          <span className="font-mono">{payment.mpPaymentId}</span>
+                        </div>
+                      )}
+                      {payment.authorizationCode && (
+                        <div>
+                          <span className="text-gray-500">Auth:</span>{' '}
+                          <span className="font-mono">{payment.authorizationCode}</span>
+                        </div>
+                      )}
+                      {payment.cardholderName && (
+                        <div>
+                          <span className="text-gray-500">Titular:</span>{' '}
+                          <span>{payment.cardholderName}</span>
+                        </div>
+                      )}
+                      {payment.cardType && (
+                        <div>
+                          <span className="text-gray-500">Tipo:</span>{' '}
+                          <span className="capitalize">{payment.cardType === 'credit' ? 'Crédito' : payment.cardType === 'debit' ? 'Débito' : payment.cardType}</span>
+                        </div>
+                      )}
+                      {payment.cardFirstSix && (
+                        <div>
+                          <span className="text-gray-500">BIN:</span>{' '}
+                          <span className="font-mono">{payment.cardFirstSix}</span>
+                        </div>
+                      )}
+                      {payment.bankOriginName && (
+                        <div className="flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-gray-400" />
+                          <span className="text-gray-500">Banco:</span>{' '}
+                          <span>{payment.bankOriginName}</span>
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-                <div className="text-lg font-semibold text-gray-900">
-                  {formatCurrency(payment.amount)}
-                </div>
+
+                    {/* Fee y Monto Neto */}
+                    {(payment.mpFeeAmount || payment.netReceivedAmount) && (
+                      <div className="mt-2 pt-2 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs">
+                        {payment.mpFeeAmount && (
+                          <div className="flex items-center gap-1">
+                            <Percent className="w-3 h-3 text-red-400" />
+                            <span className="text-gray-500">Comisión MP:</span>{' '}
+                            <span className="text-red-600 font-medium">
+                              {formatCurrency(payment.mpFeeAmount)}
+                              {payment.mpFeeRate && ` (${payment.mpFeeRate}%)`}
+                            </span>
+                          </div>
+                        )}
+                        {payment.netReceivedAmount && (
+                          <div className="flex items-center gap-1">
+                            <Banknote className="w-3 h-3 text-green-500" />
+                            <span className="text-gray-500">Neto recibido:</span>{' '}
+                            <span className="text-green-600 font-medium">{formatCurrency(payment.netReceivedAmount)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Botón para sincronizar si tiene transactionId pero no mpPaymentId */}
+                {payment.transactionId && !payment.mpPaymentId && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <button
+                      onClick={() => syncPaymentFromMP(payment.id, payment.transactionId!)}
+                      disabled={syncingPaymentId === payment.id}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${syncingPaymentId === payment.id ? 'animate-spin' : ''}`} />
+                      {syncingPaymentId === payment.id ? 'Sincronizando...' : 'Sincronizar datos de MP'}
+                    </button>
+                    <p className="text-xs text-gray-500 mt-1">
+                      ID Transacción: {payment.transactionId}
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
