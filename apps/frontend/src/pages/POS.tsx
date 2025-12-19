@@ -986,6 +986,9 @@ export default function POS() {
         const mpType = isQR ? 'Mercado Pago QR' : 'Mercado Pago Point';
         alert(`Venta #${response.data.saleNumber} registrada correctamente con ${mpType}`);
 
+        // Refrescar datos de la sesión de caja
+        loadCashSession();
+
         if (pendingSales.length > 0) {
           syncPendingSales();
         }
@@ -1083,6 +1086,9 @@ export default function POS() {
         setShowPayment(false);
         setAmountTendered('');
         alert(`Venta #${response.data.saleNumber} registrada correctamente`);
+
+        // Refrescar datos de la sesión de caja
+        loadCashSession();
 
         // Intentar sincronizar ventas pendientes si hay
         if (pendingSales.length > 0) {
