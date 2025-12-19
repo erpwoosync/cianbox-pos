@@ -922,7 +922,7 @@ router.post(
 router.post(
   '/deposit',
   authenticate,
-  authorize('cash:deposit'),
+  authorize('cash:movements'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const validation = movementSchema.safeParse({
@@ -987,7 +987,7 @@ router.post(
 router.post(
   '/withdraw',
   authenticate,
-  authorize('cash:withdraw'),
+  authorize('cash:movements'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const validation = movementSchema.safeParse({
@@ -1148,7 +1148,7 @@ router.get(
 router.post(
   '/count',
   authenticate,
-  authorize('cash:count'),
+  authorize('cash:movements'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const validation = countSchema.safeParse(req.body);
