@@ -700,4 +700,163 @@ export const mercadoPagoApi = {
   },
 };
 
+// ============ CAJA / TURNOS ============
+
+export interface CashSession {
+  id: string;
+  sessionNumber: string;
+  tenantId: string;
+  branchId: string;
+  pointOfSaleId: string;
+  userId: string;
+  openingAmount: number;
+  closingAmount?: number;
+  expectedAmount?: number;
+  difference?: number;
+  status: 'OPEN' | 'SUSPENDED' | 'COUNTING' | 'CLOSED' | 'TRANSFERRED';
+  openedAt: string;
+  closedAt?: string;
+  openingNotes?: string;
+  closingNotes?: string;
+  totalCash: number;
+  totalDebit: number;
+  totalCredit: number;
+  totalQr: number;
+  totalMpPoint: number;
+  totalTransfer: number;
+  totalOther: number;
+  salesCount: number;
+  salesTotal: number;
+  refundsCount: number;
+  refundsTotal: number;
+  cancelsCount: number;
+  withdrawalsTotal: number;
+  depositsTotal: number;
+  pointOfSale?: { id: string; code: string; name: string };
+  branch?: { id: string; name: string };
+  user?: { id: string; name: string; email: string };
+  openedBy?: { id: string; name: string };
+  closedBy?: { id: string; name: string };
+  _count?: { sales: number; movements: number; counts: number };
+}
+
+export interface CashMovement {
+  id: string;
+  cashSessionId: string;
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'CHANGE_FUND';
+  amount: number;
+  reason: string;
+  description?: string;
+  reference?: string;
+  destinationType?: string;
+  createdAt: string;
+  createdBy?: { id: string; name: string };
+  authorizedBy?: { id: string; name: string };
+}
+
+export interface CashCount {
+  id: string;
+  cashSessionId: string;
+  type: 'OPENING' | 'PARTIAL' | 'CLOSING' | 'AUDIT' | 'TRANSFER';
+  totalBills: number;
+  totalCoins: number;
+  totalCash: number;
+  totalCounted: number;
+  expectedAmount: number;
+  difference: number;
+  differenceType?: 'SURPLUS' | 'SHORTAGE';
+  vouchers: number;
+  checks: number;
+  otherValues: number;
+  notes?: string;
+  countedAt: string;
+  countedBy?: { id: string; name: string };
+  verifiedBy?: { id: string; name: string };
+}
+
+export const cashApi = {
+  // Listar sesiones de caja
+  getSessions: async (params?: {
+    branchId?: string;
+    pointOfSaleId?: string;
+    userId?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    sessions: CashSession[];
+    pagination: {
+      total: number;
+      page: number;
+      pageSize: number;
+      totalPages: number;
+    };
+  }> => {
+    const response = await api.get('/cash/sessions', { params });
+    return response.data;
+  },
+
+  // Reporte diario
+  getDailyReport: async (date?: string, branchId?: string): Promise<{
+    date: string;
+    sessions: CashSession[];
+    summary: {
+      totalSessions: number;
+      openSessions: number;
+      closedSessions: number;
+      totalSales: number;
+      totalCash: number;
+      totalDebit: number;
+      totalCredit: number;
+      totalQr: number;
+      totalMpPoint: number;
+      totalTransfer: number;
+      totalOther: number;
+      totalWithdrawals: number;
+      totalDeposits: number;
+    };
+  }> => {
+    const response = await api.get('/cash/report/daily', { params: { date, branchId } });
+    return response.data;
+  },
+
+  // Reporte de sesion
+  getSessionReport: async (sessionId: string): Promise<{
+    session: CashSession & {
+      movements: CashMovement[];
+      counts: CashCount[];
+      sales: Array<{
+        id: string;
+        saleNumber: string;
+        total: number;
+        status: string;
+        payments: Array<{ method: string; amount: number }>;
+      }>;
+    };
+  }> => {
+    const response = await api.get(`/cash/report/session/${sessionId}`);
+    return response.data;
+  },
+
+  // Movimientos de una sesion
+  getMovements: async (sessionId: string): Promise<{
+    movements: CashMovement[];
+    session: CashSession;
+  }> => {
+    const response = await api.get(`/cash/movements/${sessionId}`);
+    return response.data;
+  },
+
+  // Arqueos de una sesion
+  getCounts: async (sessionId: string): Promise<{
+    counts: CashCount[];
+    session: CashSession;
+  }> => {
+    const response = await api.get(`/cash/counts/${sessionId}`);
+    return response.data;
+  },
+};
+
 export default api;

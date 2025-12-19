@@ -20,10 +20,14 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, mercadoPagoService, MPOrderResult, MPPaymentDetails } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import MPPointPaymentModal from '../components/MPPointPaymentModal';
 import MPQRPaymentModal from '../components/MPQRPaymentModal';
+import CashPanel from '../components/CashPanel';
+import CashOpenModal from '../components/CashOpenModal';
+import CashMovementModal from '../components/CashMovementModal';
+import CashCountModal from '../components/CashCountModal';
 
 interface Product {
   id: string;
@@ -211,6 +215,15 @@ export default function POS() {
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Estado de caja
+  const [cashSession, setCashSession] = useState<CashSession | null>(null);
+  const [expectedCash, setExpectedCash] = useState(0);
+  const [showCashOpenModal, setShowCashOpenModal] = useState(false);
+  const [showCashMovementModal, setShowCashMovementModal] = useState(false);
+  const [cashMovementType, setCashMovementType] = useState<'deposit' | 'withdraw'>('deposit');
+  const [showCashCountModal, setShowCashCountModal] = useState(false);
+  const [cashCountMode, setCashCountMode] = useState<'partial' | 'closing'>('partial');
+
   // Cargar ventas pendientes desde localStorage al montar
   useEffect(() => {
     const savedPendingSales = localStorage.getItem(PENDING_SALES_KEY);
@@ -252,6 +265,72 @@ export default function POS() {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Cargar sesión de caja cuando se selecciona POS
+  useEffect(() => {
+    if (selectedPOS) {
+      loadCashSession();
+    }
+  }, [selectedPOS]);
+
+  const loadCashSession = async () => {
+    try {
+      const response = await cashService.getCurrent();
+      if (response.success) {
+        setCashSession(response.data.session);
+        setExpectedCash(response.data.expectedCash || 0);
+        // Si no hay sesión abierta, mostrar modal para abrir
+        if (!response.data.hasOpenSession && selectedPOS) {
+          setShowCashOpenModal(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando sesión de caja:', error);
+    }
+  };
+
+  const handleCashSessionOpened = (session: CashSession) => {
+    setCashSession(session);
+    setExpectedCash(Number(session.openingAmount));
+    setShowCashOpenModal(false);
+  };
+
+  const handleDeposit = () => {
+    setCashMovementType('deposit');
+    setShowCashMovementModal(true);
+  };
+
+  const handleWithdraw = () => {
+    setCashMovementType('withdraw');
+    setShowCashMovementModal(true);
+  };
+
+  const handleCount = () => {
+    setCashCountMode('partial');
+    setShowCashCountModal(true);
+  };
+
+  const handleCloseCash = () => {
+    setCashCountMode('closing');
+    setShowCashCountModal(true);
+  };
+
+  const handleCashMovementSuccess = () => {
+    loadCashSession();
+    setShowCashMovementModal(false);
+  };
+
+  const handleCashCountSuccess = () => {
+    loadCashSession();
+    setShowCashCountModal(false);
+    if (cashCountMode === 'closing') {
+      // Sesión cerrada, mostrar modal para abrir nueva si es necesario
+      setCashSession(null);
+      if (selectedPOS) {
+        setShowCashOpenModal(true);
+      }
+    }
+  };
 
   // Verificar disponibilidad de Mercado Pago cuando se selecciona un POS
   useEffect(() => {
@@ -875,6 +954,18 @@ export default function POS() {
 
       {/* Panel izquierdo - Productos */}
       <div className="flex flex-col h-screen bg-gray-50">
+        {/* Panel de caja */}
+        {cashSession && (
+          <CashPanel
+            session={cashSession}
+            expectedCash={expectedCash}
+            onDeposit={handleDeposit}
+            onWithdraw={handleWithdraw}
+            onCount={handleCount}
+            onClose={handleCloseCash}
+          />
+        )}
+
         {/* Header */}
         <div className="bg-white border-b p-4 flex items-center gap-4">
           <button
@@ -1363,6 +1454,33 @@ export default function POS() {
         amount={total}
         externalReference={generateExternalReference()}
         items={cart}
+      />
+
+      {/* Modal de apertura de caja */}
+      <CashOpenModal
+        isOpen={showCashOpenModal}
+        onClose={() => setShowCashOpenModal(false)}
+        onSuccess={handleCashSessionOpened}
+        pointOfSaleId={selectedPOS?.id || ''}
+        pointOfSaleName={selectedPOS?.name || 'Caja'}
+      />
+
+      {/* Modal de movimientos de caja */}
+      <CashMovementModal
+        isOpen={showCashMovementModal}
+        onClose={() => setShowCashMovementModal(false)}
+        onSuccess={handleCashMovementSuccess}
+        type={cashMovementType}
+        availableCash={expectedCash}
+      />
+
+      {/* Modal de arqueo de caja */}
+      <CashCountModal
+        isOpen={showCashCountModal}
+        onClose={() => setShowCashCountModal(false)}
+        onSuccess={handleCashCountSuccess}
+        mode={cashCountMode}
+        expectedAmount={expectedCash}
       />
     </div>
   );

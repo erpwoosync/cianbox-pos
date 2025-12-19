@@ -17,6 +17,8 @@ import Roles from './pages/Roles';
 import Users from './pages/Users';
 import Sales from './pages/Sales';
 import SaleDetail from './pages/SaleDetail';
+import CashSessions from './pages/CashSessions';
+import CashSessionDetail from './pages/CashSessionDetail';
 import Integrations from './pages/Integrations';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -58,6 +60,8 @@ export default function App() {
                 <Route path="/users" element={<Users />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/sales/:id" element={<SaleDetail />} />
+                <Route path="/cash-sessions" element={<CashSessions />} />
+                <Route path="/cash-sessions/:id" element={<CashSessionDetail />} />
                 <Route path="/integrations" element={<Integrations />} />
               </Routes>
             </Layout>

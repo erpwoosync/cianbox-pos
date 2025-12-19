@@ -424,4 +424,311 @@ export interface MPPaymentDetails {
   dateCreated?: string;
 }
 
+// ==============================================
+// TIPOS DE CAJA
+// ==============================================
+
+export interface CashSession {
+  id: string;
+  sessionNumber: string;
+  pointOfSaleId: string;
+  branchId: string;
+  userId: string;
+  openingAmount: number;
+  closingAmount?: number;
+  expectedAmount?: number;
+  difference?: number;
+  status: 'OPEN' | 'SUSPENDED' | 'COUNTING' | 'CLOSED' | 'TRANSFERRED';
+  openedAt: string;
+  closedAt?: string;
+  openingNotes?: string;
+  closingNotes?: string;
+  totalCash: number;
+  totalDebit: number;
+  totalCredit: number;
+  totalQr: number;
+  totalMpPoint: number;
+  totalTransfer: number;
+  totalOther: number;
+  salesCount: number;
+  salesTotal: number;
+  withdrawalsTotal: number;
+  depositsTotal: number;
+  pointOfSale?: { id: string; code: string; name: string };
+  branch?: { id: string; name: string };
+  user?: { id: string; name: string; email: string };
+}
+
+export interface CashMovement {
+  id: string;
+  cashSessionId: string;
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'CHANGE_FUND';
+  amount: number;
+  reason: string;
+  description?: string;
+  reference?: string;
+  createdAt: string;
+  createdBy?: { id: string; name: string };
+}
+
+export interface CashCount {
+  id: string;
+  cashSessionId: string;
+  type: 'OPENING' | 'PARTIAL' | 'CLOSING' | 'AUDIT' | 'TRANSFER';
+  totalBills: number;
+  totalCoins: number;
+  totalCash: number;
+  expectedAmount: number;
+  difference: number;
+  differenceType?: 'SURPLUS' | 'SHORTAGE';
+  vouchers: number;
+  checks: number;
+  otherValues: number;
+  notes?: string;
+  countedAt: string;
+  countedBy?: { id: string; name: string };
+}
+
+export interface BillsCount {
+  10000?: number;
+  5000?: number;
+  2000?: number;
+  1000?: number;
+  500?: number;
+  200?: number;
+  100?: number;
+  50?: number;
+  20?: number;
+  10?: number;
+}
+
+export interface CoinsCount {
+  500?: number;
+  200?: number;
+  100?: number;
+  50?: number;
+  25?: number;
+  10?: number;
+  5?: number;
+  2?: number;
+  1?: number;
+}
+
+// ==============================================
+// SERVICIOS DE CAJA
+// ==============================================
+
+export const cashService = {
+  // Obtener turno actual del usuario
+  getCurrent: async (): Promise<ApiResponse<{ session: CashSession | null; hasOpenSession: boolean; expectedCash?: number }>> => {
+    const response = await api.get('/cash/current');
+    return response.data;
+  },
+
+  // Obtener estado de caja por punto de venta
+  getStatus: async (posId: string): Promise<ApiResponse<{
+    pointOfSale: { id: string; code: string; name: string };
+    currentSession: CashSession | null;
+    isOpen: boolean;
+    isSuspended: boolean;
+    isCounting: boolean;
+  }>> => {
+    const response = await api.get(`/cash/status/${posId}`);
+    return response.data;
+  },
+
+  // Abrir turno de caja
+  open: async (data: {
+    pointOfSaleId: string;
+    openingAmount: number;
+    notes?: string;
+  }): Promise<ApiResponse<{ session: CashSession }>> => {
+    const response = await api.post('/cash/open', data);
+    return response.data;
+  },
+
+  // Cerrar turno de caja
+  close: async (data: {
+    count?: {
+      bills?: BillsCount;
+      coins?: CoinsCount;
+      vouchers?: number;
+      checks?: number;
+      otherValues?: number;
+      otherValuesNote?: string;
+    };
+    notes?: string;
+  }): Promise<ApiResponse<{
+    session: CashSession;
+    summary: {
+      openingAmount: number;
+      closingAmount: number;
+      expectedAmount: number;
+      difference: number;
+      differenceType?: 'SURPLUS' | 'SHORTAGE';
+      salesCount: number;
+      salesTotal: number;
+      totalCash: number;
+      totalDebit: number;
+      totalCredit: number;
+      totalQr: number;
+      totalMpPoint: number;
+      withdrawalsTotal: number;
+      depositsTotal: number;
+    };
+    count?: CashCount;
+  }>> => {
+    const response = await api.post('/cash/close', data);
+    return response.data;
+  },
+
+  // Suspender turno
+  suspend: async (): Promise<ApiResponse<{ session: CashSession }>> => {
+    const response = await api.post('/cash/suspend');
+    return response.data;
+  },
+
+  // Reanudar turno
+  resume: async (): Promise<ApiResponse<{ session: CashSession }>> => {
+    const response = await api.post('/cash/resume');
+    return response.data;
+  },
+
+  // Relevo de turno
+  transfer: async (data: {
+    toUserId: string;
+    transferAmount: number;
+    count?: {
+      type?: string;
+      bills?: BillsCount;
+      coins?: CoinsCount;
+      vouchers?: number;
+      checks?: number;
+      otherValues?: number;
+    };
+    notes?: string;
+  }): Promise<ApiResponse<{
+    closedSession: CashSession;
+    newSession: CashSession;
+  }>> => {
+    const response = await api.post('/cash/transfer', data);
+    return response.data;
+  },
+
+  // Registrar ingreso
+  deposit: async (data: {
+    amount: number;
+    reason: string;
+    description?: string;
+    reference?: string;
+  }): Promise<ApiResponse<{ movement: CashMovement }>> => {
+    const response = await api.post('/cash/deposit', data);
+    return response.data;
+  },
+
+  // Registrar retiro
+  withdraw: async (data: {
+    amount: number;
+    reason: string;
+    description?: string;
+    reference?: string;
+    destinationType?: string;
+  }): Promise<ApiResponse<{ movement: CashMovement }>> => {
+    const response = await api.post('/cash/withdraw', data);
+    return response.data;
+  },
+
+  // Listar movimientos del turno actual
+  getMovements: async (): Promise<ApiResponse<{ movements: CashMovement[]; sessionId: string }>> => {
+    const response = await api.get('/cash/movements');
+    return response.data;
+  },
+
+  // Registrar arqueo
+  count: async (data: {
+    type?: 'OPENING' | 'PARTIAL' | 'CLOSING' | 'AUDIT' | 'TRANSFER';
+    bills: BillsCount;
+    coins: CoinsCount;
+    vouchers?: number;
+    checks?: number;
+    otherValues?: number;
+    otherValuesNote?: string;
+    notes?: string;
+  }): Promise<ApiResponse<{
+    count: CashCount;
+    summary: {
+      totalBills: number;
+      totalCoins: number;
+      totalCash: number;
+      vouchers: number;
+      checks: number;
+      otherValues: number;
+      totalWithOthers: number;
+      expectedAmount: number;
+      difference: number;
+      differenceType?: 'SURPLUS' | 'SHORTAGE';
+    };
+  }>> => {
+    const response = await api.post('/cash/count', data);
+    return response.data;
+  },
+
+  // Ver arqueos de un turno
+  getCounts: async (sessionId: string): Promise<ApiResponse<{ counts: CashCount[]; session: CashSession }>> => {
+    const response = await api.get(`/cash/counts/${sessionId}`);
+    return response.data;
+  },
+
+  // Reporte de un turno
+  getSessionReport: async (sessionId: string): Promise<ApiResponse<{ session: CashSession }>> => {
+    const response = await api.get(`/cash/report/session/${sessionId}`);
+    return response.data;
+  },
+
+  // Reporte diario
+  getDailyReport: async (date?: string, branchId?: string): Promise<ApiResponse<{
+    date: string;
+    sessions: CashSession[];
+    summary: {
+      totalSessions: number;
+      openSessions: number;
+      closedSessions: number;
+      totalSales: number;
+      totalCash: number;
+      totalDebit: number;
+      totalCredit: number;
+      totalQr: number;
+      totalMpPoint: number;
+      totalWithdrawals: number;
+      totalDeposits: number;
+    };
+  }>> => {
+    const response = await api.get('/cash/report/daily', { params: { date, branchId } });
+    return response.data;
+  },
+
+  // Listar todas las sesiones
+  getSessions: async (params?: {
+    branchId?: string;
+    pointOfSaleId?: string;
+    userId?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    sessions: CashSession[];
+    pagination: {
+      total: number;
+      page: number;
+      pageSize: number;
+      totalPages: number;
+    };
+  }> => {
+    const response = await api.get('/cash/sessions', { params });
+    return response.data;
+  },
+};
+
 export default api;
