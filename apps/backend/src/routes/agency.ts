@@ -2425,4 +2425,120 @@ router.delete(
   }
 );
 
+// =============================================
+// WEBHOOKS DE CIANBOX
+// =============================================
+
+/**
+ * GET /api/agency/tenants/:id/webhooks
+ * Listar webhooks registrados en Cianbox para un tenant
+ */
+router.get(
+  '/tenants/:id/webhooks',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const cianbox = await CianboxService.forTenant(req.params.id);
+      const webhooks = await cianbox.listWebhooks();
+
+      res.json({
+        success: true,
+        data: webhooks,
+      });
+    } catch (error) {
+      console.error('[Agency] Error listando webhooks:', error);
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/agency/tenants/:id/webhooks/register
+ * Registrar webhooks en Cianbox para un tenant
+ */
+router.post(
+  '/tenants/:id/webhooks/register',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.params.id;
+      const { events } = req.body;
+
+      // Validar eventos
+      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio'];
+      const eventList = events || validEvents;
+
+      // Obtener la URL del webhook desde la conexión o generar una
+      const connection = await prisma.cianboxConnection.findUnique({
+        where: { tenantId },
+      });
+
+      if (!connection) {
+        throw ApiError.notFound('Conexión Cianbox no encontrada');
+      }
+
+      // Construir la URL del webhook
+      const baseUrl = process.env.WEBHOOK_BASE_URL || 'https://cianbox-pos.ews-cdn.link/api';
+      const webhookUrl = `${baseUrl}/cianboxwebhooks/${tenantId}`;
+
+      const cianbox = await CianboxService.forTenant(tenantId);
+      const result = await cianbox.registerWebhook(eventList, webhookUrl);
+
+      // Actualizar la URL en la conexión
+      await prisma.cianboxConnection.update({
+        where: { tenantId },
+        data: { webhookUrl },
+      });
+
+      res.json({
+        success: true,
+        message: result.message,
+        data: {
+          url: webhookUrl,
+          events: eventList,
+        },
+      });
+    } catch (error) {
+      console.error('[Agency] Error registrando webhooks:', error);
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/agency/tenants/:id/webhooks
+ * Eliminar webhooks de Cianbox para un tenant
+ */
+router.delete(
+  '/tenants/:id/webhooks',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.params.id;
+      const { events } = req.body;
+
+      // Si no se especifican eventos, eliminar todos los principales
+      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio'];
+      const eventList = events || validEvents;
+
+      const cianbox = await CianboxService.forTenant(tenantId);
+      const result = await cianbox.deleteWebhook(eventList);
+
+      // Limpiar la URL del webhook en la conexión
+      await prisma.cianboxConnection.update({
+        where: { tenantId },
+        data: { webhookUrl: null },
+      });
+
+      res.json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      console.error('[Agency] Error eliminando webhooks:', error);
+      next(error);
+    }
+  }
+);
+
 export default router;

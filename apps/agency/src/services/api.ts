@@ -119,6 +119,22 @@ export const connectionsApi = {
   },
 };
 
+// Cianbox Webhooks API
+export const webhooksApi = {
+  list: async (tenantId: string) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/webhooks`);
+    return response.data.data;
+  },
+  register: async (tenantId: string, events?: string[]) => {
+    const response = await api.post(`/agency/tenants/${tenantId}/webhooks/register`, { events });
+    return response.data;
+  },
+  delete: async (tenantId: string, events?: string[]) => {
+    const response = await api.delete(`/agency/tenants/${tenantId}/webhooks`, { data: { events } });
+    return response.data;
+  },
+};
+
 // Database Servers API
 export const dbServersApi = {
   getAll: async () => {

@@ -493,37 +493,8 @@ router.post(
 );
 
 // =============================================
-// WEBHOOKS
+// WEBHOOKS - Ver /api/cianboxwebhooks/:tenantId
 // =============================================
-
-/**
- * POST /api/cianbox/webhook
- * Endpoint para recibir webhooks de Cianbox
- */
-router.post(
-  '/webhook',
-  async (req, res: Response, next: NextFunction) => {
-    try {
-      const { tenantId, event, data, signature } = req.body;
-
-      if (!tenantId || !event) {
-        throw ApiError.badRequest('Datos de webhook inválidos');
-      }
-
-      // TODO: Verificar signature si Cianbox lo proporciona
-
-      // Procesar webhook
-      const service = await CianboxService.forTenant(tenantId);
-      await service.processWebhook(tenantId, event, data);
-
-      res.json({ success: true });
-    } catch (error) {
-      // Log error pero responder 200 para evitar reintentos
-      console.error('Error procesando webhook de Cianbox:', error);
-      res.json({ success: false, error: 'Error procesando webhook' });
-    }
-  }
-);
 
 /**
  * GET /api/cianbox/sync/status

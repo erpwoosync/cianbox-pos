@@ -36,6 +36,7 @@ import {
 import {
   tenantsApi,
   connectionsApi,
+  webhooksApi,
   catalogApi,
   tenantRolesApi,
   tenantUsersApi,
@@ -108,6 +109,12 @@ export default function TenantDetail() {
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'error' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Webhooks
+  const [webhooks, setWebhooks] = useState<Array<{ id: number; evento: string; url: string; creado: string }>>([]);
+  const [loadingWebhooks, setLoadingWebhooks] = useState(false);
+  const [registeringWebhooks, setRegisteringWebhooks] = useState(false);
+  const [deletingWebhooks, setDeletingWebhooks] = useState(false);
 
   // Catálogo
   const [categories, setCategories] = useState<Category[]>([]);
@@ -287,7 +294,9 @@ export default function TenantDetail() {
 
   // Efecto para cargar catálogo al cambiar de tab
   useEffect(() => {
-    if (activeTab === 'categories') {
+    if (activeTab === 'cianbox') {
+      loadWebhooks();
+    } else if (activeTab === 'categories') {
       loadCatalog('categories');
     } else if (activeTab === 'brands') {
       loadCatalog('brands');
@@ -597,6 +606,53 @@ export default function TenantDetail() {
       showMessage('error', 'No se pudo conectar a Cianbox');
     } finally {
       setTestingConnection(false);
+    }
+  };
+
+  // Webhook handlers
+  const loadWebhooks = async () => {
+    if (!hasConnection) return;
+    setLoadingWebhooks(true);
+    try {
+      const data = await webhooksApi.list(id!);
+      setWebhooks(data || []);
+    } catch (error) {
+      console.error('Error loading webhooks:', error);
+      setWebhooks([]);
+    } finally {
+      setLoadingWebhooks(false);
+    }
+  };
+
+  const handleRegisterWebhooks = async () => {
+    setRegisteringWebhooks(true);
+    try {
+      const result = await webhooksApi.register(id!);
+      showMessage('success', result.message || 'Webhooks registrados');
+      await loadWebhooks();
+      await loadTenant();
+    } catch (error: unknown) {
+      console.error('Error registering webhooks:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error al registrar webhooks');
+    } finally {
+      setRegisteringWebhooks(false);
+    }
+  };
+
+  const handleDeleteWebhooks = async () => {
+    setDeletingWebhooks(true);
+    try {
+      const result = await webhooksApi.delete(id!);
+      showMessage('success', result.message || 'Webhooks eliminados');
+      await loadWebhooks();
+      await loadTenant();
+    } catch (error: unknown) {
+      console.error('Error deleting webhooks:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      showMessage('error', err.response?.data?.message || 'Error al eliminar webhooks');
+    } finally {
+      setDeletingWebhooks(false);
     }
   };
 
@@ -1272,6 +1328,97 @@ export default function TenantDetail() {
                 {!hasConnection && (
                   <p className="text-sm text-yellow-600 mt-2">
                     Configura la conexión Cianbox para habilitar la sincronización
+                  </p>
+                )}
+              </div>
+
+              {/* Sección de Webhooks */}
+              <div className="border-t border-gray-200 pt-6 mt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Webhooks (Sincronización en Tiempo Real)
+                </h3>
+
+                <p className="text-sm text-gray-600 mb-4">
+                  Los webhooks permiten recibir notificaciones automáticas de Cianbox cuando se actualizan productos, categorías o marcas.
+                </p>
+
+                {hasConnection && (
+                  <>
+                    <div className="flex flex-wrap gap-3 mb-4">
+                      <button
+                        onClick={handleRegisterWebhooks}
+                        disabled={registeringWebhooks || !hasConnection}
+                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      >
+                        {registeringWebhooks ? (
+                          <RefreshCw size={18} className="animate-spin" />
+                        ) : (
+                          <Link size={18} />
+                        )}
+                        {registeringWebhooks ? 'Registrando...' : 'Registrar Webhooks'}
+                      </button>
+                      <button
+                        onClick={handleDeleteWebhooks}
+                        disabled={deletingWebhooks || webhooks.length === 0}
+                        className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                      >
+                        {deletingWebhooks ? (
+                          <RefreshCw size={18} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={18} />
+                        )}
+                        {deletingWebhooks ? 'Eliminando...' : 'Eliminar Webhooks'}
+                      </button>
+                      <button
+                        onClick={loadWebhooks}
+                        disabled={loadingWebhooks}
+                        className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw size={18} className={loadingWebhooks ? 'animate-spin' : ''} />
+                        Actualizar
+                      </button>
+                    </div>
+
+                    {tenant.cianboxConnection?.webhookUrl && (
+                      <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <p className="text-sm text-green-800">
+                          <strong>URL configurada:</strong> {tenant.cianboxConnection.webhookUrl}
+                        </p>
+                      </div>
+                    )}
+
+                    {webhooks.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Evento</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Creado</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {webhooks.map((wh) => (
+                              <tr key={wh.id}>
+                                <td className="px-4 py-2 text-sm text-gray-900 font-medium">{wh.evento}</td>
+                                <td className="px-4 py-2 text-sm text-gray-500 truncate max-w-xs">{wh.url}</td>
+                                <td className="px-4 py-2 text-sm text-gray-500">{new Date(wh.creado).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">
+                        {loadingWebhooks ? 'Cargando webhooks...' : 'No hay webhooks registrados. Haz clic en "Registrar Webhooks" para activar la sincronización en tiempo real.'}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {!hasConnection && (
+                  <p className="text-sm text-yellow-600">
+                    Configura la conexión Cianbox para gestionar webhooks
                   </p>
                 )}
               </div>

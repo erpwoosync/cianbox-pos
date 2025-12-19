@@ -1218,50 +1218,396 @@ export class CianboxService {
   }
 
   // =============================================
-  // WEBHOOKS
+  // CONSULTAS POR IDS ESPECÍFICOS
   // =============================================
 
   /**
-   * Procesa un webhook de Cianbox
+   * Obtiene productos por IDs específicos (máx 200 por llamada)
    */
-  async processWebhook(
-    tenantId: string,
-    event: string,
-    data: unknown
-  ): Promise<void> {
-    switch (event) {
-      case 'product.created':
-      case 'product.updated':
-        await this.syncProducts(tenantId);
-        break;
+  async getProductsByIds(ids: number[]): Promise<CianboxProduct[]> {
+    if (ids.length === 0) return [];
+    const idsParam = ids.slice(0, 200).join(',');
+    const response = await this.request<CianboxPaginatedResponse<CianboxProduct>>(
+      `/productos?id=${idsParam}`
+    );
+    return response.body || [];
+  }
 
-      case 'product.deleted':
-        // Marcar producto como inactivo
-        const productData = data as { id: number };
-        await prisma.product.updateMany({
-          where: {
-            tenantId,
-            cianboxProductId: productData.id,
-          },
-          data: {
-            isActive: false,
-          },
+  /**
+   * Obtiene categorías por IDs específicos
+   */
+  async getCategoriesByIds(ids: number[]): Promise<CianboxCategory[]> {
+    if (ids.length === 0) return [];
+    const idsParam = ids.slice(0, 200).join(',');
+    const response = await this.request<CianboxPaginatedResponse<CianboxCategory>>(
+      `/productos/categorias?id=${idsParam}`
+    );
+    return response.body || [];
+  }
+
+  /**
+   * Obtiene marcas por IDs específicos
+   */
+  async getBrandsByIds(ids: number[]): Promise<CianboxBrand[]> {
+    if (ids.length === 0) return [];
+    const idsParam = ids.slice(0, 200).join(',');
+    const response = await this.request<CianboxPaginatedResponse<CianboxBrand>>(
+      `/productos/marcas?id=${idsParam}`
+    );
+    return response.body || [];
+  }
+
+  /**
+   * Obtiene listas de precios por IDs específicos
+   */
+  async getPriceListsByIds(ids: number[]): Promise<CianboxPriceList[]> {
+    if (ids.length === 0) return [];
+    const idsParam = ids.slice(0, 200).join(',');
+    const response = await this.request<CianboxPaginatedResponse<CianboxPriceList>>(
+      `/productos/listas?id=${idsParam}`
+    );
+    return response.body || [];
+  }
+
+  // =============================================
+  // UPSERT POR IDS (para webhooks)
+  // =============================================
+
+  /**
+   * Sincroniza productos específicos por IDs
+   */
+  async upsertProductsByIds(tenantId: string, ids: number[]): Promise<number> {
+    const products = await this.getProductsByIds(ids);
+    let synced = 0;
+
+    console.log(`[Cianbox Webhook] Procesando ${products.length} productos`);
+
+    for (const product of products) {
+      // Buscar categoría por cianboxCategoryId
+      let categoryId: string | null = null;
+      if (product.id_categoria) {
+        const category = await prisma.category.findFirst({
+          where: { tenantId, cianboxCategoryId: product.id_categoria },
         });
-        break;
+        categoryId = category?.id || null;
+      }
 
-      case 'customer.created':
-      case 'customer.updated':
-        await this.syncCustomers(tenantId);
-        break;
+      // Buscar marca por cianboxBrandId
+      let brandId: string | null = null;
+      if (product.id_marca) {
+        const brand = await prisma.brand.findFirst({
+          where: { tenantId, cianboxBrandId: product.id_marca },
+        });
+        brandId = brand?.id || null;
+      }
 
-      case 'stock.updated':
-        // Re-sincronizar productos para actualizar stock
-        await this.syncProducts(tenantId);
-        break;
+      const sku = product.codigo_interno?.trim() || null;
 
-      default:
-        console.log(`Evento de webhook no manejado: ${event}`);
+      const productData = {
+        sku,
+        barcode: product.codigo_barras || null,
+        name: product.producto,
+        description: product.descripcion || null,
+        categoryId,
+        brandId,
+        basePrice: product.precio_neto || 0,
+        baseCost: product.costo || 0,
+        taxRate: this.normalizeTaxRate(product.alicuota_iva),
+        taxIncluded: true,
+        trackStock: product.afecta_stock ?? true,
+        allowNegativeStock: false,
+        minStock: product.cantidad_minima || null,
+        location: product.ubicacion || null,
+        imageUrl: product.imagenes?.[0] || null,
+        isActive: product.vigente ?? true,
+        isService: !product.afecta_stock,
+        lastSyncedAt: new Date(),
+        cianboxData: product as unknown as object,
+      };
+
+      const savedProduct = await prisma.product.upsert({
+        where: {
+          tenantId_cianboxProductId: {
+            tenantId,
+            cianboxProductId: product.id,
+          },
+        },
+        update: productData,
+        create: {
+          tenantId,
+          cianboxProductId: product.id,
+          ...productData,
+        },
+      });
+
+      // Sincronizar precios
+      if (product.precios && Array.isArray(product.precios)) {
+        for (const precio of product.precios) {
+          const priceList = await prisma.priceList.findFirst({
+            where: { tenantId, cianboxPriceListId: precio.id_lista_precio },
+          });
+
+          if (priceList && precio.final_calculado > 0) {
+            await prisma.productPrice.upsert({
+              where: {
+                productId_priceListId: {
+                  productId: savedProduct.id,
+                  priceListId: priceList.id,
+                },
+              },
+              update: {
+                price: precio.final_calculado,
+                priceNet: precio.neto_calculado || precio.neto || null,
+                cost: product.costo_final_calculado || product.costo || 0,
+                updatedAt: new Date(),
+              },
+              create: {
+                productId: savedProduct.id,
+                priceListId: priceList.id,
+                price: precio.final_calculado,
+                priceNet: precio.neto_calculado || precio.neto || null,
+                cost: product.costo_final_calculado || product.costo || 0,
+              },
+            });
+          }
+        }
+      }
+
+      // Sincronizar stock por sucursal
+      if (product.stock_sucursal && Array.isArray(product.stock_sucursal)) {
+        for (const stockItem of product.stock_sucursal) {
+          let branch = await prisma.branch.findFirst({
+            where: { tenantId, cianboxBranchId: stockItem.id_sucursal },
+          });
+
+          if (!branch) {
+            branch = await prisma.branch.create({
+              data: {
+                tenantId,
+                cianboxBranchId: stockItem.id_sucursal,
+                code: `SUC-${stockItem.id_sucursal}`,
+                name: `Sucursal ${stockItem.id_sucursal}`,
+                isActive: true,
+              },
+            });
+          }
+
+          const available = stockItem.disponible ?? (stockItem.stock - (stockItem.reservado || 0));
+          await prisma.productStock.upsert({
+            where: {
+              productId_branchId: {
+                productId: savedProduct.id,
+                branchId: branch.id,
+              },
+            },
+            update: {
+              quantity: stockItem.stock,
+              reserved: stockItem.reservado || 0,
+              available: available,
+              updatedAt: new Date(),
+            },
+            create: {
+              productId: savedProduct.id,
+              branchId: branch.id,
+              quantity: stockItem.stock,
+              reserved: stockItem.reservado || 0,
+              available: available,
+            },
+          });
+        }
+      }
+
+      synced++;
     }
+
+    console.log(`[Cianbox Webhook] Sincronizados ${synced} productos`);
+    return synced;
+  }
+
+  /**
+   * Sincroniza categorías específicas por IDs
+   */
+  async upsertCategoriesByIds(tenantId: string, ids: number[]): Promise<number> {
+    const categories = await this.getCategoriesByIds(ids);
+    let synced = 0;
+
+    console.log(`[Cianbox Webhook] Procesando ${categories.length} categorías`);
+
+    const sortedCategories = categories.sort((a, b) => a.padre - b.padre);
+
+    for (const category of sortedCategories) {
+      let parentId: string | null = null;
+      if (category.padre && category.padre > 0) {
+        const parent = await prisma.category.findFirst({
+          where: { tenantId, cianboxCategoryId: category.padre },
+        });
+        parentId = parent?.id || null;
+      }
+
+      const categoryName = category.categoria || `Categoría ${category.id}`;
+
+      await prisma.category.upsert({
+        where: {
+          tenantId_cianboxCategoryId: {
+            tenantId,
+            cianboxCategoryId: category.id,
+          },
+        },
+        update: {
+          name: categoryName,
+          parentId,
+          lastSyncedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          cianboxCategoryId: category.id,
+          name: categoryName,
+          parentId,
+          lastSyncedAt: new Date(),
+        },
+      });
+
+      synced++;
+    }
+
+    console.log(`[Cianbox Webhook] Sincronizadas ${synced} categorías`);
+    return synced;
+  }
+
+  /**
+   * Sincroniza marcas específicas por IDs
+   */
+  async upsertBrandsByIds(tenantId: string, ids: number[]): Promise<number> {
+    const brands = await this.getBrandsByIds(ids);
+    let synced = 0;
+
+    console.log(`[Cianbox Webhook] Procesando ${brands.length} marcas`);
+
+    for (const brand of brands) {
+      const brandName = brand.marca || `Marca ${brand.id}`;
+
+      await prisma.brand.upsert({
+        where: {
+          tenantId_cianboxBrandId: {
+            tenantId,
+            cianboxBrandId: brand.id,
+          },
+        },
+        update: {
+          name: brandName,
+          lastSyncedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          cianboxBrandId: brand.id,
+          name: brandName,
+          lastSyncedAt: new Date(),
+        },
+      });
+
+      synced++;
+    }
+
+    console.log(`[Cianbox Webhook] Sincronizadas ${synced} marcas`);
+    return synced;
+  }
+
+  /**
+   * Sincroniza listas de precios específicas por IDs
+   */
+  async upsertPriceListsByIds(tenantId: string, ids: number[]): Promise<number> {
+    const priceLists = await this.getPriceListsByIds(ids);
+    let synced = 0;
+
+    console.log(`[Cianbox Webhook] Procesando ${priceLists.length} listas de precios`);
+
+    for (const priceList of priceLists) {
+      const name = priceList.lista || `Lista ${priceList.id}`;
+      const isDefault = priceList.id === 0;
+
+      await prisma.priceList.upsert({
+        where: {
+          tenantId_cianboxPriceListId: {
+            tenantId,
+            cianboxPriceListId: priceList.id,
+          },
+        },
+        update: {
+          name,
+          isDefault,
+          isActive: priceList.vigente,
+          lastSyncedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          cianboxPriceListId: priceList.id,
+          name,
+          currency: 'ARS',
+          isDefault,
+          isActive: priceList.vigente,
+          lastSyncedAt: new Date(),
+        },
+      });
+
+      synced++;
+    }
+
+    console.log(`[Cianbox Webhook] Sincronizadas ${synced} listas de precios`);
+    return synced;
+  }
+
+  // =============================================
+  // GESTIÓN DE WEBHOOKS EN CIANBOX
+  // =============================================
+
+  /**
+   * Lista los webhooks configurados en Cianbox
+   */
+  async listWebhooks(): Promise<Array<{ id: number; evento: string; url: string; creado: string }>> {
+    const response = await this.request<{
+      status: string;
+      body: Array<{ id: number; evento: string; url: string; creado: string; updated: string }>;
+    }>('/general/notificaciones');
+    return response.body || [];
+  }
+
+  /**
+   * Registra un webhook en Cianbox
+   * @param events Lista de eventos: productos, categorias, marcas, listas_precio, etc.
+   * @param url URL del webhook
+   */
+  async registerWebhook(events: string[], url: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.request<{
+      status: string;
+      body: { status: string; descripcion: string };
+    }>('/general/notificaciones/alta', {
+      method: 'POST',
+      body: JSON.stringify({ evento: events, url }),
+    });
+
+    return {
+      success: response.status === 'ok',
+      message: response.body?.descripcion || 'Webhook registrado',
+    };
+  }
+
+  /**
+   * Elimina webhooks de Cianbox
+   * @param events Lista de eventos a dar de baja
+   */
+  async deleteWebhook(events: string[]): Promise<{ success: boolean; message: string }> {
+    const response = await this.request<{
+      status: string;
+      body: { status: string; descripcion: string };
+    }>('/general/notificaciones/eliminar', {
+      method: 'DELETE',
+      body: JSON.stringify({ evento: events }),
+    });
+
+    return {
+      success: response.status === 'ok',
+      message: response.body?.descripcion || 'Webhook eliminado',
+    };
   }
 }
 
