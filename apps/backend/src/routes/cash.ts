@@ -359,17 +359,24 @@ router.get(
       });
 
       if (!session) {
-        return res.json({ session: null, hasOpenSession: false });
+        return res.json({
+          success: true,
+          data: { session: null, hasOpenSession: false, expectedCash: 0 },
+        });
       }
 
       const expectedCash = await calculateExpectedCash(session.id);
 
       res.json({
-        session: {
-          ...session,
+        success: true,
+        data: {
+          session: {
+            ...session,
+            expectedCash,
+          },
+          hasOpenSession: true,
           expectedCash,
         },
-        hasOpenSession: true,
       });
     } catch (error) {
       next(error);
@@ -412,11 +419,14 @@ router.get(
       }
 
       res.json({
-        pointOfSale: pos,
-        currentSession: session,
-        isOpen: !!session && session.status === 'OPEN',
-        isSuspended: session?.status === 'SUSPENDED',
-        isCounting: session?.status === 'COUNTING',
+        success: true,
+        data: {
+          pointOfSale: pos,
+          currentSession: session,
+          isOpen: !!session && session.status === 'OPEN',
+          isSuspended: session?.status === 'SUSPENDED',
+          isCounting: session?.status === 'COUNTING',
+        },
       });
     } catch (error) {
       next(error);
@@ -1056,7 +1066,10 @@ router.get(
       });
 
       if (!session) {
-        return res.json({ movements: [], session: null });
+        return res.json({
+          success: true,
+          data: { movements: [], session: null },
+        });
       }
 
       const movements = await prisma.cashMovement.findMany({
@@ -1068,7 +1081,10 @@ router.get(
         },
       });
 
-      res.json({ movements, sessionId: session.id });
+      res.json({
+        success: true,
+        data: { movements, sessionId: session.id },
+      });
     } catch (error) {
       next(error);
     }
@@ -1107,7 +1123,10 @@ router.get(
         },
       });
 
-      res.json({ movements, session });
+      res.json({
+        success: true,
+        data: { movements, session },
+      });
     } catch (error) {
       next(error);
     }
@@ -1258,7 +1277,10 @@ router.get(
         },
       });
 
-      res.json({ counts, session });
+      res.json({
+        success: true,
+        data: { counts, session },
+      });
     } catch (error) {
       next(error);
     }
@@ -1325,7 +1347,10 @@ router.get(
         }
       }
 
-      res.json({ session });
+      res.json({
+        success: true,
+        data: { session },
+      });
     } catch (error) {
       next(error);
     }
@@ -1406,9 +1431,12 @@ router.get(
       }
 
       res.json({
-        date: targetDate.toISOString().slice(0, 10),
-        sessions,
-        summary,
+        success: true,
+        data: {
+          date: targetDate.toISOString().slice(0, 10),
+          sessions,
+          summary,
+        },
       });
     } catch (error) {
       next(error);
@@ -1474,12 +1502,15 @@ router.get(
       ]);
 
       res.json({
-        sessions,
-        pagination: {
-          total,
-          page: parseInt(page as string),
-          pageSize: take,
-          totalPages: Math.ceil(total / take),
+        success: true,
+        data: {
+          sessions,
+          pagination: {
+            total,
+            page: parseInt(page as string),
+            pageSize: take,
+            totalPages: Math.ceil(total / take),
+          },
         },
       });
     } catch (error) {
