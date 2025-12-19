@@ -717,7 +717,7 @@ router.post('/payments/sync', authenticate, async (req: AuthenticatedRequest, re
         transactionId: { not: null },
         mpPaymentId: null,
         // Solo pagos con métodos de MP
-        method: { in: ['CREDIT_CARD', 'DEBIT_CARD', 'QR', 'TRANSFER'] },
+        method: { in: ['CREDIT_CARD', 'DEBIT_CARD', 'QR', 'TRANSFER', 'MP_POINT'] },
       },
       include: {
         sale: { select: { id: true, saleNumber: true } },
@@ -834,7 +834,7 @@ router.get('/payments/pending-sync', authenticate, async (req: AuthenticatedRequ
         sale: { tenantId },
         transactionId: { not: null },
         mpPaymentId: null,
-        method: { in: ['CREDIT_CARD', 'DEBIT_CARD', 'QR', 'TRANSFER'] },
+        method: { in: ['CREDIT_CARD', 'DEBIT_CARD', 'QR', 'TRANSFER', 'MP_POINT'] },
       },
       select: {
         id: true,
