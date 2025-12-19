@@ -20,7 +20,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import MPPointPaymentModal from '../components/MPPointPaymentModal';
 import MPQRPaymentModal from '../components/MPQRPaymentModal';
@@ -126,9 +126,14 @@ interface Ticket {
   customerName?: string;
 }
 
-interface Category {
+interface QuickAccessCategory {
   id: string;
   name: string;
+  quickAccessColor?: string | null;
+  quickAccessIcon?: string | null;
+  quickAccessOrder?: number;
+  isDefaultQuickAccess?: boolean;
+  _count?: { products: number };
 }
 
 interface PointOfSale {
@@ -212,7 +217,7 @@ export default function POS() {
   const [isSearching, setIsSearching] = useState(false);
 
   // Estado de productos y categorías
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [quickAccessCategories, setQuickAccessCategories] = useState<QuickAccessCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -394,15 +399,23 @@ export default function POS() {
 
   const loadInitialData = async () => {
     try {
-      const [categoriesRes, productsRes, posRes, promotionsRes] = await Promise.all([
-        productsService.getCategories(),
+      const [quickAccessRes, productsRes, posRes, promotionsRes] = await Promise.all([
+        categoriesService.getQuickAccess(),
         productsService.list({ pageSize: 100 }),
         pointsOfSaleService.list(),
         promotionsService.getActive(),
       ]);
 
-      if (categoriesRes.success) {
-        setCategories(categoriesRes.data);
+      if (quickAccessRes.success) {
+        setQuickAccessCategories(quickAccessRes.data);
+
+        // Seleccionar la categoría por defecto si existe
+        const defaultCategory = quickAccessRes.data.find(
+          (cat: QuickAccessCategory) => cat.isDefaultQuickAccess
+        );
+        if (defaultCategory) {
+          setSelectedCategory(defaultCategory.id);
+        }
       }
 
       if (productsRes.success) {
@@ -1089,11 +1102,6 @@ export default function POS() {
     ? products.filter((p) => p.category?.id === selectedCategory)
     : products;
 
-  // Filtrar categorías que tienen productos
-  const categoriesWithProducts = categories.filter((cat) =>
-    products.some((p) => p.category?.id === cat.id)
-  );
-
   return (
     <div className="pos-layout">
       {/* Modal selector de Punto de Venta */}
@@ -1273,32 +1281,39 @@ export default function POS() {
           </div>
         )}
 
-        {/* Categorías */}
-        <div className="flex gap-2 p-4 overflow-x-auto">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              !selectedCategory
-                ? 'bg-primary-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            Todos
-          </button>
-          {categoriesWithProducts.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                selectedCategory === cat.id
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
+        {/* Acceso Rápido - Categorías destacadas */}
+        {quickAccessCategories.length > 0 && (
+          <div className="shrink-0 bg-gradient-to-r from-primary-50 to-emerald-50 border-b">
+            <div className="flex gap-2 p-3 overflow-x-auto">
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={`flex items-center justify-center px-5 py-3 rounded-xl border-2 font-semibold whitespace-nowrap transition-all hover:scale-105 hover:shadow-md min-w-[100px] ${
+                  !selectedCategory
+                    ? 'bg-primary-600 text-white border-primary-600'
+                    : 'bg-white text-primary-600 border-primary-600'
+                }`}
+              >
+                Todos
+              </button>
+              {quickAccessCategories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
+                  style={{
+                    backgroundColor: selectedCategory === cat.id
+                      ? (cat.quickAccessColor || '#3b82f6')
+                      : 'white',
+                    borderColor: cat.quickAccessColor || '#3b82f6',
+                    color: selectedCategory === cat.id ? 'white' : (cat.quickAccessColor || '#3b82f6'),
+                  }}
+                  className="flex items-center justify-center px-5 py-3 rounded-xl border-2 font-semibold whitespace-nowrap transition-all hover:scale-105 hover:shadow-md min-w-[100px]"
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Grid de productos */}
         <div className="flex-1 overflow-y-auto p-4">
