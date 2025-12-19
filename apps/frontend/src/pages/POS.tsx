@@ -1125,6 +1125,28 @@ export default function POS() {
                     key={pos.id}
                     onClick={() => {
                       if (isDisabled) return;
+                      if (isCurrentPOS) {
+                        setShowPOSSelector(false);
+                        return;
+                      }
+                      // Verificar si hay productos en algún ticket
+                      const hasItems = tickets.some((t: Ticket) => t.items.length > 0);
+                      if (hasItems) {
+                        const confirmed = window.confirm(
+                          '¿Está seguro de cambiar de punto de venta?\n\nLos productos en el carrito se perderán.'
+                        );
+                        if (!confirmed) return;
+                      }
+                      // Limpiar tickets y crear uno nuevo
+                      const newTicket: Ticket = {
+                        id: generateId(),
+                        number: 1,
+                        name: 'Ticket #1',
+                        items: [],
+                        createdAt: new Date().toISOString(),
+                      };
+                      setTickets([newTicket]);
+                      setCurrentTicketId(newTicket.id);
                       setSelectedPOS(pos);
                       setShowPOSSelector(false);
                     }}
