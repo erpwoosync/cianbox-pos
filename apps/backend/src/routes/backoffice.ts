@@ -1768,11 +1768,11 @@ router.get('/mp-orphan-orders', async (req: AuthenticatedRequest, res: Response,
   try {
     const tenantId = req.user!.tenantId;
 
-    // Buscar órdenes sin saleId
+    // Buscar órdenes sin saleId (incluir varios estados que indican pago completado)
     const orphanOrders = await prisma.mercadoPagoOrder.findMany({
       where: {
         tenantId,
-        status: 'PROCESSED',
+        status: { in: ['PROCESSED', 'COMPLETED', 'APPROVED'] },
         saleId: null,
       },
       orderBy: { processedAt: 'desc' },
