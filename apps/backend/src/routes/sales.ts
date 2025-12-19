@@ -75,7 +75,7 @@ const paymentSchema = z.object({
   mpDeviceId: z.string().optional(),
   mpPosId: z.string().optional(),
   mpStoreId: z.string().optional(),
-  providerData: z.record(z.unknown()).optional(),
+  providerData: z.any().optional(),
 });
 
 const saleCreateSchema = z.object({
