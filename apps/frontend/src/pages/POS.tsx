@@ -39,12 +39,35 @@ interface Product {
   basePrice?: number;
   taxRate?: number;
   category?: { id: string; name: string };
+  brand?: { id: string; name: string };
   prices?: Array<{
     priceListId: string;
     price: number;
     priceNet?: number;
     priceList?: { id: string; name: string }
   }>;
+}
+
+interface AppliedPromotion {
+  id: string;
+  name: string;
+  type: string;
+  discount: number;
+}
+
+interface ActivePromotion {
+  id: string;
+  name: string;
+  type: string;
+  applyTo: string;
+  categoryIds?: string[];
+  brandIds?: string[];
+  discountValue: number;
+  discountType: string;
+  buyQuantity?: number;
+  getQuantity?: number;
+  applicableProducts?: { productId: string }[];
+  badgeColor?: string | null;
 }
 
 // Helper para generar IDs únicos
@@ -90,6 +113,7 @@ interface CartItem {
   subtotal: number;
   promotionId?: string;
   promotionName?: string;
+  promotions?: AppliedPromotion[];
 }
 
 interface Ticket {
@@ -225,6 +249,7 @@ export default function POS() {
   const [cashCountMode, setCashCountMode] = useState<'partial' | 'closing'>('partial');
 
   // Estado de promociones
+  const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
   const [isCalculatingPromotions, setIsCalculatingPromotions] = useState(false);
   const lastCalculatedCartKeyRef = useRef<string>('');
 
@@ -369,10 +394,11 @@ export default function POS() {
 
   const loadInitialData = async () => {
     try {
-      const [categoriesRes, productsRes, posRes] = await Promise.all([
+      const [categoriesRes, productsRes, posRes, promotionsRes] = await Promise.all([
         productsService.getCategories(),
         productsService.list({ pageSize: 100 }),
         pointsOfSaleService.list(),
+        promotionsService.getActive(),
       ]);
 
       if (categoriesRes.success) {
@@ -381,6 +407,10 @@ export default function POS() {
 
       if (productsRes.success) {
         setProducts(productsRes.data);
+      }
+
+      if (promotionsRes.success) {
+        setActivePromotions(promotionsRes.data || []);
       }
 
       if (posRes.success) {
@@ -508,7 +538,7 @@ export default function POS() {
                     ...ticket,
                     items: ticket.items.map((item: CartItem) => {
                       const promoItem = response.data.items?.find(
-                        (pi: { productId: string; discount?: number; promotion?: { id: string; name: string } | null }) =>
+                        (pi: { productId: string; discount?: number; promotion?: { id: string; name: string; type: string } | null; promotions?: AppliedPromotion[] }) =>
                           pi.productId === item.product.id
                       );
                       if (promoItem && promoItem.discount > 0) {
@@ -518,6 +548,12 @@ export default function POS() {
                           subtotal: item.quantity * item.unitPrice - promoItem.discount,
                           promotionId: promoItem.promotion?.id,
                           promotionName: promoItem.promotion?.name,
+                          promotions: promoItem.promotions || (promoItem.promotion ? [{
+                            id: promoItem.promotion.id,
+                            name: promoItem.promotion.name,
+                            type: promoItem.promotion.type,
+                            discount: promoItem.discount,
+                          }] : []),
                         };
                       }
                       // Si no hay promo, resetear descuento
@@ -527,6 +563,7 @@ export default function POS() {
                         subtotal: item.quantity * item.unitPrice,
                         promotionId: undefined,
                         promotionName: undefined,
+                        promotions: [],
                       };
                     }),
                   }
@@ -647,6 +684,73 @@ export default function POS() {
   const totalDiscount = cart.reduce((sum: number, item: CartItem) => sum + item.discount, 0);
   const total = subtotal;
   const itemCount = cart.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
+
+  // Agrupar descuentos por promoción
+  const discountsByPromotion = cart.reduce((acc, item) => {
+    // Usar el array de promotions si existe
+    if (item.promotions && item.promotions.length > 0) {
+      for (const promo of item.promotions) {
+        if (!acc[promo.id]) {
+          acc[promo.id] = { name: promo.name, total: 0 };
+        }
+        acc[promo.id].total += promo.discount;
+      }
+    } else if (item.promotionId && item.promotionName && item.discount > 0) {
+      // Fallback para compatibilidad
+      if (!acc[item.promotionId]) {
+        acc[item.promotionId] = { name: item.promotionName, total: 0 };
+      }
+      acc[item.promotionId].total += item.discount;
+    }
+    return acc;
+  }, {} as Record<string, { name: string; total: number }>);
+
+  // Obtener promoción aplicable para un producto
+  const getProductPromotion = useCallback((product: Product): ActivePromotion | null => {
+    if (!activePromotions.length) return null;
+
+    for (const promo of activePromotions) {
+      let isApplicable = false;
+
+      switch (promo.applyTo) {
+        case 'ALL_PRODUCTS':
+          isApplicable = true;
+          break;
+        case 'SPECIFIC_PRODUCTS':
+          isApplicable = promo.applicableProducts?.some(p => p.productId === product.id) || false;
+          break;
+        case 'CATEGORIES':
+          isApplicable = !!product.category?.id && !!promo.categoryIds?.includes(product.category.id);
+          break;
+        case 'BRANDS':
+          isApplicable = !!product.brand?.id && !!promo.brandIds?.includes(product.brand.id);
+          break;
+      }
+
+      if (isApplicable) {
+        return promo;
+      }
+    }
+    return null;
+  }, [activePromotions]);
+
+  // Formatear descuento para mostrar badge
+  const formatPromotionBadge = (promo: ActivePromotion): string => {
+    switch (promo.type) {
+      case 'PERCENTAGE':
+        return `-${promo.discountValue}%`;
+      case 'FIXED_AMOUNT':
+        return `-$${promo.discountValue}`;
+      case 'BUY_X_GET_Y':
+        return `${promo.buyQuantity || 1}x${promo.getQuantity || 2}`;
+      case 'SECOND_UNIT_DISCOUNT':
+        return `2da -${promo.discountValue}%`;
+      case 'FLASH_SALE':
+        return `-${promo.discountValue}%`;
+      default:
+        return 'Promo';
+    }
+  };
 
   // Calcular vuelto
   const tenderedAmount = parseFloat(amountTendered) || 0;
@@ -1204,31 +1308,60 @@ export default function POS() {
             </div>
           ) : (
             <div className="product-grid">
-              {filteredProducts.map((product) => (
-                <button
-                  key={product.id}
-                  onClick={() => addToCart(product)}
-                  className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 hover:shadow-md hover:border-primary-200 transition-all text-left"
-                >
-                  <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ShoppingCart className="w-8 h-8 text-gray-300" />
+              {filteredProducts.map((product) => {
+                const promo = getProductPromotion(product);
+                return (
+                  <button
+                    key={product.id}
+                    onClick={() => addToCart(product)}
+                    style={promo ? {
+                      borderColor: `${promo.badgeColor || '#22C55E'}40`,
+                    } : undefined}
+                    className={`bg-white rounded-xl p-3 shadow-sm border-2 transition-all text-left relative ${
+                      promo
+                        ? 'hover:shadow-md'
+                        : 'border-gray-100 hover:shadow-md hover:border-primary-200'
+                    }`}
+                    onMouseEnter={(e) => {
+                      if (promo) {
+                        e.currentTarget.style.borderColor = `${promo.badgeColor || '#22C55E'}80`;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (promo) {
+                        e.currentTarget.style.borderColor = `${promo.badgeColor || '#22C55E'}40`;
+                      }
+                    }}
+                  >
+                    {promo && (
+                      <div
+                        style={{ backgroundColor: promo.badgeColor || '#22C55E' }}
+                        className="absolute -top-2 -right-2 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10"
+                      >
+                        <Tag className="w-3 h-3" />
+                        {formatPromotionBadge(promo)}
+                      </div>
                     )}
-                  </div>
-                  <p className="font-medium text-sm line-clamp-2 min-h-[2.5rem]">
-                    {product.shortName || product.name}
-                  </p>
-                  <p className="text-primary-600 font-semibold mt-1">
-                    ${getProductPrice(product).toFixed(2)}
-                  </p>
-                </button>
-              ))}
+                    <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
+                      {product.imageUrl ? (
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <ShoppingCart className="w-8 h-8 text-gray-300" />
+                      )}
+                    </div>
+                    <p className="font-medium text-sm line-clamp-2 min-h-[2.5rem]">
+                      {product.shortName || product.name}
+                    </p>
+                    <p className="text-primary-600 font-semibold mt-1">
+                      ${getProductPrice(product).toFixed(2)}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1388,14 +1521,28 @@ export default function POS() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>${(subtotal + totalDiscount).toFixed(2)}</span>
             </div>
-            {(totalDiscount > 0 || isCalculatingPromotions) && (
-              <div className="flex justify-between text-sm text-green-600">
+            {isCalculatingPromotions && (
+              <div className="flex justify-between text-sm text-gray-400">
                 <span className="flex items-center gap-1">
-                  Descuentos
-                  {isCalculatingPromotions && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Calculando promociones
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 </span>
+              </div>
+            )}
+            {Object.entries(discountsByPromotion).map(([promoId, promo]) => (
+              <div key={promoId} className="flex justify-between text-sm text-green-600">
+                <span className="flex items-center gap-1">
+                  <Tag className="w-3 h-3" />
+                  {promo.name}
+                </span>
+                <span>-${promo.total.toFixed(2)}</span>
+              </div>
+            ))}
+            {totalDiscount > 0 && Object.keys(discountsByPromotion).length > 1 && (
+              <div className="flex justify-between text-xs text-gray-500 border-t border-dashed pt-1">
+                <span>Total descuentos</span>
                 <span>-${totalDiscount.toFixed(2)}</span>
               </div>
             )}
