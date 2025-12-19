@@ -1781,8 +1781,10 @@ router.get('/mp-orphan-orders', async (req: AuthenticatedRequest, res: Response,
     // Filtrar las que ya tienen un Payment vinculado a una Sale
     const trueOrphans = [];
     for (const order of orphanOrders) {
+      let linkedSaleId: string | null = null;
+
+      // 1. Buscar por paymentId en Payment.transactionId
       if (order.paymentId) {
-        // Buscar si existe un Payment con este transactionId
         const existingPayment = await prisma.payment.findFirst({
           where: {
             transactionId: order.paymentId,
@@ -1790,17 +1792,49 @@ router.get('/mp-orphan-orders', async (req: AuthenticatedRequest, res: Response,
           },
           include: { sale: { select: { id: true } } },
         });
-
         if (existingPayment?.sale) {
-          // Auto-vincular el MercadoPagoOrder a la Sale
-          await prisma.mercadoPagoOrder.update({
-            where: { id: order.id },
-            data: { saleId: existingPayment.sale.id },
-          });
-          // No agregar a la lista de huérfanos
-          continue;
+          linkedSaleId = existingPayment.sale.id;
         }
       }
+
+      // 2. Buscar por orderId en Payment.transactionId
+      if (!linkedSaleId) {
+        const paymentByOrderId = await prisma.payment.findFirst({
+          where: {
+            transactionId: order.orderId,
+            sale: { tenantId },
+          },
+          include: { sale: { select: { id: true } } },
+        });
+        if (paymentByOrderId?.sale) {
+          linkedSaleId = paymentByOrderId.sale.id;
+        }
+      }
+
+      // 3. Buscar por externalReference en Payment.transactionId
+      if (!linkedSaleId && order.externalReference) {
+        const paymentByRef = await prisma.payment.findFirst({
+          where: {
+            transactionId: order.externalReference,
+            sale: { tenantId },
+          },
+          include: { sale: { select: { id: true } } },
+        });
+        if (paymentByRef?.sale) {
+          linkedSaleId = paymentByRef.sale.id;
+        }
+      }
+
+      if (linkedSaleId) {
+        // Auto-vincular el MercadoPagoOrder a la Sale
+        await prisma.mercadoPagoOrder.update({
+          where: { id: order.id },
+          data: { saleId: linkedSaleId },
+        });
+        // No agregar a la lista de huérfanos
+        continue;
+      }
+
       trueOrphans.push(order);
     }
 
