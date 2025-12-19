@@ -246,13 +246,13 @@ export default function ProductDetail() {
                       <tr>
                         <td className="px-4 py-3 font-medium text-gray-900">Total</td>
                         <td className="px-4 py-3 text-right font-medium text-gray-900">
-                          {stock.reduce((sum, s) => sum + s.quantity, 0)}
+                          {stock.reduce((sum, s) => sum + Number(s.quantity), 0)}
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-gray-500">
-                          {stock.reduce((sum, s) => sum + s.reserved, 0)}
+                          {stock.reduce((sum, s) => sum + Number(s.reserved), 0)}
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-gray-900">
-                          {stock.reduce((sum, s) => sum + s.available, 0)}
+                          {stock.reduce((sum, s) => sum + Number(s.available), 0)}
                         </td>
                       </tr>
                     </tfoot>
