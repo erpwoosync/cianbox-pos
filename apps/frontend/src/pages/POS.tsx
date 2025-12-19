@@ -38,6 +38,7 @@ interface Product {
   imageUrl?: string;
   basePrice?: number;
   taxRate?: number;
+  cianboxProductId?: number;
   category?: { id: string; name: string };
   brand?: { id: string; name: string };
   prices?: Array<{
@@ -1455,6 +1456,11 @@ export default function POS() {
                     </p>
                     <p className="text-primary-600 font-semibold mt-1">
                       ${getProductPrice(product).toFixed(2)}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1 truncate">
+                      {product.barcode && <span>{product.barcode}</span>}
+                      {product.barcode && product.cianboxProductId && <span> | </span>}
+                      {product.cianboxProductId && <span>CB:{product.cianboxProductId}</span>}
                     </p>
                   </button>
                 );

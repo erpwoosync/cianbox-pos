@@ -578,12 +578,44 @@ router.get('/points-of-sale/:id', async (req: AuthenticatedRequest, res: Respons
 // Crear punto de venta
 const createPointOfSaleSchema = z.object({
   branchId: z.string().min(1, 'La sucursal es requerida'),
-  code: z.string().min(1, 'El código es requerido'),
+  code: z.string().optional(), // Ahora es opcional, se autogenera si no se proporciona
   name: z.string().min(1, 'El nombre es requerido'),
   description: z.string().optional(),
   priceListId: z.string().optional(),
   isActive: z.boolean().optional().default(true),
 });
+
+// Función para generar código de POS automático
+async function generatePOSCode(tenantId: string, branchId: string): Promise<string> {
+  // Buscar el último POS de la sucursal para generar el siguiente código
+  const lastPOS = await prisma.pointOfSale.findFirst({
+    where: { tenantId, branchId },
+    orderBy: { createdAt: 'desc' },
+    select: { code: true },
+  });
+
+  // Contar cuántos POS hay en la sucursal
+  const count = await prisma.pointOfSale.count({
+    where: { tenantId, branchId },
+  });
+
+  // Generar código: CAJA-01, CAJA-02, etc.
+  const nextNumber = count + 1;
+  let code = `CAJA-${nextNumber.toString().padStart(2, '0')}`;
+
+  // Verificar que no exista (por si hay huecos en la numeración)
+  let attempts = 0;
+  while (attempts < 100) {
+    const exists = await prisma.pointOfSale.findFirst({
+      where: { tenantId, branchId, code },
+    });
+    if (!exists) break;
+    attempts++;
+    code = `CAJA-${(nextNumber + attempts).toString().padStart(2, '0')}`;
+  }
+
+  return code;
+}
 
 router.post(
   '/points-of-sale',
@@ -597,7 +629,8 @@ router.post(
         throw new ApiError(422, 'VALIDATION_ERROR', 'Datos inválidos', validation.error.errors);
       }
 
-      const { branchId, code, name, description, priceListId, isActive } = validation.data;
+      const { branchId, name, description, priceListId, isActive } = validation.data;
+      let { code } = validation.data;
 
       // Verificar que la sucursal pertenece al tenant
       const branch = await prisma.branch.findFirst({
@@ -606,6 +639,11 @@ router.post(
 
       if (!branch) {
         throw new ApiError(404, 'NOT_FOUND', 'Sucursal no encontrada');
+      }
+
+      // Autogenerar código si no se proporciona
+      if (!code || code.trim() === '') {
+        code = await generatePOSCode(tenantId, branchId);
       }
 
       // Verificar que la lista de precios pertenece al tenant (si se especifica)

@@ -78,6 +78,7 @@ export default function Integrations() {
     name: '',
     external_id: '',
   });
+  const [linkToPosId, setLinkToPosId] = useState<string>(''); // POS a vincular después de crear
 
   useEffect(() => {
     // Check for OAuth callback params
@@ -201,15 +202,34 @@ export default function Integrations() {
 
     setCreatingCashier(true);
     try {
-      await mercadoPagoApi.createQRCashier({
+      const externalId = newCashierData.external_id.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const result = await mercadoPagoApi.createQRCashier({
         name: newCashierData.name,
-        external_id: newCashierData.external_id.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+        external_id: externalId,
         store_id: selectedStoreForNewCashier.id,
       });
-      setNotification({ type: 'success', message: 'Caja creada exitosamente' });
+
+      // Si se seleccionó un POS para vincular, vincular automáticamente
+      if (linkToPosId && result.data?.id) {
+        try {
+          await mercadoPagoApi.linkQRCashierToPOS(linkToPosId, {
+            mpQrPosId: result.data.id,
+            mpQrPosExternalId: externalId,
+          });
+          await loadSystemPOS();
+          setNotification({ type: 'success', message: 'Caja creada y vinculada exitosamente' });
+        } catch (linkError) {
+          console.error('Error vinculando caja:', linkError);
+          setNotification({ type: 'success', message: 'Caja creada. Error al vincular automáticamente, vinculala manualmente.' });
+        }
+      } else {
+        setNotification({ type: 'success', message: 'Caja creada exitosamente' });
+      }
+
       setShowCreateCashierModal(false);
       setNewCashierData({ name: '', external_id: '' });
       setSelectedStoreForNewCashier(null);
+      setLinkToPosId('');
       await loadQRData();
     } catch (error: unknown) {
       console.error('Error creating cashier:', error);
@@ -223,6 +243,7 @@ export default function Integrations() {
   const openCreateCashierModal = (store: QRStore) => {
     setSelectedStoreForNewCashier(store);
     setNewCashierData({ name: '', external_id: '' });
+    setLinkToPosId('');
     setShowCreateCashierModal(true);
   };
 
@@ -1050,6 +1071,28 @@ export default function Integrations() {
                 />
                 <p className="text-xs text-gray-500 mt-1">Solo letras y números, sin espacios</p>
               </div>
+
+              {/* Selector de POS para vincular */}
+              {systemPOSList.filter(pos => !pos.mpQrPosId).length > 0 && (
+                <div className="pt-2 border-t">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vincular a Punto de Venta <span className="text-gray-400 font-normal">(opcional)</span>
+                  </label>
+                  <select
+                    value={linkToPosId}
+                    onChange={(e) => setLinkToPosId(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value="">No vincular ahora</option>
+                    {systemPOSList.filter(pos => !pos.mpQrPosId).map(pos => (
+                      <option key={pos.id} value={pos.id}>
+                        {pos.name} ({pos.code}) - {pos.branch?.name || 'Sin sucursal'}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">La caja QR se vinculará automáticamente al punto de venta seleccionado</p>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
               <button
