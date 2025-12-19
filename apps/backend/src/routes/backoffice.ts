@@ -1762,11 +1762,13 @@ router.get('/cash-sessions/report/daily', async (req: AuthenticatedRequest, res:
 /**
  * GET /api/backoffice/mp-orphan-orders
  * Lista órdenes de MP procesadas que no tienen venta asociada
+ * Excluye órdenes cuyo paymentId ya existe en algún Payment de una Sale
  */
 router.get('/mp-orphan-orders', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.user!.tenantId;
 
+    // Buscar órdenes sin saleId
     const orphanOrders = await prisma.mercadoPagoOrder.findMany({
       where: {
         tenantId,
@@ -1776,10 +1778,36 @@ router.get('/mp-orphan-orders', async (req: AuthenticatedRequest, res: Response,
       orderBy: { processedAt: 'desc' },
     });
 
+    // Filtrar las que ya tienen un Payment vinculado a una Sale
+    const trueOrphans = [];
+    for (const order of orphanOrders) {
+      if (order.paymentId) {
+        // Buscar si existe un Payment con este transactionId
+        const existingPayment = await prisma.payment.findFirst({
+          where: {
+            transactionId: order.paymentId,
+            sale: { tenantId },
+          },
+          include: { sale: { select: { id: true } } },
+        });
+
+        if (existingPayment?.sale) {
+          // Auto-vincular el MercadoPagoOrder a la Sale
+          await prisma.mercadoPagoOrder.update({
+            where: { id: order.id },
+            data: { saleId: existingPayment.sale.id },
+          });
+          // No agregar a la lista de huérfanos
+          continue;
+        }
+      }
+      trueOrphans.push(order);
+    }
+
     res.json({
       success: true,
-      data: orphanOrders,
-      count: orphanOrders.length,
+      data: trueOrphans,
+      count: trueOrphans.length,
     });
   } catch (error) {
     next(error);
