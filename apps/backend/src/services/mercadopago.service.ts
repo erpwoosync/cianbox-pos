@@ -1160,6 +1160,107 @@ class MercadoPagoService {
   // ============================================
 
   /**
+   * Crea una sucursal (store) en Mercado Pago para QR
+   */
+  async createQRStore(tenantId: string, data: {
+    name: string;
+    external_id: string;
+    location: {
+      street_name: string;
+      street_number: string;
+      city_name: string;
+      state_name: string;
+    };
+  }): Promise<{ id: string; name: string; external_id: string }> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'QR');
+
+    const config = await this.getConfig(tenantId, 'QR');
+    if (!config?.mpUserId) {
+      throw new Error('No se encontró el user_id de Mercado Pago');
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/users/${config.mpUserId}/stores`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: data.name,
+          external_id: data.external_id,
+          location: data.location,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({})) as { message?: string; error?: string };
+      console.error('Error creando store MP:', error);
+      throw new Error(error.message || error.error || 'Error al crear local en Mercado Pago');
+    }
+
+    const store = await response.json() as { id: string; name: string; external_id: string };
+    return store;
+  }
+
+  /**
+   * Crea una caja (POS) en Mercado Pago para QR
+   */
+  async createQRCashier(tenantId: string, data: {
+    name: string;
+    external_id: string;
+    store_id: string;
+    fixed_amount?: boolean;
+  }): Promise<{
+    id: number;
+    name: string;
+    external_id: string;
+    store_id: string;
+    qr: {
+      image: string;
+      template_document: string;
+      template_image: string;
+    };
+  }> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'QR');
+
+    const response = await fetch(`${this.baseUrl}/pos`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: data.name,
+        external_id: data.external_id,
+        store_id: data.store_id,
+        fixed_amount: data.fixed_amount ?? false,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({})) as { message?: string; error?: string };
+      console.error('Error creando POS MP:', error);
+      throw new Error(error.message || error.error || 'Error al crear caja en Mercado Pago');
+    }
+
+    const pos = await response.json() as {
+      id: number;
+      name: string;
+      external_id: string;
+      store_id: string;
+      qr: {
+        image: string;
+        template_document: string;
+        template_image: string;
+      };
+    };
+    return pos;
+  }
+
+  /**
    * Lista sucursales (stores) de la cuenta MP para QR
    */
   async listQRStores(tenantId: string): Promise<Array<{ id: string; name: string; external_id: string }>> {

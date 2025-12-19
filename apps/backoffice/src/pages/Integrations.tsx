@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi } from '../services/api';
-import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin, ToggleLeft, ToggleRight } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin, ToggleLeft, ToggleRight, Plus, X } from 'lucide-react';
 
 interface QRStore {
   id: string;
@@ -55,6 +55,29 @@ export default function Integrations() {
   const [systemPOSList, setSystemPOSList] = useState<SystemPOS[]>([]);
   const [linkingCashier, setLinkingCashier] = useState<number | null>(null);
   const [changingModeDeviceId, setChangingModeDeviceId] = useState<string | null>(null);
+
+  // Modales para crear store/cashier
+  const [showCreateStoreModal, setShowCreateStoreModal] = useState(false);
+  const [showCreateCashierModal, setShowCreateCashierModal] = useState(false);
+  const [selectedStoreForNewCashier, setSelectedStoreForNewCashier] = useState<QRStore | null>(null);
+  const [creatingStore, setCreatingStore] = useState(false);
+  const [creatingCashier, setCreatingCashier] = useState(false);
+
+  // Form data para crear store
+  const [newStoreData, setNewStoreData] = useState({
+    name: '',
+    external_id: '',
+    street_name: '',
+    street_number: '',
+    city_name: '',
+    state_name: '',
+  });
+
+  // Form data para crear cashier
+  const [newCashierData, setNewCashierData] = useState({
+    name: '',
+    external_id: '',
+  });
 
   useEffect(() => {
     // Check for OAuth callback params
@@ -136,6 +159,71 @@ export default function Integrations() {
     } catch (error) {
       console.error('Error loading system POS:', error);
     }
+  };
+
+  const handleCreateStore = async () => {
+    if (!newStoreData.name || !newStoreData.external_id || !newStoreData.street_name ||
+        !newStoreData.street_number || !newStoreData.city_name || !newStoreData.state_name) {
+      setNotification({ type: 'error', message: 'Todos los campos son requeridos' });
+      return;
+    }
+
+    setCreatingStore(true);
+    try {
+      await mercadoPagoApi.createQRStore({
+        name: newStoreData.name,
+        external_id: newStoreData.external_id.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+        location: {
+          street_name: newStoreData.street_name,
+          street_number: newStoreData.street_number,
+          city_name: newStoreData.city_name,
+          state_name: newStoreData.state_name,
+        },
+      });
+      setNotification({ type: 'success', message: 'Local creado exitosamente' });
+      setShowCreateStoreModal(false);
+      setNewStoreData({ name: '', external_id: '', street_name: '', street_number: '', city_name: '', state_name: '' });
+      await loadQRData();
+    } catch (error: unknown) {
+      console.error('Error creating store:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({ type: 'error', message: err.response?.data?.error || err.message || 'Error al crear local' });
+    } finally {
+      setCreatingStore(false);
+    }
+  };
+
+  const handleCreateCashier = async () => {
+    if (!newCashierData.name || !newCashierData.external_id || !selectedStoreForNewCashier) {
+      setNotification({ type: 'error', message: 'Todos los campos son requeridos' });
+      return;
+    }
+
+    setCreatingCashier(true);
+    try {
+      await mercadoPagoApi.createQRCashier({
+        name: newCashierData.name,
+        external_id: newCashierData.external_id.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+        store_id: selectedStoreForNewCashier.id,
+      });
+      setNotification({ type: 'success', message: 'Caja creada exitosamente' });
+      setShowCreateCashierModal(false);
+      setNewCashierData({ name: '', external_id: '' });
+      setSelectedStoreForNewCashier(null);
+      await loadQRData();
+    } catch (error: unknown) {
+      console.error('Error creating cashier:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({ type: 'error', message: err.response?.data?.error || err.message || 'Error al crear caja' });
+    } finally {
+      setCreatingCashier(false);
+    }
+  };
+
+  const openCreateCashierModal = (store: QRStore) => {
+    setSelectedStoreForNewCashier(store);
+    setNewCashierData({ name: '', external_id: '' });
+    setShowCreateCashierModal(true);
   };
 
   const handleLinkCashierToPOS = async (cashierId: number, cashierExternalId: string, posId: string) => {
@@ -644,14 +732,23 @@ export default function Integrations() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={loadQRData}
-              disabled={loadingQrData}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border rounded-lg hover:bg-gray-50"
-            >
-              <RefreshCw size={18} className={loadingQrData ? 'animate-spin' : ''} />
-              Actualizar
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCreateStoreModal(true)}
+                className="flex items-center gap-2 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700"
+              >
+                <Plus size={18} />
+                Crear Local
+              </button>
+              <button
+                onClick={loadQRData}
+                disabled={loadingQrData}
+                className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border rounded-lg hover:bg-gray-50"
+              >
+                <RefreshCw size={18} className={loadingQrData ? 'animate-spin' : ''} />
+                Actualizar
+              </button>
+            </div>
           </div>
 
           <div className="p-4">
@@ -688,10 +785,19 @@ export default function Integrations() {
                       return (
                         <div key={store.id} className="border rounded-lg overflow-hidden">
                           {/* Store header */}
-                          <div className="bg-gray-50 px-4 py-3 flex items-center gap-3">
-                            <MapPin size={18} className="text-gray-500" />
-                            <span className="font-medium text-gray-900">{store.name}</span>
-                            <span className="text-xs text-gray-500">({storeCashiers.length} cajas)</span>
+                          <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <MapPin size={18} className="text-gray-500" />
+                              <span className="font-medium text-gray-900">{store.name}</span>
+                              <span className="text-xs text-gray-500">({storeCashiers.length} cajas)</span>
+                            </div>
+                            <button
+                              onClick={() => openCreateCashierModal(store)}
+                              className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100"
+                            >
+                              <Plus size={16} />
+                              Agregar Caja
+                            </button>
                           </div>
 
                           {/* Cashiers */}
@@ -788,13 +894,179 @@ export default function Integrations() {
                   <div className="text-center py-8 text-gray-500">
                     <Store size={48} className="mx-auto mb-3 text-gray-300" />
                     <p>No se encontraron locales en Mercado Pago</p>
-                    <p className="text-sm mt-1">
-                      Crea locales y cajas en tu cuenta de Mercado Pago para verlos aquí
+                    <p className="text-sm mt-1 mb-4">
+                      Crea un local para empezar a usar QR
                     </p>
+                    <button
+                      onClick={() => setShowCreateStoreModal(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700"
+                    >
+                      <Plus size={18} />
+                      Crear Local
+                    </button>
                   </div>
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Crear Local */}
+      {showCreateStoreModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Crear Local</h3>
+              <button
+                onClick={() => setShowCreateStoreModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del local *</label>
+                <input
+                  type="text"
+                  value={newStoreData.name}
+                  onChange={(e) => setNewStoreData({ ...newStoreData, name: e.target.value })}
+                  placeholder="Ej: Sucursal Centro"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ID Externo *</label>
+                <input
+                  type="text"
+                  value={newStoreData.external_id}
+                  onChange={(e) => setNewStoreData({ ...newStoreData, external_id: e.target.value })}
+                  placeholder="Ej: SUC001"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Solo letras y números, sin espacios</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Calle *</label>
+                  <input
+                    type="text"
+                    value={newStoreData.street_name}
+                    onChange={(e) => setNewStoreData({ ...newStoreData, street_name: e.target.value })}
+                    placeholder="Av. Corrientes"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Número *</label>
+                  <input
+                    type="text"
+                    value={newStoreData.street_number}
+                    onChange={(e) => setNewStoreData({ ...newStoreData, street_number: e.target.value })}
+                    placeholder="1234"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad *</label>
+                  <input
+                    type="text"
+                    value={newStoreData.city_name}
+                    onChange={(e) => setNewStoreData({ ...newStoreData, city_name: e.target.value })}
+                    placeholder="Buenos Aires"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Provincia *</label>
+                  <input
+                    type="text"
+                    value={newStoreData.state_name}
+                    onChange={(e) => setNewStoreData({ ...newStoreData, state_name: e.target.value })}
+                    placeholder="CABA"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
+              <button
+                onClick={() => setShowCreateStoreModal(false)}
+                className="px-4 py-2 text-gray-700 bg-white border rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateStore}
+                disabled={creatingStore}
+                className="flex items-center gap-2 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              >
+                {creatingStore && <RefreshCw size={16} className="animate-spin" />}
+                Crear Local
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Crear Caja */}
+      {showCreateCashierModal && selectedStoreForNewCashier && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Crear Caja</h3>
+                <p className="text-sm text-gray-500">En: {selectedStoreForNewCashier.name}</p>
+              </div>
+              <button
+                onClick={() => setShowCreateCashierModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la caja *</label>
+                <input
+                  type="text"
+                  value={newCashierData.name}
+                  onChange={(e) => setNewCashierData({ ...newCashierData, name: e.target.value })}
+                  placeholder="Ej: Caja 1"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ID Externo *</label>
+                <input
+                  type="text"
+                  value={newCashierData.external_id}
+                  onChange={(e) => setNewCashierData({ ...newCashierData, external_id: e.target.value })}
+                  placeholder="Ej: CAJA01"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Solo letras y números, sin espacios</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
+              <button
+                onClick={() => setShowCreateCashierModal(false)}
+                className="px-4 py-2 text-gray-700 bg-white border rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateCashier}
+                disabled={creatingCashier}
+                className="flex items-center gap-2 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              >
+                {creatingCashier && <RefreshCw size={16} className="animate-spin" />}
+                Crear Caja
+              </button>
+            </div>
           </div>
         </div>
       )}

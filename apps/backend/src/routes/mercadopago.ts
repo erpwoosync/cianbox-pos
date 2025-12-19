@@ -667,6 +667,91 @@ router.get('/qr/cashiers', authenticate, async (req: AuthenticatedRequest, res: 
   }
 });
 
+const createQRStoreSchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido'),
+  external_id: z.string().min(1, 'El ID externo es requerido').max(60),
+  location: z.object({
+    street_name: z.string().min(1, 'La calle es requerida'),
+    street_number: z.string().min(1, 'El número es requerido'),
+    city_name: z.string().min(1, 'La ciudad es requerida'),
+    state_name: z.string().min(1, 'La provincia es requerida'),
+  }),
+});
+
+/**
+ * POST /api/mercadopago/qr/stores
+ * Crea una sucursal/local en MP para QR
+ */
+router.post('/qr/stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const data = createQRStoreSchema.parse(req.body);
+
+    const store = await mercadoPagoService.createQRStore(tenantId, data);
+
+    res.json({
+      success: true,
+      data: store,
+      message: 'Local creado exitosamente en Mercado Pago',
+    });
+  } catch (error) {
+    console.error('Error creando store QR:', error);
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos inválidos',
+        details: error.errors,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+const createQRCashierSchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido'),
+  external_id: z.string().min(1, 'El ID externo es requerido'),
+  store_id: z.string().min(1, 'El ID del local es requerido'),
+});
+
+/**
+ * POST /api/mercadopago/qr/cashiers
+ * Crea una caja/POS en MP para QR
+ */
+router.post('/qr/cashiers', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const data = createQRCashierSchema.parse(req.body);
+
+    const cashier = await mercadoPagoService.createQRCashier(tenantId, data);
+
+    res.json({
+      success: true,
+      data: cashier,
+      message: 'Caja creada exitosamente en Mercado Pago',
+    });
+  } catch (error) {
+    console.error('Error creando cashier QR:', error);
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos inválidos',
+        details: error.errors,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
 const createQROrderSchema = z.object({
   pointOfSaleId: z.string().min(1, 'El punto de venta es requerido'),
   amount: z.number().positive('El monto debe ser mayor a 0'),

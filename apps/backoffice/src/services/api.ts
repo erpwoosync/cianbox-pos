@@ -682,6 +682,21 @@ export const mercadoPagoApi = {
     return response.data.data;
   },
 
+  // Crear sucursal/local en MP QR
+  createQRStore: async (data: {
+    name: string;
+    external_id: string;
+    location: {
+      street_name: string;
+      street_number: string;
+      city_name: string;
+      state_name: string;
+    };
+  }) => {
+    const response = await api.post('/mercadopago/qr/stores', data);
+    return response.data;
+  },
+
   // Listar cajas/POS de MP QR
   listQRCashiers: async (storeId?: string): Promise<Array<{
     id: number;
@@ -697,6 +712,16 @@ export const mercadoPagoApi = {
     const params = storeId ? `?storeId=${storeId}` : '';
     const response = await api.get(`/mercadopago/qr/cashiers${params}`);
     return response.data.data;
+  },
+
+  // Crear caja/POS en MP QR
+  createQRCashier: async (data: {
+    name: string;
+    external_id: string;
+    store_id: string;
+  }) => {
+    const response = await api.post('/mercadopago/qr/cashiers', data);
+    return response.data;
   },
 
   // Vincular caja QR a un PointOfSale del sistema
