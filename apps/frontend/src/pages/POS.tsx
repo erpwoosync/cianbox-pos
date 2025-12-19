@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -20,7 +20,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import MPPointPaymentModal from '../components/MPPointPaymentModal';
 import MPQRPaymentModal from '../components/MPQRPaymentModal';
@@ -223,6 +223,10 @@ export default function POS() {
   const [cashMovementType, setCashMovementType] = useState<'deposit' | 'withdraw'>('deposit');
   const [showCashCountModal, setShowCashCountModal] = useState(false);
   const [cashCountMode, setCashCountMode] = useState<'partial' | 'closing'>('partial');
+
+  // Estado de promociones
+  const [isCalculatingPromotions, setIsCalculatingPromotions] = useState(false);
+  const lastCalculatedCartKeyRef = useRef<string>('');
 
   // Cargar ventas pendientes desde localStorage al montar
   useEffect(() => {
@@ -460,6 +464,90 @@ export default function POS() {
       )
     );
   };
+
+  // Clave única del carrito para detectar cambios en productos/cantidades
+  const cartKey = useMemo(() => {
+    return cart
+      .map((item: CartItem) => `${item.product.id}:${item.quantity}`)
+      .sort()
+      .join(',');
+  }, [cart]);
+
+  // Efecto para calcular promociones cuando cambia el carrito
+  useEffect(() => {
+    if (cart.length === 0) {
+      lastCalculatedCartKeyRef.current = '';
+      return;
+    }
+
+    // Evitar recalcular si el carrito no ha cambiado
+    if (cartKey === lastCalculatedCartKeyRef.current) {
+      return;
+    }
+
+    const calculatePromotions = async () => {
+      setIsCalculatingPromotions(true);
+      try {
+        const itemsForCalculation = cart.map((item: CartItem) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        }));
+
+        const response = await promotionsService.calculate(itemsForCalculation);
+
+        if (response.success && response.data) {
+          // Guardar la clave actual para evitar recálculos
+          lastCalculatedCartKeyRef.current = cartKey;
+
+          // Actualizar items con los descuentos calculados
+          setTickets((prev: Ticket[]) =>
+            prev.map((ticket: Ticket) =>
+              ticket.id === currentTicketId
+                ? {
+                    ...ticket,
+                    items: ticket.items.map((item: CartItem) => {
+                      const promoItem = response.data.items?.find(
+                        (pi: { productId: string; discount?: number; promotionId?: string; promotionName?: string }) =>
+                          pi.productId === item.product.id
+                      );
+                      if (promoItem && promoItem.discount > 0) {
+                        return {
+                          ...item,
+                          discount: promoItem.discount * item.quantity,
+                          subtotal: item.quantity * item.unitPrice - promoItem.discount * item.quantity,
+                          promotionId: promoItem.promotionId,
+                          promotionName: promoItem.promotionName,
+                        };
+                      }
+                      // Si no hay promo, resetear descuento
+                      return {
+                        ...item,
+                        discount: 0,
+                        subtotal: item.quantity * item.unitPrice,
+                        promotionId: undefined,
+                        promotionName: undefined,
+                      };
+                    }),
+                  }
+                : ticket
+            )
+          );
+        }
+      } catch (error) {
+        console.error('Error calculando promociones:', error);
+      } finally {
+        setIsCalculatingPromotions(false);
+      }
+    };
+
+    // Debounce para evitar llamadas excesivas
+    const timer = setTimeout(() => {
+      calculatePromotions();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [cartKey, currentTicketId]);
 
   // Búsqueda de productos
   const handleSearch = useCallback(async (query: string) => {
@@ -1302,9 +1390,12 @@ export default function POS() {
               <span className="text-gray-500">Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
-            {totalDiscount > 0 && (
+            {(totalDiscount > 0 || isCalculatingPromotions) && (
               <div className="flex justify-between text-sm text-green-600">
-                <span>Descuentos</span>
+                <span className="flex items-center gap-1">
+                  Descuentos
+                  {isCalculatingPromotions && <Loader2 className="w-3 h-3 animate-spin" />}
+                </span>
                 <span>-${totalDiscount.toFixed(2)}</span>
               </div>
             )}
