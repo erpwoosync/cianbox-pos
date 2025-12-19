@@ -674,6 +674,11 @@ export class CianboxService {
       const sku = product.codigo_interno?.trim() || null;
 
       // Mapear campos de Cianbox a nuestro modelo
+      // Calcular precio final con IVA desde precio_neto
+      const taxRate = this.normalizeTaxRate(product.alicuota_iva);
+      const precioNeto = product.precio_neto || 0;
+      const precioFinal = precioNeto * (1 + taxRate / 100);
+
       const productData = {
         sku,
         barcode: product.codigo_barras || null,
@@ -681,9 +686,9 @@ export class CianboxService {
         description: product.descripcion || null,
         categoryId,
         brandId,
-        basePrice: product.precio_neto || 0,
+        basePrice: precioFinal,
         baseCost: product.costo || 0,
-        taxRate: this.normalizeTaxRate(product.alicuota_iva),
+        taxRate,
         taxIncluded: true,
         trackStock: product.afecta_stock ?? true,
         allowNegativeStock: false,
@@ -1303,6 +1308,11 @@ export class CianboxService {
 
       const sku = product.codigo_interno?.trim() || null;
 
+      // Calcular precio final con IVA desde precio_neto
+      const taxRate = this.normalizeTaxRate(product.alicuota_iva);
+      const precioNeto = product.precio_neto || 0;
+      const precioFinal = precioNeto * (1 + taxRate / 100);
+
       const productData = {
         sku,
         barcode: product.codigo_barras || null,
@@ -1310,9 +1320,9 @@ export class CianboxService {
         description: product.descripcion || null,
         categoryId,
         brandId,
-        basePrice: product.precio_neto || 0,
+        basePrice: precioFinal,
         baseCost: product.costo || 0,
-        taxRate: this.normalizeTaxRate(product.alicuota_iva),
+        taxRate,
         taxIncluded: true,
         trackStock: product.afecta_stock ?? true,
         allowNegativeStock: false,
