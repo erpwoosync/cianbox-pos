@@ -402,6 +402,9 @@ class MercadoPagoService {
 
     const idempotencyKey = randomUUID();
 
+    // Asegurar que el amount tenga exactamente 2 decimales
+    const formattedAmount = Number(params.amount).toFixed(2);
+
     const orderBody = {
       type: 'point',
       external_reference: params.externalReference,
@@ -409,7 +412,7 @@ class MercadoPagoService {
       transactions: {
         payments: [
           {
-            amount: String(params.amount),
+            amount: formattedAmount,
           },
         ],
       },
@@ -805,24 +808,30 @@ class MercadoPagoService {
     }
 
     // Preparar items con unit_measure requerido por MP
+    // Asegurar que los precios tengan exactamente 2 decimales
     const items = params.items
-      ? params.items.map(item => ({
-          ...item,
-          unit_measure: 'unit',
-          total_amount: item.unit_price * item.quantity,
-        }))
+      ? params.items.map(item => {
+          const unitPrice = Math.round(item.unit_price * 100) / 100;
+          const totalAmt = Math.round(unitPrice * item.quantity * 100) / 100;
+          return {
+            ...item,
+            unit_price: unitPrice,
+            unit_measure: 'unit',
+            total_amount: totalAmt,
+          };
+        })
       : [
           {
             title: params.description || 'Venta POS',
-            unit_price: params.amount,
+            unit_price: Math.round(params.amount * 100) / 100,
             quantity: 1,
             unit_measure: 'unit',
-            total_amount: params.amount,
+            total_amount: Math.round(params.amount * 100) / 100,
           },
         ];
 
-    // Calcular total_amount como suma de items
-    const totalAmount = items.reduce((sum, item) => sum + item.total_amount, 0);
+    // Calcular total_amount como suma de items (redondeado a 2 decimales)
+    const totalAmount = Math.round(items.reduce((sum, item) => sum + item.total_amount, 0) * 100) / 100;
 
     const orderData = {
       external_reference: params.externalReference,
