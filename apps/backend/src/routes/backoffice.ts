@@ -1755,4 +1755,292 @@ router.get('/cash-sessions/report/daily', async (req: AuthenticatedRequest, res:
   }
 });
 
+// =============================================
+// PAGOS MP HUÉRFANOS (Processed sin venta)
+// =============================================
+
+/**
+ * GET /api/backoffice/mp-orphan-orders
+ * Lista órdenes de MP procesadas que no tienen venta asociada
+ */
+router.get('/mp-orphan-orders', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+
+    const orphanOrders = await prisma.mercadoPagoOrder.findMany({
+      where: {
+        tenantId,
+        status: 'PROCESSED',
+        saleId: null,
+      },
+      orderBy: { processedAt: 'desc' },
+    });
+
+    res.json({
+      success: true,
+      data: orphanOrders,
+      count: orphanOrders.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/backoffice/mp-orphan-orders/:orderId/create-sale
+ * Crea una venta a partir de un pago huérfano
+ * Body: { items: [{ productId, quantity, unitPrice }], customerId? }
+ */
+const createSaleFromOrphanSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string().min(1),
+    quantity: z.number().positive(),
+    unitPrice: z.number().positive(),
+    discount: z.number().min(0).optional().default(0),
+  })).min(1, 'Debe incluir al menos un producto'),
+  customerId: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+router.post(
+  '/mp-orphan-orders/:orderId/create-sale',
+  authorize('pos:sell', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const userId = req.user!.userId;
+      const branchId = req.user!.branchId;
+      const { orderId } = req.params;
+
+      // Validar body
+      const validation = createSaleFromOrphanSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ApiError(422, 'VALIDATION_ERROR', 'Datos inválidos', validation.error.errors);
+      }
+
+      const { items, customerId, notes } = validation.data;
+
+      // Buscar la orden huérfana
+      const mpOrder = await prisma.mercadoPagoOrder.findFirst({
+        where: {
+          orderId,
+          tenantId,
+          status: 'PROCESSED',
+          saleId: null,
+        },
+      });
+
+      if (!mpOrder) {
+        throw new ApiError(404, 'NOT_FOUND', 'Orden de pago no encontrada o ya tiene venta asociada');
+      }
+
+      if (!branchId) {
+        throw new ApiError(400, 'BAD_REQUEST', 'Usuario no tiene sucursal asignada');
+      }
+
+      // Buscar un punto de venta de la sucursal
+      const pointOfSale = await prisma.pointOfSale.findFirst({
+        where: { tenantId, branchId, isActive: true },
+      });
+
+      if (!pointOfSale) {
+        throw new ApiError(400, 'BAD_REQUEST', 'No hay punto de venta disponible');
+      }
+
+      // Calcular totales
+      let subtotal = 0;
+      let totalDiscount = 0;
+
+      const saleItems = [];
+      for (const item of items) {
+        const product = await prisma.product.findFirst({
+          where: { id: item.productId, tenantId },
+        });
+
+        if (!product) {
+          throw new ApiError(404, 'NOT_FOUND', `Producto ${item.productId} no encontrado`);
+        }
+
+        const itemSubtotal = item.quantity * item.unitPrice;
+        const itemDiscount = item.discount || 0;
+        subtotal += itemSubtotal;
+        totalDiscount += itemDiscount;
+
+        saleItems.push({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: itemDiscount,
+          subtotal: itemSubtotal,
+          total: itemSubtotal - itemDiscount,
+          taxRate: Number(product.taxRate) || 21,
+        });
+      }
+
+      const total = subtotal - totalDiscount;
+
+      // Validar que el total coincida con el monto del pago MP
+      const mpAmount = Number(mpOrder.amount);
+      const tolerance = 0.01; // Tolerancia de 1 centavo por redondeos
+      if (Math.abs(total - mpAmount) > tolerance) {
+        throw new ApiError(
+          400,
+          'AMOUNT_MISMATCH',
+          `El total de la venta ($${total.toFixed(2)}) no coincide con el pago MP ($${mpAmount.toFixed(2)})`
+        );
+      }
+
+      // Generar número de venta
+      const lastSale = await prisma.sale.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        select: { saleNumber: true },
+      });
+
+      let nextNumber = 1;
+      if (lastSale?.saleNumber) {
+        const match = lastSale.saleNumber.match(/(\d+)$/);
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
+      }
+
+      const saleNumber = `T-0001-${nextNumber.toString().padStart(8, '0')}`;
+
+      // Crear la venta con transacción
+      const sale = await prisma.$transaction(async (tx) => {
+        // Crear venta
+        const newSale = await tx.sale.create({
+          data: {
+            tenantId,
+            branchId,
+            pointOfSaleId: pointOfSale.id,
+            userId,
+            customerId: customerId || null,
+            saleNumber,
+            receiptType: 'TICKET',
+            subtotal,
+            discount: totalDiscount,
+            tax: 0,
+            total,
+            status: 'COMPLETED',
+            notes: notes || `Venta recuperada de pago MP ${orderId}`,
+            metadata: { recoveredFromMPOrder: orderId },
+            saleDate: mpOrder.processedAt || new Date(),
+            items: {
+              create: saleItems,
+            },
+            payments: {
+              create: {
+                method: mpOrder.paymentMethod === 'debit_card' ? 'DEBIT_CARD' : 'CREDIT_CARD',
+                amount: Number(mpOrder.amount),
+                transactionId: mpOrder.paymentId || orderId,
+                cardBrand: mpOrder.cardBrand,
+                cardLastFour: mpOrder.cardLastFour,
+                installments: mpOrder.installments || 1,
+              },
+            },
+          },
+          include: {
+            items: { include: { product: { select: { id: true, name: true, sku: true } } } },
+            payments: true,
+            customer: true,
+          },
+        });
+
+        // Vincular orden MP a la venta
+        await tx.mercadoPagoOrder.update({
+          where: { id: mpOrder.id },
+          data: { saleId: newSale.id },
+        });
+
+        return newSale;
+      });
+
+      res.status(201).json({
+        success: true,
+        data: sale,
+        message: `Venta ${saleNumber} creada exitosamente`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/backoffice/mp-orphan-orders/:orderId/link-sale
+ * Vincula un pago huérfano a una venta existente
+ * Body: { saleId }
+ */
+const linkSaleSchema = z.object({
+  saleId: z.string().min(1, 'El ID de venta es requerido'),
+});
+
+router.post(
+  '/mp-orphan-orders/:orderId/link-sale',
+  authorize('pos:sell', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const { orderId } = req.params;
+
+      const validation = linkSaleSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ApiError(422, 'VALIDATION_ERROR', 'Datos inválidos', validation.error.errors);
+      }
+
+      const { saleId } = validation.data;
+
+      // Verificar orden huérfana
+      const mpOrder = await prisma.mercadoPagoOrder.findFirst({
+        where: {
+          orderId,
+          tenantId,
+          status: 'PROCESSED',
+          saleId: null,
+        },
+      });
+
+      if (!mpOrder) {
+        throw new ApiError(404, 'NOT_FOUND', 'Orden de pago no encontrada o ya tiene venta asociada');
+      }
+
+      // Verificar venta
+      const sale = await prisma.sale.findFirst({
+        where: { id: saleId, tenantId },
+      });
+
+      if (!sale) {
+        throw new ApiError(404, 'NOT_FOUND', 'Venta no encontrada');
+      }
+
+      // Validar que el total coincida con el monto del pago MP
+      const mpAmount = Number(mpOrder.amount);
+      const saleTotal = Number(sale.total);
+      const tolerance = 0.01;
+      if (Math.abs(saleTotal - mpAmount) > tolerance) {
+        throw new ApiError(
+          400,
+          'AMOUNT_MISMATCH',
+          `El total de la venta ($${saleTotal.toFixed(2)}) no coincide con el pago MP ($${mpAmount.toFixed(2)})`
+        );
+      }
+
+      // Vincular
+      await prisma.mercadoPagoOrder.update({
+        where: { id: mpOrder.id },
+        data: { saleId },
+      });
+
+      res.json({
+        success: true,
+        message: `Orden ${orderId} vinculada a venta ${sale.saleNumber}`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;
