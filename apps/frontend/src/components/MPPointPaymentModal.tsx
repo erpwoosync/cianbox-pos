@@ -106,7 +106,7 @@ export default function MPPointPaymentModal({
 
           if (orderStatus === 'PROCESSING') {
             setStatus('processing');
-          } else if (orderStatus === 'FINISHED' || orderStatus === 'APPROVED') {
+          } else if (orderStatus === 'FINISHED' || orderStatus === 'APPROVED' || orderStatus === 'PROCESSED') {
             if (pollingRef.current) clearInterval(pollingRef.current);
             setPaymentResult(response.data);
             setStatus('success');

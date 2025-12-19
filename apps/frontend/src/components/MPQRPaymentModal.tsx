@@ -135,7 +135,7 @@ export default function MPQRPaymentModal({
         if (response.success) {
           const orderStatus = response.data.status;
 
-          if (orderStatus === 'APPROVED' || orderStatus === 'approved') {
+          if (orderStatus === 'APPROVED' || orderStatus === 'approved' || orderStatus === 'PROCESSED') {
             cleanup();
             setPaymentResult(response.data);
             setStatus('success');
