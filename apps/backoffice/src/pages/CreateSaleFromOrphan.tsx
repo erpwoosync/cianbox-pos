@@ -55,7 +55,12 @@ export default function CreateSaleFromOrphan() {
       setProducts(productsData);
     } catch (err) {
       console.error('Error loading data:', err);
-      setError('Error al cargar los datos');
+      const axiosError = err as { response?: { data?: { message?: string }; status?: number } };
+      if (axiosError?.response?.data?.message) {
+        setError(axiosError.response.data.message);
+      } else {
+        setError('Error al cargar los datos');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -76,8 +81,8 @@ export default function CreateSaleFromOrphan() {
           : item
       ));
     } else {
-      // Get default price from product
-      const defaultPrice = product.prices?.[0]?.price || 0;
+      // Get default price from product (ensure it's a number)
+      const defaultPrice = Number(product.prices?.[0]?.price) || 0;
       setCart([...cart, { product, quantity: 1, unitPrice: defaultPrice }]);
     }
   };
@@ -117,8 +122,8 @@ export default function CreateSaleFromOrphan() {
       const result = await orphanOrdersApi.createSale(order.orderId, {
         items: cart.map((item) => ({
           productId: item.product.id,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
         })),
       });
 
@@ -132,8 +137,16 @@ export default function CreateSaleFromOrphan() {
       }
     } catch (err: unknown) {
       console.error('Error creating sale:', err);
-      const errorMessage = err instanceof Error ? err.message :
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Error al crear la venta';
+      const axiosError = err as { response?: { data?: { message?: string; details?: unknown } } };
+      let errorMessage = 'Error al crear la venta';
+      if (axiosError?.response?.data?.message) {
+        errorMessage = axiosError.response.data.message;
+        if (axiosError.response.data.details) {
+          errorMessage += ': ' + JSON.stringify(axiosError.response.data.details);
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
