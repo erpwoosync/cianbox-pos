@@ -153,6 +153,89 @@ app.get('/api/debug/mp-orders', async (req, res) => {
   }
 });
 
+// DEBUG TEMPORAL - Consultar pago en MP e insertar en DB - TODO: ELIMINAR
+interface MPPaymentData {
+  status: string;
+  external_reference?: string;
+  transaction_amount: number;
+  payment_method_id?: string;
+  payment_method?: { id?: string };
+  card?: { last_four_digits?: string };
+  installments?: number;
+  date_approved?: string;
+}
+app.get('/api/debug/mp-fetch-payment/:paymentId', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { appType = 'QR', insert } = req.query;
+
+    // Obtener el token de la config
+    const config = await debugPrisma.mercadoPagoConfig.findFirst({
+      where: { appType: appType as 'POINT' | 'QR', isActive: true },
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: `No hay config activa para ${appType}` });
+    }
+
+    // Consultar el pago en MP
+    const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { Authorization: `Bearer ${config.accessToken}` },
+    });
+
+    if (!mpResponse.ok) {
+      const errorText = await mpResponse.text();
+      return res.status(mpResponse.status).json({ error: `MP API error: ${errorText}` });
+    }
+
+    const payment = await mpResponse.json() as MPPaymentData;
+
+    // Si se solicita insertar en la DB
+    if (insert === 'true' && payment.status === 'approved') {
+      // Verificar si ya existe
+      const existing = await debugPrisma.mercadoPagoOrder.findFirst({
+        where: { paymentId: paymentId },
+      });
+
+      if (existing) {
+        return res.json({
+          message: 'El pago ya existe en la DB',
+          existing,
+          mpPayment: payment,
+        });
+      }
+
+      // Insertar nuevo registro
+      const newOrder = await debugPrisma.mercadoPagoOrder.create({
+        data: {
+          tenantId: config.tenantId,
+          orderId: paymentId,
+          externalReference: payment.external_reference || `RECOVERED-${paymentId}`,
+          deviceId: 'QR-RECOVERED',
+          amount: payment.transaction_amount,
+          status: 'PROCESSED',
+          paymentId: paymentId,
+          paymentMethod: payment.payment_method_id,
+          cardBrand: payment.payment_method?.id,
+          cardLastFour: payment.card?.last_four_digits,
+          installments: payment.installments,
+          processedAt: payment.date_approved ? new Date(payment.date_approved) : new Date(),
+        },
+      });
+
+      return res.json({
+        message: 'Pago insertado exitosamente',
+        newOrder,
+        mpPayment: payment,
+      });
+    }
+
+    res.json({ mpPayment: payment });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // Ruta 404
 app.use((_req, res) => {
   res.status(404).json({

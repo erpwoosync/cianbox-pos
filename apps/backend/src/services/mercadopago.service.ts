@@ -100,6 +100,19 @@ interface MPWebhookEvent {
   user_id: string;
 }
 
+interface MPPaymentWebhookData {
+  id: number;
+  status: string;
+  external_reference?: string;
+  transaction_amount?: number;
+  payment_method_id?: string;
+  payment_type_id?: string;
+  card?: {
+    last_four_digits?: string;
+  };
+  installments?: number;
+}
+
 interface OAuthTokenResponse {
   access_token: string;
   token_type: string;
@@ -1039,34 +1052,130 @@ class MercadoPagoService {
 
   /**
    * Procesa un webhook de Mercado Pago
+   * Soporta eventos de tipo 'order' (Point) y 'payment' (QR y otros)
    */
   async processWebhook(event: MPWebhookEvent): Promise<void> {
     console.log('Procesando webhook MP:', event);
 
-    // Solo procesamos eventos de órdenes
-    if (event.type !== 'order') {
-      console.log('Evento ignorado, tipo:', event.type);
+    const eventId = event.data.id;
+
+    // Procesar eventos de órdenes (Point)
+    if (event.type === 'order') {
+      const order = await prisma.mercadoPagoOrder.findUnique({
+        where: { orderId: eventId },
+      });
+
+      if (!order) {
+        console.log('Orden no encontrada en DB:', eventId);
+        return;
+      }
+
+      try {
+        await this.getOrderStatus(order.tenantId, eventId);
+        console.log('Orden actualizada desde webhook:', eventId);
+      } catch (error) {
+        console.error('Error actualizando orden desde webhook:', error);
+      }
       return;
     }
 
-    const orderId = event.data.id;
-
-    // Buscar la orden en nuestra DB
-    const order = await prisma.mercadoPagoOrder.findUnique({
-      where: { orderId },
-    });
-
-    if (!order) {
-      console.log('Orden no encontrada en DB:', orderId);
+    // Procesar eventos de pagos (QR y otros)
+    if (event.type === 'payment') {
+      await this.processPaymentWebhook(eventId, event.user_id);
       return;
     }
 
-    // Actualizar el estado desde MP
+    console.log('Evento ignorado, tipo:', event.type);
+  }
+
+  /**
+   * Procesa un webhook de pago (usado para QR principalmente)
+   * Busca el pago en MP y actualiza la orden correspondiente por external_reference
+   */
+  async processPaymentWebhook(paymentId: string, mpUserId: string): Promise<void> {
+    console.log(`[Webhook MP] Procesando pago ${paymentId} para user ${mpUserId}`);
+
     try {
-      await this.getOrderStatus(order.tenantId, orderId);
-      console.log('Orden actualizada desde webhook:', orderId);
+      // Buscar el tenant por mpUserId en la config de QR
+      const mpConfig = await prisma.mercadoPagoConfig.findFirst({
+        where: {
+          mpUserId: mpUserId,
+          isActive: true,
+        },
+      });
+
+      if (!mpConfig) {
+        console.log(`[Webhook MP] No se encontró config para mpUserId ${mpUserId}`);
+        return;
+      }
+
+      // Obtener detalles del pago desde MP
+      const accessToken = await this.getValidAccessToken(mpConfig.tenantId, mpConfig.appType);
+
+      const response = await fetch(`${this.baseUrl}/v1/payments/${paymentId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error(`[Webhook MP] Error obteniendo pago ${paymentId}: ${response.status}`);
+        return;
+      }
+
+      const paymentData = await response.json() as MPPaymentWebhookData;
+      console.log(`[Webhook MP] Pago ${paymentId}:`, {
+        status: paymentData.status,
+        external_reference: paymentData.external_reference,
+        amount: paymentData.transaction_amount,
+      });
+
+      // Si el pago está aprobado, buscar y actualizar la orden por external_reference
+      if (paymentData.status === 'approved' && paymentData.external_reference) {
+        const updateResult = await prisma.mercadoPagoOrder.updateMany({
+          where: {
+            externalReference: paymentData.external_reference,
+            tenantId: mpConfig.tenantId,
+            status: 'PENDING',
+          },
+          data: {
+            status: 'PROCESSED',
+            paymentId: paymentId,
+            paymentMethod: paymentData.payment_method_id,
+            cardLastFour: paymentData.card?.last_four_digits,
+            installments: paymentData.installments,
+            processedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+
+        if (updateResult.count > 0) {
+          console.log(`[Webhook MP] Orden actualizada: ${paymentData.external_reference} -> PROCESSED`);
+        } else {
+          // Si no encontramos una orden pendiente, crear una nueva (para casos donde no se creó orden previa)
+          console.log(`[Webhook MP] No se encontró orden pendiente para ${paymentData.external_reference}, creando nueva...`);
+
+          await prisma.mercadoPagoOrder.create({
+            data: {
+              tenantId: mpConfig.tenantId,
+              orderId: paymentId, // Usar paymentId como orderId
+              externalReference: paymentData.external_reference,
+              deviceId: 'QR-WEBHOOK', // Dispositivo genérico para pagos QR vía webhook
+              amount: paymentData.transaction_amount || 0,
+              status: 'PROCESSED',
+              paymentId: paymentId,
+              paymentMethod: paymentData.payment_method_id,
+              cardLastFour: paymentData.card?.last_four_digits,
+              installments: paymentData.installments,
+              processedAt: new Date(),
+            },
+          });
+          console.log(`[Webhook MP] Nueva orden creada para pago ${paymentId}`);
+        }
+      }
     } catch (error) {
-      console.error('Error actualizando orden desde webhook:', error);
+      console.error(`[Webhook MP] Error procesando pago ${paymentId}:`, error);
     }
   }
 
