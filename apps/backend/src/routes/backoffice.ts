@@ -2053,4 +2053,46 @@ router.post(
   }
 );
 
+/**
+ * DELETE /api/backoffice/mp-orphan-orders/:orderId
+ * Descarta un pago huérfano (lo marca como DISMISSED sin crear venta)
+ */
+router.delete(
+  '/mp-orphan-orders/:orderId',
+  authorize('pos:sell', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const { orderId } = req.params;
+
+      // Buscar la orden huérfana
+      const mpOrder = await prisma.mercadoPagoOrder.findFirst({
+        where: {
+          orderId,
+          tenantId,
+          status: 'PROCESSED',
+          saleId: null,
+        },
+      });
+
+      if (!mpOrder) {
+        throw new ApiError(404, 'NOT_FOUND', 'Orden de pago no encontrada o ya tiene venta asociada');
+      }
+
+      // Marcar como descartada (cambiar status a DISMISSED)
+      await prisma.mercadoPagoOrder.update({
+        where: { id: mpOrder.id },
+        data: { status: 'DISMISSED' },
+      });
+
+      res.json({
+        success: true,
+        message: `Orden ${orderId} descartada`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

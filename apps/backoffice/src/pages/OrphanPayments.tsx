@@ -9,6 +9,7 @@ import {
   DollarSign,
   Calendar,
   Clock,
+  Trash2,
 } from 'lucide-react';
 import { orphanOrdersApi, OrphanMPOrder } from '../services/api';
 
@@ -17,6 +18,7 @@ export default function OrphanPayments() {
   const [orders, setOrders] = useState<OrphanMPOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -33,6 +35,23 @@ export default function OrphanPayments() {
       setError('Error al cargar los pagos huerfanos');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDismiss = async (orderId: string) => {
+    if (!confirm('Descartar este pago? No se creara ninguna venta asociada.')) {
+      return;
+    }
+
+    setDismissingId(orderId);
+    try {
+      await orphanOrdersApi.dismiss(orderId);
+      setOrders(orders.filter((o) => o.orderId !== orderId));
+    } catch (err) {
+      console.error('Error dismissing order:', err);
+      setError('Error al descartar el pago');
+    } finally {
+      setDismissingId(null);
     }
   };
 
@@ -196,6 +215,14 @@ export default function OrphanPayments() {
                       >
                         <Link2 className="w-4 h-4" />
                         Vincular
+                      </button>
+                      <button
+                        onClick={() => handleDismiss(order.orderId)}
+                        disabled={dismissingId === order.orderId}
+                        className="flex items-center gap-1 px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                        title="Descartar (no crear venta)"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>

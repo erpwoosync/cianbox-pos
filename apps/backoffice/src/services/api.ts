@@ -915,6 +915,10 @@ export const orphanOrdersApi = {
     const response = await api.post(`/backoffice/mp-orphan-orders/${orderId}/link-sale`, { saleId });
     return response.data;
   },
+  dismiss: async (orderId: string) => {
+    const response = await api.delete(`/backoffice/mp-orphan-orders/${orderId}`);
+    return response.data;
+  },
 };
 
 // Sales API
