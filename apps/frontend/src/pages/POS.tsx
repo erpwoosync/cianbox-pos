@@ -508,16 +508,16 @@ export default function POS() {
                     ...ticket,
                     items: ticket.items.map((item: CartItem) => {
                       const promoItem = response.data.items?.find(
-                        (pi: { productId: string; discount?: number; promotionId?: string; promotionName?: string }) =>
+                        (pi: { productId: string; discount?: number; promotion?: { id: string; name: string } | null }) =>
                           pi.productId === item.product.id
                       );
                       if (promoItem && promoItem.discount > 0) {
                         return {
                           ...item,
-                          discount: promoItem.discount * item.quantity,
-                          subtotal: item.quantity * item.unitPrice - promoItem.discount * item.quantity,
-                          promotionId: promoItem.promotionId,
-                          promotionName: promoItem.promotionName,
+                          discount: promoItem.discount,
+                          subtotal: item.quantity * item.unitPrice - promoItem.discount,
+                          promotionId: promoItem.promotion?.id,
+                          promotionName: promoItem.promotion?.name,
                         };
                       }
                       // Si no hay promo, resetear descuento
