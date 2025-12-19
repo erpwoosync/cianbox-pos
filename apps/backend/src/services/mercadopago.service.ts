@@ -695,11 +695,39 @@ class MercadoPagoService {
   /**
    * Obtiene los detalles completos de un pago de MP por su ID
    * Devuelve toda la información para guardar en Payment
+   * Si el ID es un orderId (empieza con "ORD"), primero obtiene el paymentId de la orden
    */
-  async getPaymentDetails(tenantId: string, paymentId: string, appType: MercadoPagoAppType = 'POINT'): Promise<MPPaymentDetails> {
+  async getPaymentDetails(tenantId: string, paymentIdOrOrderId: string, appType: MercadoPagoAppType = 'POINT'): Promise<MPPaymentDetails> {
     const accessToken = await this.getValidAccessToken(tenantId, appType);
 
-    const response = await fetch(`${this.baseUrl}/v1/payments/${paymentId}`, {
+    let actualPaymentId = paymentIdOrOrderId;
+    let orderId: string | undefined;
+
+    // Si es un orderId (empieza con "ORD"), primero obtener el paymentId de la orden
+    if (paymentIdOrOrderId.startsWith('ORD')) {
+      const orderResponse = await fetch(`${this.baseUrl}/v1/orders/${paymentIdOrOrderId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!orderResponse.ok) {
+        throw new Error(`Error al consultar orden: ${orderResponse.status}`);
+      }
+
+      const orderData = await orderResponse.json() as MPOrderResponse;
+      orderId = paymentIdOrOrderId;
+
+      // Obtener el paymentId del primer pago de la orden
+      const payment = orderData.transactions?.payments?.[0];
+      if (!payment?.id) {
+        throw new Error('La orden no tiene un pago asociado');
+      }
+      actualPaymentId = payment.id.toString();
+    }
+
+    const response = await fetch(`${this.baseUrl}/v1/payments/${actualPaymentId}`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -722,7 +750,7 @@ class MercadoPagoService {
     return {
       // IDs
       mpPaymentId: data.id?.toString(),
-      mpOrderId: data.order?.id?.toString(),
+      mpOrderId: orderId || data.order?.id?.toString(),
 
       // Tipo de operación
       mpOperationType: data.operation_type,
