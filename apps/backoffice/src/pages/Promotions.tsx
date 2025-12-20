@@ -1078,7 +1078,8 @@ function PromotionSimulator({ onClose, products, loadProducts }: SimulatorProps)
       quantity: number;
       unitPrice: number;
       discount: number;
-      promotion?: { id: string; name: string; type: PromotionType };
+      promotion?: { id: string; name: string; type: PromotionType; discount?: number };
+      promotions?: Array<{ id: string; name: string; type: PromotionType; discount: number }>;
       subtotal: number;
     }>;
     totalDiscount: number;
@@ -1242,7 +1243,22 @@ function PromotionSimulator({ onClose, products, loadProducts }: SimulatorProps)
                           </button>
                         </div>
                       </div>
-                      {resultItem?.promotion && (
+                      {/* Mostrar todas las promociones aplicadas (acumulables) */}
+                      {resultItem?.promotions && resultItem.promotions.length > 0 ? (
+                        <div className="mt-1 space-y-1">
+                          {resultItem.promotions.map((promo, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-sm">
+                              <span className="text-green-600 flex items-center gap-1">
+                                <Tag size={12} />
+                                {promo.name}
+                              </span>
+                              <span className="text-green-600 font-medium">
+                                -${promo.discount.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : resultItem?.promotion && (
                         <div className="mt-1 flex items-center justify-between text-sm">
                           <span className="text-green-600 flex items-center gap-1">
                             <Tag size={12} />
@@ -1281,6 +1297,29 @@ function PromotionSimulator({ onClose, products, loadProducts }: SimulatorProps)
 
           {/* Resultado */}
           <div className="border-t pt-4 space-y-2">
+            {/* Mostrar resumen de promociones aplicadas */}
+            {result && (() => {
+              const allPromos = result.items.flatMap(item => item.promotions || (item.promotion ? [item.promotion] : []));
+              const uniquePromos = [...new Map(allPromos.map(p => [p.id, p])).values()];
+              if (uniquePromos.length > 0) {
+                return (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2">
+                    <p className="text-sm font-medium text-green-800 mb-1">
+                      {uniquePromos.length} {uniquePromos.length === 1 ? 'promoción aplicada' : 'promociones aplicadas'}:
+                    </p>
+                    <ul className="text-sm text-green-700 space-y-0.5">
+                      {uniquePromos.map((promo, idx) => (
+                        <li key={idx} className="flex items-center gap-1">
+                          <Tag size={12} />
+                          {promo.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              }
+              return null;
+            })()}
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Subtotal:</span>
               <span>${subtotal.toLocaleString('es-AR')}</span>
