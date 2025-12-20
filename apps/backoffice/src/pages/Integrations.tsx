@@ -1121,6 +1121,28 @@ export default function Integrations() {
               </button>
             </div>
             <div className="p-4 space-y-4">
+              {/* Selector de POS para vincular y autocompletar - primero para mejor UX */}
+              {systemPOSList.filter(pos => !pos.mpQrPosId).length > 0 && (
+                <div className="pb-3 border-b">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Crear desde Punto de Venta del sistema <span className="text-gray-400 font-normal">(opcional)</span>
+                  </label>
+                  <select
+                    value={linkToPosId}
+                    onChange={(e) => handlePosSelectForCashier(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value="">Seleccionar POS para autocompletar...</option>
+                    {systemPOSList.filter(pos => !pos.mpQrPosId).map(pos => (
+                      <option key={pos.id} value={pos.id}>
+                        {pos.name} ({pos.code}) - {pos.branch?.name || 'Sin sucursal'}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Se autocompletará nombre y ID externo, y se vinculará al POS al crear</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la caja *</label>
                 <input
@@ -1142,28 +1164,6 @@ export default function Integrations() {
                 />
                 <p className="text-xs text-gray-500 mt-1">Solo letras y números, sin espacios</p>
               </div>
-
-              {/* Selector de POS para vincular y autocompletar */}
-              {systemPOSList.filter(pos => !pos.mpQrPosId).length > 0 && (
-                <div className="pb-3 border-b">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Crear desde Punto de Venta del sistema <span className="text-gray-400 font-normal">(opcional)</span>
-                  </label>
-                  <select
-                    value={linkToPosId}
-                    onChange={(e) => handlePosSelectForCashier(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  >
-                    <option value="">Seleccionar POS para autocompletar...</option>
-                    {systemPOSList.filter(pos => !pos.mpQrPosId).map(pos => (
-                      <option key={pos.id} value={pos.id}>
-                        {pos.name} ({pos.code}) - {pos.branch?.name || 'Sin sucursal'}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Se autocompletará nombre y ID externo, y se vinculará al POS al crear</p>
-                </div>
-              )}
             </div>
             <div className="flex justify-end gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
               <button
