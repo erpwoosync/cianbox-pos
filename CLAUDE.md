@@ -271,4 +271,7 @@ Ver `docs/INFRAESTRUCTURA.md` para configuraciones detalladas de Nginx, troubles
 
 - **Guia Tecnica Completa:** `docs/GUIA-TECNICA-POS-CIANBOX.md`
 - **Infraestructura:** `docs/INFRAESTRUCTURA.md`
+- **API de Productos:** `docs/API-PRODUCTOS.md`
+- **Productos Variables:** `docs/PRODUCTOS-VARIABLES.md`
+- **Credenciales de Testing:** `docs/TESTING-CREDENTIALS.md`
 - **Codigo de referencia:** Proyecto warehouse-picking (mismo stack)
