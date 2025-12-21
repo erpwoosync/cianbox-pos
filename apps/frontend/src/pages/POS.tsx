@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Smartphone,
   Layers,
+  User,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
@@ -32,6 +33,8 @@ import CashCountModal from '../components/CashCountModal';
 import SizeCurveModal from '../components/SizeCurveModal';
 import ProductSearchModal from '../components/ProductSearchModal';
 import TalleSelectorModal from '../components/TalleSelectorModal';
+import CustomerSelectorModal from '../components/CustomerSelectorModal';
+import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 
 interface Product {
   id: string;
@@ -261,6 +264,13 @@ export default function POS() {
 
   // Estado de consultor de productos
   const [showProductSearchModal, setShowProductSearchModal] = useState(false);
+
+  // Estado de cliente
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useLocalStorage<Customer | null>(
+    'pos_selected_customer',
+    null
+  );
 
   // Estado de selector de talles (escaneo de código padre)
   const [showTalleSelectorModal, setShowTalleSelectorModal] = useState(false);
@@ -1116,6 +1126,8 @@ export default function POS() {
       const saleData = {
         branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         pointOfSaleId: selectedPOS.id,
+        customerId: selectedCustomer?.id !== CONSUMIDOR_FINAL.id ? selectedCustomer?.id : undefined,
+        customerName: selectedCustomer?.name,
         items: cart.map((item: CartItem) => ({
           productId: item.product.id,
           productCode: item.product.sku,
@@ -1185,6 +1197,8 @@ export default function POS() {
       const saleData = {
         branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         pointOfSaleId: selectedPOS.id,
+        customerId: selectedCustomer?.id !== CONSUMIDOR_FINAL.id ? selectedCustomer?.id : undefined,
+        customerName: selectedCustomer?.name,
         items: cart.map((item: CartItem) => ({
           productId: item.product.id,
           productCode: item.product.sku,
@@ -1706,6 +1720,39 @@ export default function POS() {
           )}
         </div>
 
+        {/* Selector de cliente */}
+        <div className="px-3 pb-3 border-b bg-gray-50">
+          <button
+            onClick={() => setShowCustomerModal(true)}
+            className={`w-full flex items-center gap-3 p-2 rounded-lg border transition-colors ${
+              selectedCustomer && selectedCustomer.id !== CONSUMIDOR_FINAL.id
+                ? 'border-blue-300 bg-blue-50 hover:bg-blue-100'
+                : 'border-gray-200 bg-white hover:bg-gray-50'
+            }`}
+          >
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                selectedCustomer && selectedCustomer.id !== CONSUMIDOR_FINAL.id
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'bg-gray-200 text-gray-500'
+              }`}
+            >
+              <User className="w-4 h-4" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-sm font-medium truncate">
+                {selectedCustomer ? selectedCustomer.name : 'Consumidor Final'}
+              </p>
+              {selectedCustomer && selectedCustomer.documentNumber && (
+                <p className="text-xs text-gray-500 truncate">
+                  {selectedCustomer.documentType}: {selectedCustomer.documentNumber}
+                </p>
+              )}
+            </div>
+            <span className="text-xs text-gray-400">Cambiar</span>
+          </button>
+        </div>
+
         {/* Header del carrito */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
@@ -2034,6 +2081,14 @@ export default function POS() {
         onAddToCart={addToCart}
         branchId={user?.branch?.id}
         activePromotions={activePromotions}
+      />
+
+      {/* Modal selector de cliente */}
+      <CustomerSelectorModal
+        isOpen={showCustomerModal}
+        onClose={() => setShowCustomerModal(false)}
+        onSelect={(customer) => setSelectedCustomer(customer)}
+        selectedCustomerId={selectedCustomer?.id}
       />
 
       {/* Modal selector de talles (escaneo código padre) */}

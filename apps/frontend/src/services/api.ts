@@ -214,6 +214,7 @@ export const salesService = {
     branchId: string;
     pointOfSaleId: string;
     customerId?: string;
+    customerName?: string;
     receiptType?: string;
     items: Array<{
       productId?: string;
