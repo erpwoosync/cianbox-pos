@@ -1011,4 +1011,67 @@ export const salesApi = {
   },
 };
 
+// POS Terminals
+export interface PosTerminal {
+  id: string;
+  tenantId: string;
+  hostname: string;
+  macAddress: string;
+  deviceId: string;
+  osVersion: string | null;
+  appVersion: string | null;
+  ipAddress: string | null;
+  name: string | null;
+  description: string | null;
+  pointOfSaleId: string | null;
+  status: 'PENDING' | 'ACTIVE' | 'DISABLED' | 'BLOCKED';
+  registeredAt: string;
+  lastSeenAt: string;
+  lastLoginUserId: string | null;
+  isOnline?: boolean;
+  pointOfSale?: {
+    id: string;
+    code: string;
+    name: string;
+    branch: { id: string; name: string };
+    priceList?: { id: string; name: string } | null;
+  } | null;
+  lastLoginUser?: { id: string; name: string; email: string } | null;
+}
+
+export interface UpdateTerminalDto {
+  name?: string;
+  description?: string;
+  status?: 'PENDING' | 'ACTIVE' | 'DISABLED' | 'BLOCKED';
+  pointOfSaleId?: string | null;
+}
+
+export interface TerminalsStats {
+  total: number;
+  active: number;
+  pending: number;
+  disabled: number;
+  blocked: number;
+  online: number;
+}
+
+export const terminalsApi = {
+  getAll: async (params?: { status?: string; branchId?: string; search?: string }) => {
+    const response = await api.get('/backoffice/terminals', { params });
+    return response.data as { success: boolean; data: PosTerminal[]; stats: TerminalsStats };
+  },
+  getById: async (id: string) => {
+    const response = await api.get(`/backoffice/terminals/${id}`);
+    return response.data.data as PosTerminal;
+  },
+  update: async (id: string, data: UpdateTerminalDto) => {
+    const response = await api.patch(`/backoffice/terminals/${id}`, data);
+    return response.data.data as PosTerminal;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/backoffice/terminals/${id}`);
+    return response.data;
+  },
+};
+
 export default api;

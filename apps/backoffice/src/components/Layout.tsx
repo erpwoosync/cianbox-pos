@@ -24,6 +24,7 @@ import {
   Plug,
   Banknote,
   AlertTriangle,
+  Laptop,
 } from 'lucide-react';
 
 const menuItems = [
@@ -31,6 +32,7 @@ const menuItems = [
   { path: '/branches', label: 'Sucursales', icon: Store },
   { path: '/price-lists', label: 'Listas de Precio', icon: ListOrdered },
   { path: '/points-of-sale', label: 'Puntos de Venta', icon: Monitor },
+  { path: '/terminals', label: 'Terminales POS', icon: Laptop },
   { path: '/categories', label: 'Categorias', icon: FolderTree },
   { path: '/brands', label: 'Marcas', icon: Tags },
   { path: '/products', label: 'Productos', icon: Package },

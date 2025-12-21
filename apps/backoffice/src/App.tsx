@@ -23,6 +23,7 @@ import Integrations from './pages/Integrations';
 import OrphanPayments from './pages/OrphanPayments';
 import CreateSaleFromOrphan from './pages/CreateSaleFromOrphan';
 import LinkSaleToOrphan from './pages/LinkSaleToOrphan';
+import Terminals from './pages/Terminals';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -69,6 +70,7 @@ export default function App() {
                 <Route path="/orphan-payments" element={<OrphanPayments />} />
                 <Route path="/orphan-payments/:orderId/create-sale" element={<CreateSaleFromOrphan />} />
                 <Route path="/orphan-payments/:orderId/link-sale" element={<LinkSaleToOrphan />} />
+                <Route path="/terminals" element={<Terminals />} />
               </Routes>
             </Layout>
           </PrivateRoute>
