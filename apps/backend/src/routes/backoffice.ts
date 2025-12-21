@@ -2538,4 +2538,213 @@ router.post(
   }
 );
 
+// =============================================
+// SUCURSALES - Gestión
+// =============================================
+
+/**
+ * Eliminar sucursales no mapeadas a Cianbox
+ * Migra las dependencias a la sucursal mapeada más cercana
+ * DELETE /api/backoffice/branches/cleanup-unmapped
+ */
+router.delete('/branches/cleanup-unmapped',
+  authorize('admin'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+
+    // Buscar sucursales sin cianboxBranchId
+    const unmappedBranches = await prisma.branch.findMany({
+      where: { tenantId, cianboxBranchId: null },
+      include: {
+        _count: {
+          select: {
+            pointsOfSale: true,
+            users: true,
+            productStock: true,
+            sales: true,
+          },
+        },
+      },
+    });
+
+    if (unmappedBranches.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No hay sucursales sin mapear',
+        deleted: 0,
+      });
+    }
+
+    // Buscar sucursal mapeada (preferir la default o la primera)
+    const targetBranch = await prisma.branch.findFirst({
+      where: {
+        tenantId,
+        cianboxBranchId: { not: null },
+      },
+      orderBy: [
+        { isDefault: 'desc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    if (!targetBranch) {
+      throw new ApiError(400, 'NO_MAPPED_BRANCH', 'No hay sucursales mapeadas a Cianbox. Sincronice primero.');
+    }
+
+    const results = {
+      deleted: 0,
+      migratedPointsOfSale: 0,
+      migratedUsers: 0,
+      deletedStock: 0,
+      targetBranch: {
+        id: targetBranch.id,
+        name: targetBranch.name,
+        cianboxBranchId: targetBranch.cianboxBranchId,
+      },
+    };
+
+    for (const branch of unmappedBranches) {
+      console.log(`[Cleanup] Procesando sucursal sin mapear: ${branch.name} (${branch.id})`);
+
+      // Migrar puntos de venta
+      if (branch._count.pointsOfSale > 0) {
+        await prisma.pointOfSale.updateMany({
+          where: { branchId: branch.id },
+          data: { branchId: targetBranch.id },
+        });
+        results.migratedPointsOfSale += branch._count.pointsOfSale;
+        console.log(`[Cleanup] Migrados ${branch._count.pointsOfSale} puntos de venta`);
+      }
+
+      // Migrar usuarios
+      if (branch._count.users > 0) {
+        await prisma.user.updateMany({
+          where: { branchId: branch.id },
+          data: { branchId: targetBranch.id },
+        });
+        results.migratedUsers += branch._count.users;
+        console.log(`[Cleanup] Migrados ${branch._count.users} usuarios`);
+      }
+
+      // Eliminar stock huérfano (no debería haber, pero por seguridad)
+      if (branch._count.productStock > 0) {
+        await prisma.productStock.deleteMany({
+          where: { branchId: branch.id },
+        });
+        results.deletedStock += branch._count.productStock;
+        console.log(`[Cleanup] Eliminados ${branch._count.productStock} registros de stock huérfano`);
+      }
+
+      // No se pueden migrar ventas históricas, mantenerlas vinculadas causa error
+      // Las ventas quedarán con branchId inválido, pero esto es aceptable para datos históricos
+      // Si hay ventas, no eliminar la sucursal
+      if (branch._count.sales > 0) {
+        console.log(`[Cleanup] Sucursal ${branch.name} tiene ${branch._count.sales} ventas, no se puede eliminar`);
+        continue;
+      }
+
+      // Eliminar la sucursal
+      await prisma.branch.delete({
+        where: { id: branch.id },
+      });
+      results.deleted++;
+      console.log(`[Cleanup] Sucursal ${branch.name} eliminada`);
+    }
+
+    res.json({
+      success: true,
+      message: `Limpieza completada. ${results.deleted} sucursales eliminadas.`,
+      results,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// =============================================
+// DIAGNOSTICO - Stock por Sucursal
+// =============================================
+
+/**
+ * Endpoint de diagnóstico para verificar el mapeo de sucursales y stock
+ * GET /api/backoffice/diagnostics/branch-stock
+ */
+router.get('/diagnostics/branch-stock', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+
+    // Obtener todas las sucursales del tenant
+    const branches = await prisma.branch.findMany({
+      where: { tenantId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        cianboxBranchId: true,
+        isActive: true,
+        _count: {
+          select: {
+            productStock: true,
+            pointsOfSale: true,
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    // Obtener total de stock por sucursal
+    const stockByBranch = await prisma.productStock.groupBy({
+      by: ['branchId'],
+      where: {
+        product: { tenantId },
+      },
+      _sum: {
+        available: true,
+        quantity: true,
+      },
+      _count: true,
+    });
+
+    // Combinar datos
+    const diagnostics = branches.map((branch) => {
+      const stockData = stockByBranch.find((s) => s.branchId === branch.id);
+      return {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+        cianboxBranchId: branch.cianboxBranchId,
+        isActive: branch.isActive,
+        pointsOfSaleCount: branch._count.pointsOfSale,
+        productStockCount: branch._count.productStock,
+        stockStats: stockData ? {
+          productsWithStock: stockData._count,
+          totalQuantity: Number(stockData._sum.quantity || 0),
+          totalAvailable: Number(stockData._sum.available || 0),
+        } : {
+          productsWithStock: 0,
+          totalQuantity: 0,
+          totalAvailable: 0,
+        },
+        hasCianboxMapping: branch.cianboxBranchId !== null,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        branches: diagnostics,
+        summary: {
+          totalBranches: branches.length,
+          mappedToCianbox: branches.filter((b) => b.cianboxBranchId !== null).length,
+          unmapped: branches.filter((b) => b.cianboxBranchId === null).length,
+          withStock: diagnostics.filter((d) => d.productStockCount > 0).length,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

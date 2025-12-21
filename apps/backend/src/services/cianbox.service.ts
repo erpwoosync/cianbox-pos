@@ -758,23 +758,8 @@ export class CianboxService {
       // Sincronizar stock por sucursal
       if (product.stock_sucursal && Array.isArray(product.stock_sucursal)) {
         for (const stockItem of product.stock_sucursal) {
-          // Buscar o crear sucursal por cianboxBranchId
-          let branch = await prisma.branch.findFirst({
-            where: { tenantId, cianboxBranchId: stockItem.id_sucursal },
-          });
-
-          if (!branch) {
-            // Crear sucursal si no existe
-            branch = await prisma.branch.create({
-              data: {
-                tenantId,
-                cianboxBranchId: stockItem.id_sucursal,
-                code: `SUC-${stockItem.id_sucursal}`,
-                name: `Sucursal ${stockItem.id_sucursal}`,
-                isActive: true,
-              },
-            });
-          }
+          // Buscar o crear sucursal usando el método helper
+          const branch = await this.getOrCreateBranchForStock(tenantId, stockItem.id_sucursal);
 
           // Upsert stock
           const available = stockItem.disponible ?? (stockItem.stock - (stockItem.reservado || 0));
@@ -1129,10 +1114,14 @@ export class CianboxService {
   /**
    * Sincroniza sucursales desde Cianbox
    * API devuelve: { id, sucursal, telefono, domicilio, localidad, provincia, vigente }
+   *
+   * IMPORTANTE: Si hay sucursales existentes sin cianboxBranchId, intenta matchear por nombre
+   * para asignarles el ID de Cianbox y permitir la sincronización de stock.
    */
   async syncBranches(tenantId: string): Promise<number> {
     const branches = await this.getBranches();
     let synced = 0;
+    let matched = 0;
 
     console.log(`[Cianbox] Sincronizando ${branches.length} sucursales`);
 
@@ -1145,40 +1134,94 @@ export class CianboxService {
       // Usar vigente directamente (default true si no viene)
       const isActive = branch.vigente !== false;
 
-      await prisma.branch.upsert({
-        where: {
-          tenantId_cianboxBranchId: {
-            tenantId,
-            cianboxBranchId: branch.id,
-          },
-        },
-        update: {
-          code,
-          name,
-          address: branch.domicilio || null,
-          city: branch.localidad || null,
-          state: branch.provincia || null,
-          phone: branch.telefono || null,
-          isDefault,
-          isActive,
-          lastSyncedAt: new Date(),
-        },
-        create: {
-          tenantId,
-          cianboxBranchId: branch.id,
-          code,
-          name,
-          address: branch.domicilio || null,
-          city: branch.localidad || null,
-          state: branch.provincia || null,
-          phone: branch.telefono || null,
-          isDefault,
-          isActive,
-          lastSyncedAt: new Date(),
-        },
+      // Primero buscar si ya existe una sucursal con este cianboxBranchId
+      let existingBranch = await prisma.branch.findFirst({
+        where: { tenantId, cianboxBranchId: branch.id },
       });
 
+      // Si no existe por cianboxBranchId, buscar por nombre similar (sin cianboxBranchId asignado)
+      if (!existingBranch) {
+        // Buscar sucursales sin cianboxBranchId que coincidan por nombre
+        let branchByName = await prisma.branch.findFirst({
+          where: {
+            tenantId,
+            cianboxBranchId: null,
+            OR: [
+              { name: { equals: name, mode: 'insensitive' } },
+              { name: { contains: branch.sucursal, mode: 'insensitive' } },
+            ],
+          },
+        });
+
+        // Si no encontramos por nombre y es la primera sucursal de Cianbox (id=1),
+        // buscar si hay una única sucursal sin mapear y usarla
+        if (!branchByName && branch.id === 1) {
+          const unmappedBranches = await prisma.branch.findMany({
+            where: { tenantId, cianboxBranchId: null },
+          });
+
+          // Si hay exactamente una sucursal sin mapear, usarla
+          if (unmappedBranches.length === 1) {
+            branchByName = unmappedBranches[0];
+            console.log(`[Cianbox] Usando única sucursal sin mapear "${branchByName.name}" para Cianbox ID ${branch.id}`);
+          }
+        }
+
+        if (branchByName) {
+          // Actualizar la sucursal existente con el cianboxBranchId
+          existingBranch = await prisma.branch.update({
+            where: { id: branchByName.id },
+            data: {
+              cianboxBranchId: branch.id,
+              address: branch.domicilio || branchByName.address,
+              city: branch.localidad || branchByName.city,
+              state: branch.provincia || branchByName.state,
+              phone: branch.telefono || branchByName.phone,
+              lastSyncedAt: new Date(),
+            },
+          });
+          matched++;
+          console.log(`[Cianbox] Sucursal existente "${branchByName.name}" mapeada a Cianbox ID ${branch.id}`);
+        }
+      }
+
+      // Si encontramos una existente, actualizarla; si no, crear nueva
+      if (existingBranch) {
+        await prisma.branch.update({
+          where: { id: existingBranch.id },
+          data: {
+            address: branch.domicilio || existingBranch.address,
+            city: branch.localidad || existingBranch.city,
+            state: branch.provincia || existingBranch.state,
+            phone: branch.telefono || existingBranch.phone,
+            isActive,
+            lastSyncedAt: new Date(),
+          },
+        });
+      } else {
+        // Crear nueva sucursal
+        await prisma.branch.create({
+          data: {
+            tenantId,
+            cianboxBranchId: branch.id,
+            code,
+            name,
+            address: branch.domicilio || null,
+            city: branch.localidad || null,
+            state: branch.provincia || null,
+            phone: branch.telefono || null,
+            isDefault,
+            isActive,
+            lastSyncedAt: new Date(),
+          },
+        });
+      }
+
       synced++;
+    }
+
+    if (matched > 0) {
+      console.log(`[Cianbox] ${matched} sucursales existentes fueron mapeadas a Cianbox`);
     }
 
     return synced;
@@ -1278,6 +1321,53 @@ export class CianboxService {
     }
 
     return alicuotaIva; // Ya está en formato porcentaje
+  }
+
+  /**
+   * Busca o crea una sucursal para sincronizar stock.
+   * Primero busca por cianboxBranchId, si no encuentra busca una sin mapear.
+   */
+  private async getOrCreateBranchForStock(
+    tenantId: string,
+    cianboxBranchId: number
+  ): Promise<{ id: string }> {
+    // Primero buscar por cianboxBranchId
+    let branch = await prisma.branch.findFirst({
+      where: { tenantId, cianboxBranchId },
+    });
+
+    if (branch) {
+      return branch;
+    }
+
+    // Si no existe, buscar sucursales sin mapear
+    const unmappedBranches = await prisma.branch.findMany({
+      where: { tenantId, cianboxBranchId: null },
+    });
+
+    // Si hay exactamente una sucursal sin mapear, usarla y asignarle el ID
+    if (unmappedBranches.length === 1) {
+      branch = await prisma.branch.update({
+        where: { id: unmappedBranches[0].id },
+        data: { cianboxBranchId },
+      });
+      console.log(`[Cianbox] Sucursal "${branch.name}" mapeada a Cianbox ID ${cianboxBranchId} durante sync de stock`);
+      return branch;
+    }
+
+    // Si no hay sucursales o hay múltiples, crear una nueva
+    branch = await prisma.branch.create({
+      data: {
+        tenantId,
+        cianboxBranchId,
+        code: `SUC-${cianboxBranchId}`,
+        name: `Sucursal ${cianboxBranchId}`,
+        isActive: true,
+      },
+    });
+    console.log(`[Cianbox] Creada nueva sucursal para Cianbox ID ${cianboxBranchId}`);
+
+    return branch;
   }
 
   /**
@@ -1512,21 +1602,8 @@ export class CianboxService {
       // Sincronizar stock por sucursal
       if (product.stock_sucursal && Array.isArray(product.stock_sucursal)) {
         for (const stockItem of product.stock_sucursal) {
-          let branch = await prisma.branch.findFirst({
-            where: { tenantId, cianboxBranchId: stockItem.id_sucursal },
-          });
-
-          if (!branch) {
-            branch = await prisma.branch.create({
-              data: {
-                tenantId,
-                cianboxBranchId: stockItem.id_sucursal,
-                code: `SUC-${stockItem.id_sucursal}`,
-                name: `Sucursal ${stockItem.id_sucursal}`,
-                isActive: true,
-              },
-            });
-          }
+          // Buscar o crear sucursal usando el método helper
+          const branch = await this.getOrCreateBranchForStock(tenantId, stockItem.id_sucursal);
 
           const available = stockItem.disponible ?? (stockItem.stock - (stockItem.reservado || 0));
           await prisma.productStock.upsert({

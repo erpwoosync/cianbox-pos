@@ -231,6 +231,14 @@ export const stockApi = {
     const response = await api.get('/backoffice/branches');
     return response.data.data;
   },
+  cleanupUnmappedBranches: async () => {
+    const response = await api.delete('/backoffice/branches/cleanup-unmapped');
+    return response.data;
+  },
+  getBranchDiagnostics: async () => {
+    const response = await api.get('/backoffice/diagnostics/branch-stock');
+    return response.data.data;
+  },
 };
 
 // Dashboard API
