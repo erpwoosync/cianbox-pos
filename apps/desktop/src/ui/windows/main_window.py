@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
     QSpacerItem,
     QAbstractItemView,
     QProgressBar,
+    QSpinBox,
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent, QAction, QCloseEvent, QPixmap, QColor
@@ -1183,7 +1184,7 @@ class MainWindow(QMainWindow):
 
         layout = QHBoxLayout(frame)
         layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
 
         # Info del producto
         info = QWidget()
@@ -1221,13 +1222,13 @@ class MainWindow(QMainWindow):
             """)
             info_layout.addWidget(variant_label)
 
-        price_text = QLabel(f"${item['price']:,.2f} x {item['quantity']}")
-        price_text.setStyleSheet(f"""
+        price_label = QLabel(f"${item['price']:,.2f}")
+        price_label.setStyleSheet(f"""
             color: {self.theme.gray_500};
             font-size: 11px;
             background: transparent;
         """)
-        info_layout.addWidget(price_text)
+        info_layout.addWidget(price_label)
 
         # Mostrar nombre de promocion si hay descuento
         if has_discount and promo_name:
@@ -1242,12 +1243,84 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(info, 1)
 
+        # Control de cantidad
+        qty_widget = QWidget()
+        qty_widget.setStyleSheet("background: transparent;")
+        qty_layout = QHBoxLayout(qty_widget)
+        qty_layout.setContentsMargins(0, 0, 0, 0)
+        qty_layout.setSpacing(4)
+
+        # Boton -
+        minus_btn = QPushButton("-")
+        minus_btn.setFixedSize(24, 24)
+        minus_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        minus_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.theme.gray_200};
+                color: {self.theme.text_primary};
+                border: none;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {self.theme.gray_300};
+            }}
+        """)
+        item_id = item["id"]
+        minus_btn.clicked.connect(lambda: self._update_item_quantity(item_id, -1))
+        qty_layout.addWidget(minus_btn)
+
+        # Campo de cantidad editable
+        qty_input = QLineEdit(str(item["quantity"]))
+        qty_input.setFixedSize(40, 24)
+        qty_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        qty_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {self.theme.surface};
+                color: {self.theme.text_primary};
+                border: 1px solid {self.theme.border};
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: 600;
+            }}
+            QLineEdit:focus {{
+                border-color: {self.theme.primary};
+            }}
+        """)
+        qty_input.returnPressed.connect(lambda: self._set_item_quantity(item_id, qty_input.text()))
+        qty_input.editingFinished.connect(lambda: self._set_item_quantity(item_id, qty_input.text()))
+        qty_layout.addWidget(qty_input)
+
+        # Boton +
+        plus_btn = QPushButton("+")
+        plus_btn.setFixedSize(24, 24)
+        plus_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        plus_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.theme.primary};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {self.theme.primary_dark};
+            }}
+        """)
+        plus_btn.clicked.connect(lambda: self._update_item_quantity(item_id, 1))
+        qty_layout.addWidget(plus_btn)
+
+        layout.addWidget(qty_widget)
+
         # Subtotal (con descuento aplicado)
         subtotal_value = item['subtotal']
         discount_value = item.get('discount', 0)
 
         subtotal_widget = QWidget()
         subtotal_widget.setStyleSheet("background: transparent;")
+        subtotal_widget.setFixedWidth(70)
         subtotal_layout = QVBoxLayout(subtotal_widget)
         subtotal_layout.setContentsMargins(0, 0, 0, 0)
         subtotal_layout.setSpacing(0)
@@ -1277,15 +1350,15 @@ class MainWindow(QMainWindow):
 
         # Boton eliminar
         delete_btn = QPushButton("✕")
-        delete_btn.setFixedSize(28, 28)
+        delete_btn.setFixedSize(24, 24)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.danger};
                 color: white;
                 border: none;
-                border-radius: 14px;
-                font-size: 14px;
+                border-radius: 12px;
+                font-size: 12px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -1827,6 +1900,42 @@ class MainWindow(QMainWindow):
         self._update_cart_display()
         self._schedule_promotion_calculation()
         self._focus_search()
+
+    def _update_item_quantity(self, product_id: str, delta: int) -> None:
+        """Actualiza la cantidad de un item del carrito (incremento/decremento)."""
+        for item in self.cart_items:
+            if item["id"] == product_id:
+                new_qty = item["quantity"] + delta
+                if new_qty <= 0:
+                    # Si llega a 0 o menos, eliminar el item
+                    self._remove_from_cart(product_id)
+                    return
+                item["quantity"] = new_qty
+                item["subtotal"] = item["quantity"] * item["price"]
+                break
+
+        self._update_cart_display()
+        self._schedule_promotion_calculation()
+
+    def _set_item_quantity(self, product_id: str, quantity_str: str) -> None:
+        """Establece la cantidad de un item del carrito desde un input de texto."""
+        try:
+            new_qty = int(quantity_str)
+            if new_qty <= 0:
+                self._remove_from_cart(product_id)
+                return
+
+            for item in self.cart_items:
+                if item["id"] == product_id:
+                    if item["quantity"] != new_qty:  # Solo actualizar si cambio
+                        item["quantity"] = new_qty
+                        item["subtotal"] = item["quantity"] * item["price"]
+                        self._update_cart_display()
+                        self._schedule_promotion_calculation()
+                    break
+        except ValueError:
+            # Si no es un numero valido, refrescar display para restaurar valor
+            self._update_cart_display()
 
     def _update_cart_display(self) -> None:
         """Actualiza la visualizacion del carrito."""
