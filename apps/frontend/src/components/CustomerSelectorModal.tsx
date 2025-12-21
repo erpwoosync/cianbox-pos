@@ -218,7 +218,7 @@ export default function CustomerSelectorModal({
               </div>
 
               {/* Lista de clientes */}
-              <div className="flex-1 overflow-y-auto p-2">
+              <div className="flex-1 overflow-y-auto p-2 min-h-[200px] max-h-[40vh]">
                 {filteredCustomers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-gray-400 py-8">
                     <User className="w-12 h-12 mb-2" />
