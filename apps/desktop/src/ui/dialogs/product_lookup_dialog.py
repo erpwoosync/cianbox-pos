@@ -473,9 +473,12 @@ class ProductLookupDialog(QDialog):
         stock_label.setStyleSheet(f"color: {stock_color}; font-weight: 600;")
         self.detail_layout.addWidget(stock_label)
 
-        # Si es producto padre, mostrar tabla de variantes
+        # Si es producto padre o variante, mostrar tabla de variantes
         if product.is_parent:
             self._show_variants_table(product)
+        elif product.parent_product_id:
+            # Es una variante, obtener el padre para mostrar todas las variantes
+            self._show_variants_table_for_parent_id(product.parent_product_id)
 
         # Promocion
         promo = self.sync_service.get_promotion_for_product(
@@ -507,11 +510,27 @@ class ProductLookupDialog(QDialog):
 
         self.detail_layout.addStretch()
 
+    def _show_variants_table_for_parent_id(self, parent_id: str) -> None:
+        """Muestra la tabla de variantes usando el ID del padre."""
+        try:
+            # Obtener curva de talles desde la API usando el ID del padre
+            size_curve = self.sync_service.get_size_curve(parent_id)
+            self._render_variants_table(size_curve)
+        except Exception as e:
+            logger.error(f"Error cargando variantes del padre: {e}")
+
     def _show_variants_table(self, parent_product: Product) -> None:
         """Muestra la tabla de variantes del producto padre."""
         try:
             # Obtener curva de talles desde la API
             size_curve = self.sync_service.get_size_curve(parent_product.id)
+            self._render_variants_table(size_curve)
+        except Exception as e:
+            logger.error(f"Error cargando variantes: {e}")
+
+    def _render_variants_table(self, size_curve: dict) -> None:
+        """Renderiza la tabla de variantes desde la curva de talles."""
+        try:
 
             if not size_curve or not size_curve.get("variants"):
                 return
