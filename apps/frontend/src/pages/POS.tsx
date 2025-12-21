@@ -677,7 +677,28 @@ export default function POS() {
       if (response.success) {
         // Caso: Escaneo de código padre con múltiples variantes
         if (response.isParentSearch && response.data.length > 1) {
-          // Preparar variantes para el selector de talles
+          // Detectar si hay múltiples colores
+          const coloresUnicos = new Set(response.data.map((p: Product) => p.color).filter(Boolean));
+          const tieneMultiplesColores = coloresUnicos.size > 1;
+
+          // Si hay múltiples colores, usar SizeCurveModal (matriz talle x color)
+          if (tieneMultiplesColores && response.parent) {
+            const parentProduct: Product = {
+              id: response.parent.id,
+              sku: response.parent.sku || '',
+              barcode: response.parent.barcode || '',
+              name: response.parent.name,
+              basePrice: response.parent.price,
+              isParent: true,
+            };
+            setSelectedParentProduct(parentProduct);
+            setShowSizeCurveModal(true);
+            setSearchQuery('');
+            setSearchResults([]);
+            return;
+          }
+
+          // Si solo hay talles (o un solo color), usar TalleSelectorModal
           const variantes = response.data.map((p: Product) => ({
             id: p.id,
             sku: p.sku,
@@ -788,11 +809,12 @@ export default function POS() {
     price: number;
   }) => {
     // Construir producto para agregar al carrito
+    // Usar nombre del padre (el carrito muestra badges separados para talle/color)
     const product: Product = {
       id: variante.id,
       sku: variante.sku,
       barcode: variante.barcode,
-      name: `${talleParentInfo?.name || variante.name} - T.${variante.size}${variante.color ? ` ${variante.color}` : ''}`,
+      name: talleParentInfo?.name || variante.name,
       basePrice: variante.price,
       size: variante.size,
       color: variante.color || null,
@@ -1726,6 +1748,21 @@ export default function POS() {
                     <p className="font-medium text-sm line-clamp-1">
                       {item.product.name}
                     </p>
+                    {/* Mostrar talle y color si existen */}
+                    {(item.product.size || item.product.color) && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {item.product.size && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">
+                            T: {item.product.size}
+                          </span>
+                        )}
+                        {item.product.color && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                            {item.product.color}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <p className="text-xs text-gray-500">
                       ${item.unitPrice.toFixed(2)} c/u
                     </p>

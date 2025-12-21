@@ -83,11 +83,12 @@ export default function SizeCurveModal({
     if (!variant) return;
 
     // Construir el producto variante para agregar al carrito
+    // Usar nombre del padre (el carrito muestra badges separados para talle/color)
     const variantProduct: Product = {
       id: variant.id,
       sku: variant.sku || parentProduct.sku,
       barcode: variant.barcode || parentProduct.barcode,
-      name: `${parentProduct.name} - ${size} ${color}`,
+      name: parentProduct.name,
       shortName: parentProduct.shortName,
       imageUrl: parentProduct.imageUrl,
       basePrice: parentProduct.basePrice,
