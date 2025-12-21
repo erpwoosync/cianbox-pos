@@ -434,7 +434,27 @@ router.get(
           });
         }
 
-        // Producto simple o variante, retornar directo
+        // Si es variante, obtener info del padre para nombre completo
+        if (product.parentProductId) {
+          const parent = await prisma.product.findFirst({
+            where: { id: product.parentProductId },
+            select: { name: true, shortName: true, imageUrl: true },
+          });
+          if (parent) {
+            return res.json({
+              success: true,
+              data: [{
+                ...product,
+                // Usar nombre del padre (el frontend muestra badges de talle/color)
+                name: parent.name,
+                shortName: parent.shortName,
+                imageUrl: product.imageUrl || parent.imageUrl,
+              }],
+            });
+          }
+        }
+
+        // Producto simple, retornar directo
         return res.json({ success: true, data: [product] });
       }
 
@@ -476,6 +496,25 @@ router.get(
               price: product.basePrice,
             },
           });
+        }
+
+        // Si es variante, obtener info del padre para nombre completo
+        if (product.parentProductId) {
+          const parent = await prisma.product.findFirst({
+            where: { id: product.parentProductId },
+            select: { name: true, shortName: true, imageUrl: true },
+          });
+          if (parent) {
+            return res.json({
+              success: true,
+              data: [{
+                ...product,
+                name: parent.name,
+                shortName: parent.shortName,
+                imageUrl: product.imageUrl || parent.imageUrl,
+              }],
+            });
+          }
         }
 
         return res.json({ success: true, data: [product] });
