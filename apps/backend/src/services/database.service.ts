@@ -165,8 +165,9 @@ export class DatabaseService {
         description: true,
         lastHealthCheck: true,
         healthStatus: true,
-        tenantCount: true,
         createdAt: true,
+        // Conteo real de tenants asignados
+        _count: { select: { tenants: true } },
         // No incluir password
       },
     });
