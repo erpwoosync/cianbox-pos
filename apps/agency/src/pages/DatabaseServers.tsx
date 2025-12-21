@@ -21,9 +21,7 @@ interface DbServer {
   username: string;
   isActive: boolean;
   createdAt: string;
-  _count?: {
-    tenants: number;
-  };
+  tenantCount: number;
 }
 
 export default function DatabaseServers() {
@@ -55,7 +53,7 @@ export default function DatabaseServers() {
           username: 'postgres',
           isActive: true,
           createdAt: new Date().toISOString(),
-          _count: { tenants: 3 },
+          tenantCount: 3,
         },
       ]);
     } finally {
@@ -141,7 +139,7 @@ export default function DatabaseServers() {
                     {server.host}:{server.port} / {server.database}
                   </p>
                   <p className="text-xs text-gray-400">
-                    {server._count?.tenants || 0} tenants asignados
+                    {server.tenantCount || 0} tenants asignados
                   </p>
                 </div>
               </div>
