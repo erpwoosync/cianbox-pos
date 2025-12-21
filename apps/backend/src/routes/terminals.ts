@@ -41,6 +41,89 @@ const updateTerminalSchema = z.object({
 // ==============================================
 
 /**
+ * POST /identify
+ * Identifica una terminal por MAC address y devuelve el tenant
+ * Este endpoint es PÚBLICO (sin autenticación) para usarse antes del login
+ */
+router.post(
+  '/identify',
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const { macAddress } = req.body;
+
+      if (!macAddress || typeof macAddress !== 'string') {
+        throw new ApiError(400, 'MAC_REQUIRED', 'Se requiere la dirección MAC');
+      }
+
+      // Buscar terminal por MAC en cualquier tenant
+      const terminal = await prisma.posTerminal.findFirst({
+        where: { macAddress },
+        include: {
+          tenant: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+            },
+          },
+          pointOfSale: {
+            include: {
+              branch: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!terminal) {
+        // Terminal no registrada
+        return res.json({
+          success: true,
+          data: {
+            registered: false,
+            message: 'Terminal no registrada. Contacte al administrador.',
+          },
+        });
+      }
+
+      // Terminal encontrada
+      res.json({
+        success: true,
+        data: {
+          registered: true,
+          status: terminal.status,
+          tenant: {
+            slug: terminal.tenant.slug,
+            name: terminal.tenant.name,
+          },
+          terminal: {
+            id: terminal.id,
+            name: terminal.name || terminal.hostname,
+            hostname: terminal.hostname,
+          },
+          branch: terminal.pointOfSale?.branch ? {
+            id: terminal.pointOfSale.branch.id,
+            name: terminal.pointOfSale.branch.name,
+          } : null,
+          isActive: terminal.status === 'ACTIVE',
+          message: terminal.status === 'ACTIVE'
+            ? null
+            : terminal.status === 'PENDING'
+              ? 'Terminal pendiente de activación. Contacte al administrador.'
+              : `Terminal ${terminal.status.toLowerCase()}. Contacte al administrador.`,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * POST /register
  * Registra o actualiza una terminal POS
  */
