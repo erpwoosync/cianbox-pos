@@ -123,6 +123,19 @@ export default function TenantDetail() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
   const [pointsOfSale, setPointsOfSale] = useState<PointOfSale[]>([]);
+  const [customers, setCustomers] = useState<Array<{
+    id: string;
+    cianboxCustomerId?: number | null;
+    name: string;
+    taxId?: string | null;
+    taxIdType?: string | null;
+    customerType: string;
+    email?: string | null;
+    phone?: string | null;
+    isActive: boolean;
+  }>>([]);
+  const [customersPagination, setCustomersPagination] = useState({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
+  const [customerSearch, setCustomerSearch] = useState('');
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [productSearch, setProductSearch] = useState('');
 
@@ -237,7 +250,7 @@ export default function TenantDetail() {
   };
 
   // Cargar catálogo cuando se cambia al tab correspondiente
-  const loadCatalog = async (type: 'categories' | 'brands' | 'products' | 'branches' | 'priceLists' | 'pointsOfSale' | 'roles' | 'users') => {
+  const loadCatalog = async (type: 'categories' | 'brands' | 'products' | 'branches' | 'priceLists' | 'pointsOfSale' | 'roles' | 'users' | 'customers', page = 1) => {
     if (!id) return;
     setLoadingCatalog(true);
     try {
@@ -283,6 +296,10 @@ export default function TenantDetail() {
         setTenantUsers(usersData);
         if (roles.length === 0) setRoles(rolesData);
         if (branches.length === 0) setBranches(branchesData);
+      } else if (type === 'customers') {
+        const response = await catalogApi.getCustomers(id, { search: customerSearch, page, pageSize: 20 });
+        setCustomers(response.data);
+        setCustomersPagination(response.pagination);
       }
     } catch (error) {
       console.error(`Error loading ${type}:`, error);
@@ -312,6 +329,8 @@ export default function TenantDetail() {
       loadCatalog('roles');
     } else if (activeTab === 'users') {
       loadCatalog('users');
+    } else if (activeTab === 'customers') {
+      loadCatalog('customers');
     }
   }, [activeTab]);
 
@@ -744,6 +763,10 @@ export default function TenantDetail() {
     try {
       const result = await tenantsApi.syncCustomers(id!);
       await loadTenant();
+      setCustomers([]); // Limpiar para recargar
+      if (activeTab === 'customers') {
+        loadCatalog('customers');
+      }
       showMessage('success', result.message || 'Clientes sincronizados');
     } catch (error: unknown) {
       console.error('Error syncing customers:', error);
@@ -872,6 +895,7 @@ export default function TenantDetail() {
               { id: 'products', label: 'Productos', icon: Package },
               { id: 'roles', label: 'Roles', icon: Shield },
               { id: 'users', label: 'Usuarios', icon: UserCircle },
+              { id: 'customers', label: 'Clientes', icon: Users },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -2157,6 +2181,165 @@ export default function TenantDetail() {
 
               <div className="mt-4 text-sm text-gray-500">
                 Total: {tenantUsers.length} usuarios
+              </div>
+            </div>
+          )}
+
+          {/* Tab Clientes */}
+          {activeTab === 'customers' && (
+            <div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Clientes</h3>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Buscar cliente..."
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setCustomers([]);
+                          loadCatalog('customers');
+                        }
+                      }}
+                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCustomers([]);
+                      loadCatalog('customers');
+                    }}
+                    disabled={loadingCatalog}
+                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                    title="Buscar"
+                  >
+                    <Search size={20} />
+                  </button>
+                  <button
+                    onClick={handleSyncCustomers}
+                    disabled={syncingCustomers || !hasConnection}
+                    className="flex items-center gap-2 bg-pink-600 text-white px-3 py-2 rounded-lg hover:bg-pink-700 transition-colors disabled:opacity-50 text-sm"
+                  >
+                    {syncingCustomers ? (
+                      <RefreshCw size={16} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={16} />
+                    )}
+                    Sincronizar
+                  </button>
+                </div>
+              </div>
+
+              {loadingCatalog ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : customers.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No hay clientes registrados
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Cianbox</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CUIT/DNI</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {customers.map((customer) => (
+                        <tr key={customer.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-mono text-gray-500">
+                            {customer.cianboxCustomerId || '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-900">{customer.name}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {customer.taxIdType && customer.taxId ? `${customer.taxIdType}: ${customer.taxId}` : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              customer.customerType === 'CONSUMER' ? 'bg-gray-100 text-gray-700' :
+                              customer.customerType === 'BUSINESS' ? 'bg-blue-100 text-blue-700' :
+                              customer.customerType === 'RESELLER' ? 'bg-purple-100 text-purple-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              {customer.customerType === 'CONSUMER' ? 'Consumidor' :
+                               customer.customerType === 'BUSINESS' ? 'Empresa' :
+                               customer.customerType === 'RESELLER' ? 'Revendedor' :
+                               customer.customerType}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            <div className="flex flex-col gap-1">
+                              {customer.email && (
+                                <div className="flex items-center gap-1">
+                                  <Mail size={12} className="text-gray-400" />
+                                  <span className="truncate max-w-[150px]">{customer.email}</span>
+                                </div>
+                              )}
+                              {customer.phone && (
+                                <span className="text-gray-500">{customer.phone}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                customer.isActive
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}
+                            >
+                              {customer.isActive ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Paginación */}
+              {customersPagination.totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-sm text-gray-500">
+                    Mostrando {customers.length} de {customersPagination.total} clientes
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => loadCatalog('customers', customersPagination.page - 1)}
+                      disabled={customersPagination.page <= 1 || loadingCatalog}
+                      className="px-3 py-1 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Anterior
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      Página {customersPagination.page} de {customersPagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => loadCatalog('customers', customersPagination.page + 1)}
+                      disabled={customersPagination.page >= customersPagination.totalPages || loadingCatalog}
+                      className="px-3 py-1 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 text-sm text-gray-500">
+                Total: {customersPagination.total} clientes
               </div>
             </div>
           )}

@@ -1545,6 +1545,79 @@ router.get(
   }
 );
 
+/**
+ * GET /api/agency/tenants/:id/catalog/customers
+ * Listar clientes de un tenant
+ */
+router.get(
+  '/tenants/:id/catalog/customers',
+  agencyAuth,
+  async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { search, page = '1', pageSize = '50' } = req.query;
+      const tenantId = req.params.id;
+
+      const pageNum = parseInt(page as string, 10) || 1;
+      const pageSizeNum = Math.min(parseInt(pageSize as string, 10) || 50, 100);
+      const skip = (pageNum - 1) * pageSizeNum;
+
+      const where: {
+        tenantId: string;
+        OR?: Array<{ name?: { contains: string; mode: 'insensitive' }; taxId?: { contains: string; mode: 'insensitive' }; email?: { contains: string; mode: 'insensitive' } }>;
+      } = { tenantId };
+
+      if (search && typeof search === 'string' && search.trim()) {
+        where.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { taxId: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [customers, total] = await Promise.all([
+        prisma.customer.findMany({
+          where,
+          select: {
+            id: true,
+            cianboxCustomerId: true,
+            name: true,
+            taxId: true,
+            taxIdType: true,
+            taxCategory: true,
+            customerType: true,
+            email: true,
+            phone: true,
+            city: true,
+            creditLimit: true,
+            paymentTermDays: true,
+            globalDiscount: true,
+            isActive: true,
+            priceList: { select: { id: true, name: true } },
+            _count: { select: { sales: true } },
+          },
+          orderBy: { name: 'asc' },
+          skip,
+          take: pageSizeNum,
+        }),
+        prisma.customer.count({ where }),
+      ]);
+
+      res.json({
+        success: true,
+        data: customers,
+        pagination: {
+          page: pageNum,
+          pageSize: pageSizeNum,
+          total,
+          totalPages: Math.ceil(total / pageSizeNum),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // =============================================
 // PUNTOS DE VENTA DE TENANT
 // =============================================
@@ -2465,7 +2538,7 @@ router.post(
       const { events } = req.body;
 
       // Validar eventos
-      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio', 'sucursales'];
+      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio', 'sucursales', 'clientes'];
       const eventList = events || validEvents;
 
       // Obtener la URL del webhook desde la conexión o generar una
@@ -2518,7 +2591,7 @@ router.delete(
       const { events } = req.body;
 
       // Si no se especifican eventos, eliminar todos los principales
-      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio', 'sucursales'];
+      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio', 'sucursales', 'clientes'];
       const eventList = events || validEvents;
 
       const cianbox = await CianboxService.forTenant(tenantId);

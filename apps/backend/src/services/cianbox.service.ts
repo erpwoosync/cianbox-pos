@@ -1500,6 +1500,18 @@ export class CianboxService {
     return response.body || [];
   }
 
+  /**
+   * Obtiene clientes por IDs específicos
+   */
+  async getCustomersByIds(ids: number[]): Promise<CianboxCustomer[]> {
+    if (ids.length === 0) return [];
+    const idsParam = ids.slice(0, 200).join(',');
+    const response = await this.request<CianboxPaginatedResponse<CianboxCustomer>>(
+      `/clientes?id=${idsParam}`
+    );
+    return response.body || [];
+  }
+
   // =============================================
   // UPSERT POR IDS (para webhooks)
   // =============================================
@@ -1872,6 +1884,76 @@ export class CianboxService {
     }
 
     console.log(`[Cianbox Webhook] Sincronizadas ${synced} sucursales`);
+    return synced;
+  }
+
+  /**
+   * Sincroniza clientes específicos por IDs (para webhooks)
+   */
+  async upsertCustomersByIds(tenantId: string, ids: number[]): Promise<number> {
+    const customers = await this.getCustomersByIds(ids);
+    let synced = 0;
+
+    console.log(`[Cianbox Webhook] Procesando ${customers.length} clientes`);
+
+    for (const customer of customers) {
+      // Buscar primera lista de precios asignada
+      let priceListId: string | null = null;
+      if (customer.listas_precio && customer.listas_precio.length > 0) {
+        const priceList = await prisma.priceList.findFirst({
+          where: {
+            tenantId,
+            cianboxPriceListId: customer.listas_precio[0],
+          },
+        });
+        priceListId = priceList?.id || null;
+      }
+
+      // Mapear condición fiscal a tipo de cliente
+      const customerType = this.mapCondicionToCustomerType(customer.condicion);
+
+      // Mapear campos de Cianbox a nuestro modelo
+      const customerData = {
+        customerType,
+        taxId: customer.numero_documento || null,
+        taxIdType: customer.tipo_documento || null,
+        taxCategory: customer.condicion || null,
+        name: customer.razon || `Cliente ${customer.id}`,
+        email: customer.email || null,
+        phone: customer.telefono || null,
+        mobile: customer.celular || null,
+        address: customer.domicilio || null,
+        city: customer.localidad || null,
+        state: customer.provincia || null,
+        priceListId,
+        creditLimit: customer.limite || 0,
+        creditBalance: customer.saldo || 0,
+        paymentTermDays: customer.plazo || 0,
+        globalDiscount: customer.descuento || 0,
+        isActive: customer.vigente ?? true,
+        lastSyncedAt: new Date(),
+        cianboxData: customer as unknown as object,
+      };
+
+      await prisma.customer.upsert({
+        where: {
+          tenantId_cianboxCustomerId: {
+            tenantId,
+            cianboxCustomerId: customer.id,
+          },
+        },
+        update: customerData,
+        create: {
+          tenantId,
+          cianboxCustomerId: customer.id,
+          ...customerData,
+        },
+      });
+
+      synced++;
+    }
+
+    console.log(`[Cianbox Webhook] Sincronizados ${synced} clientes`);
     return synced;
   }
 

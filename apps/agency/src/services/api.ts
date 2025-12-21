@@ -219,6 +219,37 @@ export const catalogApi = {
     const response = await api.get(`/agency/tenants/${tenantId}/catalog/branches`);
     return response.data.data;
   },
+  // Clientes
+  getCustomers: async (tenantId: string, params?: { search?: string; page?: number; pageSize?: number }) => {
+    const response = await api.get(`/agency/tenants/${tenantId}/catalog/customers`, { params });
+    return response.data as {
+      success: boolean;
+      data: Array<{
+        id: string;
+        cianboxCustomerId?: number | null;
+        name: string;
+        taxId?: string | null;
+        taxIdType?: string | null;
+        taxCategory?: string | null;
+        customerType: string;
+        email?: string | null;
+        phone?: string | null;
+        city?: string | null;
+        creditLimit?: number | null;
+        paymentTermDays?: number | null;
+        globalDiscount?: number | null;
+        isActive: boolean;
+        priceList?: { id: string; name: string } | null;
+        _count?: { sales: number };
+      }>;
+      pagination: {
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+      };
+    };
+  },
   // Puntos de Venta
   getPointsOfSale: async (tenantId: string) => {
     const response = await api.get(`/agency/tenants/${tenantId}/points-of-sale`);

@@ -1082,4 +1082,74 @@ export const terminalsApi = {
   },
 };
 
+// =============================================
+// CUSTOMERS (Clientes)
+// =============================================
+
+export interface Customer {
+  id: string;
+  cianboxCustomerId?: number | null;
+  name: string;
+  taxId?: string | null;
+  taxIdType?: string | null;
+  taxCategory?: string | null;
+  customerType: 'CONSUMER' | 'BUSINESS' | 'GOVERNMENT' | 'RESELLER';
+  email?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  creditLimit?: number | null;
+  creditBalance?: number | null;
+  paymentTermDays?: number | null;
+  globalDiscount?: number | null;
+  isActive: boolean;
+  priceList?: { id: string; name: string } | null;
+  lastSyncedAt?: string | null;
+  // For detail view
+  sales?: Array<{
+    id: string;
+    saleNumber: string;
+    total: number;
+    status: string;
+    createdAt: string;
+  }>;
+  _count?: { sales: number };
+}
+
+export interface CustomerStats {
+  total: number;
+  active: number;
+  inactive: number;
+  withCredit: number;
+  fromCianbox: number;
+}
+
+export interface CustomersResponse {
+  success: boolean;
+  data: Customer[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export const customersApi = {
+  getAll: async (params?: { search?: string; page?: number; pageSize?: number; isActive?: boolean }) => {
+    const response = await api.get('/backoffice/customers', { params });
+    return response.data as CustomersResponse;
+  },
+  getById: async (id: string) => {
+    const response = await api.get(`/backoffice/customers/${id}`);
+    return response.data.data as Customer;
+  },
+  getStats: async () => {
+    const response = await api.get('/backoffice/customers-stats');
+    return response.data.data as CustomerStats;
+  },
+};
+
 export default api;
