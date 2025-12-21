@@ -142,13 +142,21 @@ La busqueda ahora incluye los campos `isParent`, `size`, `color` en los resultad
 
 **Archivo:** `apps/frontend/src/pages/POS.tsx`
 
+- Boton "Consultar" en header para abrir buscador de productos
 - Al hacer clic en producto padre, se abre modal de curva de talles
 - Badge "Talles" en productos padre
 - Busqueda muestra indicador visual de productos padre
 
+**Archivo:** `apps/frontend/src/components/ProductSearchModal.tsx`
+
+- Modal de busqueda avanzada de productos
+- Vista detallada de producto con informacion completa
+- Visualizacion de curva de talles integrada
+- Click en celda con stock agrega variante al carrito
+
 **Archivo:** `apps/frontend/src/components/SizeCurveModal.tsx`
 
-- Modal que muestra matriz de talles/colores
+- Modal rapido de seleccion de variante (desde grid de productos)
 - Click en celda con stock agrega variante al carrito
 - Celdas deshabilitadas si no hay stock
 
@@ -287,8 +295,9 @@ if (product.id_producto_padre && product.id_producto_padre > 0) {
 | `apps/backoffice/src/pages/ProductDetail.tsx` | Tab curva de talles |
 | `apps/backoffice/src/pages/Products.tsx` | Filtros de variantes |
 | `apps/frontend/src/services/api.ts` | Tipos y funcion getSizeCurve |
-| `apps/frontend/src/pages/POS.tsx` | Integracion productos padre |
-| `apps/frontend/src/components/SizeCurveModal.tsx` | Modal de seleccion |
+| `apps/frontend/src/pages/POS.tsx` | Integracion productos padre, boton consultar |
+| `apps/frontend/src/components/SizeCurveModal.tsx` | Modal rapido de seleccion |
+| `apps/frontend/src/components/ProductSearchModal.tsx` | Consultor de productos con curva de talles |
 
 ---
 

@@ -18,6 +18,7 @@ import {
   Wifi,
   RefreshCw,
   Smartphone,
+  Layers,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
@@ -29,6 +30,7 @@ import CashOpenModal from '../components/CashOpenModal';
 import CashMovementModal from '../components/CashMovementModal';
 import CashCountModal from '../components/CashCountModal';
 import SizeCurveModal from '../components/SizeCurveModal';
+import ProductSearchModal from '../components/ProductSearchModal';
 
 interface Product {
   id: string;
@@ -249,6 +251,9 @@ export default function POS() {
   // Estado de curva de talles (productos variables)
   const [showSizeCurveModal, setShowSizeCurveModal] = useState(false);
   const [selectedParentProduct, setSelectedParentProduct] = useState<Product | null>(null);
+
+  // Estado de consultor de productos
+  const [showProductSearchModal, setShowProductSearchModal] = useState(false);
 
   // Estado offline/online
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -1294,6 +1299,16 @@ export default function POS() {
             )}
           </div>
 
+          {/* Boton consulta de productos */}
+          <button
+            onClick={() => setShowProductSearchModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+            title="Consultar productos y curva de talles"
+          >
+            <Layers className="w-5 h-5" />
+            <span className="hidden sm:inline">Consultar</span>
+          </button>
+
           <div className="text-right flex items-center gap-4">
             {/* Indicador de conexión y sincronización */}
             {!isOnline ? (
@@ -1894,6 +1909,14 @@ export default function POS() {
           branchId={user?.branch?.id}
         />
       )}
+
+      {/* Modal de consulta de productos */}
+      <ProductSearchModal
+        isOpen={showProductSearchModal}
+        onClose={() => setShowProductSearchModal(false)}
+        onAddToCart={addToCart}
+        branchId={user?.branch?.id}
+      />
     </div>
   );
 }
