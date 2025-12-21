@@ -840,8 +840,24 @@ router.post(
           },
         });
 
+        // Crear rol supervisor
+        const supervisorRole = await tx.role.create({
+          data: {
+            tenantId: tenant.id,
+            name: 'Supervisor',
+            description: 'Gestión de caja y reportes',
+            isSystem: true,
+            permissions: [
+              'pos:sell', 'pos:discount', 'pos:void', 'pos:refund',
+              'pos:cash_drawer', 'pos:close_shift',
+              'inventory:view', 'stock:view',
+              'reports:sales', 'reports:inventory',
+            ],
+          },
+        });
+
         // Crear rol cajero
-        await tx.role.create({
+        const cajeroRole = await tx.role.create({
           data: {
             tenantId: tenant.id,
             name: 'Cajero',
@@ -851,15 +867,42 @@ router.post(
           },
         });
 
-        // Crear usuario admin
-        const passwordHash = await bcrypt.hash(data.adminPassword, 10);
+        // Crear usuarios de demo (uno por cada rol)
+        const defaultPassword = await bcrypt.hash('demo1234', 10);
+        const adminPasswordHash = await bcrypt.hash(data.adminPassword, 10);
+
+        // Usuario Administrador (con credenciales del formulario)
         const adminUser = await tx.user.create({
           data: {
             tenantId: tenant.id,
             email: data.adminEmail.toLowerCase(),
-            passwordHash,
+            passwordHash: adminPasswordHash,
             name: data.adminName,
             roleId: adminRole.id,
+            status: 'ACTIVE',
+          },
+        });
+
+        // Usuario Supervisor (demo)
+        await tx.user.create({
+          data: {
+            tenantId: tenant.id,
+            email: `supervisor@${data.slug}.demo`,
+            passwordHash: defaultPassword,
+            name: 'Supervisor Demo',
+            roleId: supervisorRole.id,
+            status: 'ACTIVE',
+          },
+        });
+
+        // Usuario Cajero (demo)
+        await tx.user.create({
+          data: {
+            tenantId: tenant.id,
+            email: `cajero@${data.slug}.demo`,
+            passwordHash: defaultPassword,
+            name: 'Cajero Demo',
+            roleId: cajeroRole.id,
             status: 'ACTIVE',
           },
         });
