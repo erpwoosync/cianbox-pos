@@ -561,6 +561,79 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
   }
 });
 
+// Obtener variantes de un producto padre con su stock
+router.get('/products/:id/variants-stock', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+
+    // Verificar que el producto existe y es padre
+    const parentProduct = await prisma.product.findFirst({
+      where: { id, tenantId },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        isParent: true,
+      },
+    });
+
+    if (!parentProduct) {
+      throw new ApiError(404, 'NOT_FOUND', 'Producto no encontrado');
+    }
+
+    if (!parentProduct.isParent) {
+      throw new ApiError(400, 'INVALID_REQUEST', 'El producto no es un producto padre con variantes');
+    }
+
+    // Obtener todas las variantes con su stock
+    const variants = await prisma.product.findMany({
+      where: { tenantId, parentProductId: id },
+      select: {
+        id: true,
+        sku: true,
+        barcode: true,
+        name: true,
+        size: true,
+        color: true,
+        isActive: true,
+        stock: {
+          select: {
+            id: true,
+            branchId: true,
+            quantity: true,
+            reserved: true,
+            available: true,
+          },
+        },
+      },
+      orderBy: [{ size: 'asc' }, { color: 'asc' }],
+    });
+
+    res.json({
+      success: true,
+      data: variants.map(v => ({
+        id: v.id,
+        sku: v.sku,
+        barcode: v.barcode,
+        name: v.name,
+        size: v.size,
+        color: v.color,
+        isActive: v.isActive,
+        stock: v.stock.map(s => ({
+          id: s.id,
+          branchId: s.branchId,
+          quantity: Number(s.quantity),
+          reserved: Number(s.reserved),
+          available: Number(s.available),
+        })),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Obtener variantes de un producto padre con sus precios
 router.get('/products/:id/variants-prices', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

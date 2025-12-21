@@ -153,6 +153,11 @@ export const productsApi = {
     const response = await api.get(`/backoffice/products/${productId}/variants-prices`);
     return response.data.data as VariantWithPrices[];
   },
+  // Obtener variantes con stock
+  getVariantsStock: async (productId: string) => {
+    const response = await api.get(`/backoffice/products/${productId}/variants-stock`);
+    return response.data.data as VariantWithStock[];
+  },
 };
 
 export interface VariantWithPrices {
@@ -167,6 +172,23 @@ export interface VariantWithPrices {
     id: string;
     price: number;
     priceListId: string;
+  }>;
+}
+
+export interface VariantWithStock {
+  id: string;
+  sku: string | null;
+  barcode: string | null;
+  name: string;
+  size: string | null;
+  color: string | null;
+  isActive: boolean;
+  stock: Array<{
+    id: string;
+    branchId: string;
+    quantity: number;
+    reserved: number;
+    available: number;
   }>;
 }
 

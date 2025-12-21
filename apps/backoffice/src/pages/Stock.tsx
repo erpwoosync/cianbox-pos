@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { productsApi, stockApi, Product, ProductStock } from '../services/api';
-import { Warehouse, RefreshCw, Search, Eye, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle } from 'lucide-react';
+import { productsApi, stockApi, Product, VariantWithStock } from '../services/api';
+import { Warehouse, RefreshCw, Search, Eye, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Layers } from 'lucide-react';
 
 interface Branch {
   id: string;
@@ -18,6 +18,11 @@ export default function Stock() {
   const [page, setPage] = useState(1);
   const itemsPerPage = 20;
 
+  // Estado para productos expandidos
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  const [variantsData, setVariantsData] = useState<Record<string, VariantWithStock[]>>({});
+  const [loadingVariants, setLoadingVariants] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     loadData();
   }, []);
@@ -26,7 +31,7 @@ export default function Stock() {
     setLoading(true);
     try {
       const [productsData, branchesData] = await Promise.all([
-        productsApi.getAll(),
+        productsApi.getAll({ hideVariants: true }), // Solo productos simples y padres
         stockApi.getBranches(),
       ]);
       setProducts(productsData);
@@ -38,13 +43,48 @@ export default function Stock() {
     }
   };
 
+  const toggleExpand = async (productId: string) => {
+    const newExpanded = new Set(expandedProducts);
+
+    if (expandedProducts.has(productId)) {
+      newExpanded.delete(productId);
+      setExpandedProducts(newExpanded);
+    } else {
+      newExpanded.add(productId);
+      setExpandedProducts(newExpanded);
+
+      // Cargar variantes si no están cargadas
+      if (!variantsData[productId]) {
+        setLoadingVariants(prev => new Set(prev).add(productId));
+        try {
+          const variants = await productsApi.getVariantsStock(productId);
+          setVariantsData(prev => ({ ...prev, [productId]: variants }));
+        } catch (error) {
+          console.error('Error loading variants:', error);
+        } finally {
+          setLoadingVariants(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(productId);
+            return newSet;
+          });
+        }
+      }
+    }
+  };
+
   const getTotalStock = (product: Product): number => {
     if (!product.stock || product.stock.length === 0) return 0;
     return product.stock.reduce((sum, s) => sum + s.available, 0);
   };
 
-  const getStockByBranch = (product: Product, branchId: string): ProductStock | undefined => {
-    return product.stock?.find((s) => s.branchId === branchId);
+  const getStockByBranch = (stockArray: Array<{ branchId: string; available: number }> | undefined, branchId: string): number => {
+    const stock = stockArray?.find((s) => s.branchId === branchId);
+    return stock?.available ?? 0;
+  };
+
+  const getVariantTotalStock = (variant: VariantWithStock): number => {
+    if (!variant.stock || variant.stock.length === 0) return 0;
+    return variant.stock.reduce((sum, s) => sum + s.available, 0);
   };
 
   const filteredProducts = products.filter((product) => {
@@ -79,6 +119,13 @@ export default function Stock() {
       return { color: 'text-amber-600 bg-amber-50', label: 'Stock bajo', icon: AlertTriangle };
     }
     return { color: 'text-green-600 bg-green-50', label: 'OK', icon: CheckCircle };
+  };
+
+  const formatVariantName = (variant: VariantWithStock): string => {
+    const parts = [];
+    if (variant.size) parts.push(variant.size);
+    if (variant.color) parts.push(variant.color);
+    return parts.length > 0 ? parts.join(' / ') : variant.name;
   };
 
   const stockStats = {
@@ -246,55 +293,171 @@ export default function Stock() {
                     const totalStock = getTotalStock(product);
                     const status = getStockStatus(totalStock);
                     const StatusIcon = status.icon;
+                    const isExpanded = expandedProducts.has(product.id);
+                    const isLoadingVariants = loadingVariants.has(product.id);
+                    const variants = variantsData[product.id] || [];
+                    const hasVariants = product.isParent && (product._count?.variants ?? 0) > 0;
 
                     return (
-                      <tr key={product.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 sticky left-0 bg-white">
-                          <div className="flex items-center gap-2">
-                            <Warehouse size={16} className="text-blue-500" />
-                            <span className="font-medium text-gray-900">{product.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{product.sku}</td>
-                        {branches.map((branch) => {
-                          const branchStock = getStockByBranch(product, branch.id);
-                          const available = branchStock?.available ?? 0;
-                          return (
-                            <td
-                              key={branch.id}
-                              className={`px-4 py-3 text-center font-medium ${
-                                available <= 0
-                                  ? 'text-red-600'
-                                  : available < 10
-                                  ? 'text-amber-600'
-                                  : 'text-gray-900'
-                              }`}
+                      <>
+                        <tr key={product.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 sticky left-0 bg-white">
+                            <div className="flex items-center gap-2">
+                              {hasVariants ? (
+                                <button
+                                  onClick={() => toggleExpand(product.id)}
+                                  className="p-1 hover:bg-gray-100 rounded"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp size={16} className="text-blue-500" />
+                                  ) : (
+                                    <ChevronDown size={16} className="text-gray-400" />
+                                  )}
+                                </button>
+                              ) : (
+                                <Warehouse size={16} className="text-blue-500 ml-1" />
+                              )}
+                              <div className="flex flex-col">
+                                <span className="font-medium text-gray-900">{product.name}</span>
+                                {hasVariants && (
+                                  <span className="flex items-center gap-1 text-xs text-purple-600">
+                                    <Layers size={12} />
+                                    {product._count?.variants} variantes
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{product.sku}</td>
+                          {branches.map((branch) => {
+                            if (hasVariants) {
+                              return (
+                                <td key={branch.id} className="px-4 py-3 text-center text-gray-400 text-sm">
+                                  -
+                                </td>
+                              );
+                            }
+                            const available = getStockByBranch(product.stock, branch.id);
+                            return (
+                              <td
+                                key={branch.id}
+                                className={`px-4 py-3 text-center font-medium ${
+                                  available <= 0
+                                    ? 'text-red-600'
+                                    : available < 10
+                                    ? 'text-amber-600'
+                                    : 'text-gray-900'
+                                }`}
+                              >
+                                {available}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 text-center font-bold text-gray-900">
+                            {hasVariants ? (
+                              <span className="text-gray-400 text-sm font-normal">Ver variantes</span>
+                            ) : (
+                              totalStock
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {!hasVariants && (
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${status.color}`}
+                              >
+                                <StatusIcon size={12} />
+                                {status.label}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <Link
+                              to={`/products/${product.id}`}
+                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
                             >
-                              {available}
-                            </td>
-                          );
-                        })}
-                        <td className="px-4 py-3 text-center font-bold text-gray-900">
-                          {totalStock}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${status.color}`}
-                          >
-                            <StatusIcon size={12} />
-                            {status.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Link
-                            to={`/products/${product.id}`}
-                            className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
-                          >
-                            <Eye size={16} />
-                            Ver
-                          </Link>
-                        </td>
-                      </tr>
+                              <Eye size={16} />
+                              Ver
+                            </Link>
+                          </td>
+                        </tr>
+
+                        {/* Variantes expandidas */}
+                        {hasVariants && isExpanded && (
+                          <>
+                            {isLoadingVariants ? (
+                              <tr key={`${product.id}-loading`}>
+                                <td colSpan={4 + branches.length} className="px-4 py-4 bg-gray-50">
+                                  <div className="flex items-center justify-center gap-2 text-gray-500">
+                                    <RefreshCw size={16} className="animate-spin" />
+                                    Cargando variantes...
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : (
+                              variants.map((variant) => {
+                                const variantTotal = getVariantTotalStock(variant);
+                                const variantStatus = getStockStatus(variantTotal);
+                                const VariantStatusIcon = variantStatus.icon;
+
+                                return (
+                                  <tr
+                                    key={variant.id}
+                                    className="bg-purple-50/30 hover:bg-purple-50/50"
+                                  >
+                                    <td className="px-4 py-2 sticky left-0 bg-purple-50/30">
+                                      <div className="flex items-center gap-2 pl-8">
+                                        <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                                        <span className="text-sm text-gray-700">
+                                          {formatVariantName(variant)}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2 text-sm text-gray-500 font-mono">
+                                      {variant.sku || '-'}
+                                    </td>
+                                    {branches.map((branch) => {
+                                      const available = getStockByBranch(variant.stock, branch.id);
+                                      return (
+                                        <td
+                                          key={branch.id}
+                                          className={`px-4 py-2 text-center text-sm font-medium ${
+                                            available <= 0
+                                              ? 'text-red-600'
+                                              : available < 10
+                                              ? 'text-amber-600'
+                                              : 'text-gray-700'
+                                          }`}
+                                        >
+                                          {available}
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-4 py-2 text-center font-bold text-sm text-gray-700">
+                                      {variantTotal}
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${variantStatus.color}`}
+                                      >
+                                        <VariantStatusIcon size={10} />
+                                        {variantStatus.label}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      <Link
+                                        to={`/products/${variant.id}`}
+                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 rounded"
+                                      >
+                                        <Eye size={14} />
+                                      </Link>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>
