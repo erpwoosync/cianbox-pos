@@ -18,6 +18,7 @@ const productQuerySchema = z.object({
   brandId: z.string().optional(),
   branchId: z.string().optional(), // Opcional: si se pasa, incluye stock de esa sucursal
   isActive: z.enum(['true', 'false']).optional(),
+  includeVariants: z.enum(['true', 'false']).optional(), // Incluir variantes en la respuesta
   page: z.string().default('1'),
   pageSize: z.string().default('50'),
 });
@@ -264,17 +265,21 @@ router.get(
         throw new ValidationError('Parámetros inválidos', validation.error.errors);
       }
 
-      const { search, categoryId, brandId, branchId, isActive, page, pageSize } = validation.data;
+      const { search, categoryId, brandId, branchId, isActive, includeVariants, page, pageSize } = validation.data;
       const skip = (parseInt(page) - 1) * parseInt(pageSize);
       const take = parseInt(pageSize);
 
       // Construir filtros
       const where: Record<string, unknown> = {
         tenantId: req.user!.tenantId,
-        // Excluir variantes (solo mostrar productos padre y simples)
-        // Las variantes se acceden a través del selector de talle/color
-        parentProductId: null,
       };
+
+      // Por defecto excluir variantes (solo mostrar productos padre y simples)
+      // Las variantes se acceden a través del selector de talle/color
+      // Si includeVariants=true, incluir también variantes (usado por sincronización POS)
+      if (includeVariants !== 'true') {
+        where.parentProductId = null;
+      }
 
       if (search) {
         where.OR = [

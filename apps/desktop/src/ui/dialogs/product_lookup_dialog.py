@@ -477,11 +477,17 @@ class ProductLookupDialog(QDialog):
         self.detail_layout.addWidget(stock_label)
 
         # Si es producto padre o variante, mostrar tabla de variantes
+        logger.info(f"Producto: is_parent={product.is_parent}, parent_product_id={product.parent_product_id}, size={product.size}, color={product.color}")
         if product.is_parent:
             self._show_variants_table(product)
         elif product.parent_product_id:
             # Es una variante, obtener el padre para mostrar todas las variantes
             self._show_variants_table_for_parent_id(product.parent_product_id)
+        elif product.size or product.color:
+            # Producto parece ser variante pero no tiene parent_product_id local
+            # Intentar obtener del backend por ID
+            logger.info("Producto parece variante pero sin parent_product_id local, buscando en backend...")
+            self._try_get_parent_from_backend(product.id)
 
         # Promocion
         promo = self.sync_service.get_promotion_for_product(
@@ -516,12 +522,29 @@ class ProductLookupDialog(QDialog):
     def _show_variants_table_for_parent_id(self, parent_id: str) -> None:
         """Muestra la tabla de variantes usando el ID del padre."""
         try:
+            logger.info(f"Cargando variantes para parent_id={parent_id}, branch_id={self.branch_id}")
             # Obtener curva de talles desde la API usando el ID del padre
             size_curve = self._products_api.get_size_curve(parent_id, self.branch_id)
+            logger.info(f"size_curve resultado: {size_curve}")
             if size_curve:
                 self._render_variants_table(size_curve)
+            else:
+                logger.warning(f"No se obtuvo curva de talles para parent_id={parent_id}")
         except Exception as e:
             logger.error(f"Error cargando variantes del padre: {e}")
+
+    def _try_get_parent_from_backend(self, product_id: str) -> None:
+        """Intenta obtener el producto padre desde el backend."""
+        try:
+            # Obtener producto desde backend para conseguir parentProductId
+            product_data = self._products_api.get_by_id(product_id)
+            if product_data and product_data.parent_product_id:
+                logger.info(f"Encontrado parent_product_id desde backend: {product_data.parent_product_id}")
+                self._show_variants_table_for_parent_id(product_data.parent_product_id)
+            else:
+                logger.info("Producto del backend no tiene parent_product_id")
+        except Exception as e:
+            logger.error(f"Error obteniendo producto del backend: {e}")
 
     def _show_variants_table(self, parent_product: Product) -> None:
         """Muestra la tabla de variantes del producto padre."""

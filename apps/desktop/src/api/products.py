@@ -267,6 +267,7 @@ class ProductsAPI:
         page_size: int = 100,
         category_id: Optional[str] = None,
         branch_id: Optional[str] = None,
+        include_variants: bool = True,
     ) -> tuple[List[ProductData], Optional[PaginationData]]:
         """
         Obtiene todos los productos (paginado).
@@ -276,6 +277,7 @@ class ProductsAPI:
             page_size: Tamano de pagina
             category_id: Filtrar por categoria
             branch_id: ID de sucursal para obtener stock
+            include_variants: Incluir variantes (default True para sincronizacion)
 
         Returns:
             Tupla de (lista de productos, datos de paginacion)
@@ -291,6 +293,9 @@ class ProductsAPI:
 
         if branch_id:
             params["branchId"] = branch_id
+
+        if include_variants:
+            params["includeVariants"] = "true"
 
         try:
             response = self.client.get("/api/products", params=params)
