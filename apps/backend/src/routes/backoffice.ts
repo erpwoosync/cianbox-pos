@@ -440,6 +440,7 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
         imageUrl: true,
         isParent: true,
         cianboxProductId: true,
+        basePrice: true,
       },
     });
 
@@ -461,6 +462,7 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
         size: true,
         color: true,
         isActive: true,
+        basePrice: true,
         stock: {
           where: branchId ? { branchId: branchId as string } : undefined,
           select: {
@@ -478,7 +480,7 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
     const sizes = [...new Set(variants.map(v => v.size).filter(Boolean))].sort();
     const colors = [...new Set(variants.map(v => v.color).filter(Boolean))].sort();
 
-    // Construir matriz de variantes con stock
+    // Construir matriz de variantes con stock y precio
     const matrix: Record<string, {
       variantId: string;
       sku: string | null;
@@ -487,6 +489,7 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
       stock: number;
       reserved: number;
       available: number;
+      price: number;
     }> = {};
 
     const totalsBySize: Record<string, number> = {};
@@ -509,6 +512,7 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
         stock: quantitySum,
         reserved: reservedSum,
         available: stockSum,
+        price: Number(variant.basePrice || parentProduct.basePrice || 0),
       };
 
       // Totales por talle
@@ -530,6 +534,7 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
           name: parentProduct.name,
           sku: parentProduct.sku,
           imageUrl: parentProduct.imageUrl,
+          basePrice: Number(parentProduct.basePrice || 0),
         },
         sizes,
         colors,
@@ -541,6 +546,7 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
           barcode: v.barcode,
           isActive: v.isActive,
           stock: v.stock.reduce((sum, s) => sum + Number(s.available || 0), 0),
+          price: Number(v.basePrice || parentProduct.basePrice || 0),
         })),
         matrix,
         totals: {
