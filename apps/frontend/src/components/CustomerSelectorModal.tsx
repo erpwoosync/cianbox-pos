@@ -12,6 +12,7 @@ import {
   Edit2,
   Trash2,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { customersService, Customer, CONSUMIDOR_FINAL } from '../services/customers';
 
@@ -33,13 +34,15 @@ export default function CustomerSelectorModal({
   const [view, setView] = useState<ModalView>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    documentType: 'DNI' as Customer['documentType'],
-    documentNumber: '',
+    taxIdType: 'DNI' as Customer['taxIdType'],
+    taxId: '',
     email: '',
     phone: '',
     address: '',
@@ -56,9 +59,16 @@ export default function CustomerSelectorModal({
     }
   }, [isOpen]);
 
-  const loadCustomers = useCallback(() => {
-    const allCustomers = customersService.getAllWithDefault();
-    setCustomers(allCustomers);
+  const loadCustomers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const allCustomers = await customersService.getAllWithDefault();
+      setCustomers(allCustomers);
+    } catch (error) {
+      console.error('Error loading customers:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   // Buscar clientes
@@ -66,7 +76,7 @@ export default function CustomerSelectorModal({
     ? customers.filter(
         (c) =>
           c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.documentNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          c.taxId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           c.phone?.includes(searchQuery)
       )
@@ -85,8 +95,8 @@ export default function CustomerSelectorModal({
   const resetForm = () => {
     setFormData({
       name: '',
-      documentType: 'DNI',
-      documentNumber: '',
+      taxIdType: 'DNI',
+      taxId: '',
       email: '',
       phone: '',
       address: '',
@@ -105,8 +115,8 @@ export default function CustomerSelectorModal({
     setEditingCustomer(customer);
     setFormData({
       name: customer.name,
-      documentType: customer.documentType || 'DNI',
-      documentNumber: customer.documentNumber || '',
+      taxIdType: customer.taxIdType || 'DNI',
+      taxId: customer.taxId || '',
       email: customer.email || '',
       phone: customer.phone || '',
       address: customer.address || '',
@@ -115,32 +125,36 @@ export default function CustomerSelectorModal({
     setView('edit');
   };
 
-  const handleDelete = (customer: Customer) => {
+  const handleDelete = async (customer: Customer) => {
     if (customer.id === CONSUMIDOR_FINAL.id) return;
 
     if (window.confirm(`¿Eliminar cliente "${customer.name}"?`)) {
-      customersService.delete(customer.id);
-      loadCustomers();
-
-      // Si se elimina el cliente seleccionado, limpiar seleccion
-      if (selectedCustomerId === customer.id) {
-        onSelect(null);
+      const success = await customersService.delete(customer.id);
+      if (success) {
+        await loadCustomers();
+        // Si se elimina el cliente seleccionado, limpiar seleccion
+        if (selectedCustomerId === customer.id) {
+          onSelect(null);
+        }
       }
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name.trim()) {
       setFormError('El nombre es requerido');
       return;
     }
 
+    setIsSaving(true);
+    setFormError(null);
+
     try {
       if (view === 'edit' && editingCustomer) {
-        const updated = customersService.update(editingCustomer.id, {
+        const updated = await customersService.update(editingCustomer.id, {
           name: formData.name.trim(),
-          documentType: formData.documentType,
-          documentNumber: formData.documentNumber.trim() || undefined,
+          taxIdType: formData.taxIdType,
+          taxId: formData.taxId.trim() || undefined,
           email: formData.email.trim() || undefined,
           phone: formData.phone.trim() || undefined,
           address: formData.address.trim() || undefined,
@@ -148,26 +162,30 @@ export default function CustomerSelectorModal({
         });
 
         if (updated) {
-          loadCustomers();
+          await loadCustomers();
           setView('list');
           resetForm();
         }
       } else {
-        const newCustomer = customersService.create({
+        const newCustomer = await customersService.create({
           name: formData.name.trim(),
-          documentType: formData.documentType,
-          documentNumber: formData.documentNumber.trim() || undefined,
+          taxIdType: formData.taxIdType,
+          taxId: formData.taxId.trim() || undefined,
           email: formData.email.trim() || undefined,
           phone: formData.phone.trim() || undefined,
           address: formData.address.trim() || undefined,
           notes: formData.notes.trim() || undefined,
         });
 
-        loadCustomers();
-        handleSelectCustomer(newCustomer);
+        if (newCustomer) {
+          handleSelectCustomer(newCustomer);
+        }
       }
-    } catch {
-      setFormError('Error al guardar el cliente');
+    } catch (error) {
+      const err = error as { response?: { data?: { message?: string } } };
+      setFormError(err.response?.data?.message || 'Error al guardar el cliente');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -219,7 +237,12 @@ export default function CustomerSelectorModal({
 
               {/* Lista de clientes */}
               <div className="flex-1 overflow-y-auto p-2 min-h-[200px] max-h-[40vh]">
-                {filteredCustomers.length === 0 ? (
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 py-8">
+                    <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                    <p>Cargando clientes...</p>
+                  </div>
+                ) : filteredCustomers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-gray-400 py-8">
                     <User className="w-12 h-12 mb-2" />
                     <p>No se encontraron clientes</p>
@@ -255,9 +278,9 @@ export default function CustomerSelectorModal({
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{customer.name}</p>
                             <div className="flex items-center gap-2 text-xs text-gray-500">
-                              {customer.documentNumber && (
+                              {customer.taxId && (
                                 <span>
-                                  {customer.documentType}: {customer.documentNumber}
+                                  {customer.taxIdType}: {customer.taxId}
                                 </span>
                               )}
                               {customer.phone && (
@@ -353,11 +376,11 @@ export default function CustomerSelectorModal({
                     Tipo Doc.
                   </label>
                   <select
-                    value={formData.documentType}
+                    value={formData.taxIdType}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        documentType: e.target.value as Customer['documentType'],
+                        taxIdType: e.target.value as Customer['taxIdType'],
                       })
                     }
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -377,9 +400,9 @@ export default function CustomerSelectorModal({
                     <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="text"
-                      value={formData.documentNumber}
+                      value={formData.taxId}
                       onChange={(e) =>
-                        setFormData({ ...formData, documentNumber: e.target.value })
+                        setFormData({ ...formData, taxId: e.target.value })
                       }
                       placeholder="12345678"
                       className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -464,15 +487,21 @@ export default function CustomerSelectorModal({
                 setView('list');
                 resetForm();
               }}
-              className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+              disabled={isSaving}
+              className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               onClick={handleSubmit}
-              className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              disabled={isSaving}
+              className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <Check className="w-4 h-4" />
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
               {view === 'edit' ? 'Guardar' : 'Crear y Seleccionar'}
             </button>
           </div>

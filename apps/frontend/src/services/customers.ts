@@ -1,133 +1,142 @@
-// Servicio de clientes con almacenamiento local
+// Servicio de clientes - conecta con backend API
+
+import { api } from './api';
 
 export interface Customer {
   id: string;
   name: string;
-  documentType?: 'DNI' | 'CUIT' | 'CUIL' | 'PASSPORT' | 'OTHER';
-  documentNumber?: string;
+  tradeName?: string;
+  customerType?: 'CONSUMER' | 'INDIVIDUAL' | 'BUSINESS' | 'GOVERNMENT';
+  taxId?: string;
+  taxIdType?: 'DNI' | 'CUIT' | 'CUIL' | 'PASSPORT' | 'OTHER';
   email?: string;
   phone?: string;
+  mobile?: string;
   address?: string;
+  city?: string;
+  globalDiscount?: number;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  isActive?: boolean;
+  createdAt?: string;
 }
-
-const CUSTOMERS_STORAGE_KEY = 'pos_customers';
-
-// Generar ID único
-const generateId = () => {
-  return `customer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
-
-// Obtener todos los clientes del localStorage
-export const getCustomers = (): Customer[] => {
-  try {
-    const stored = localStorage.getItem(CUSTOMERS_STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored) as Customer[];
-    }
-  } catch (error) {
-    console.error('Error loading customers from localStorage:', error);
-  }
-  return [];
-};
-
-// Guardar clientes en localStorage
-const saveCustomers = (customers: Customer[]): void => {
-  try {
-    localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(customers));
-  } catch (error) {
-    console.error('Error saving customers to localStorage:', error);
-  }
-};
-
-// Buscar clientes por nombre, documento o email
-export const searchCustomers = (query: string): Customer[] => {
-  const customers = getCustomers();
-  const lowerQuery = query.toLowerCase().trim();
-
-  if (!lowerQuery) {
-    return customers;
-  }
-
-  return customers.filter(customer =>
-    customer.name.toLowerCase().includes(lowerQuery) ||
-    customer.documentNumber?.toLowerCase().includes(lowerQuery) ||
-    customer.email?.toLowerCase().includes(lowerQuery) ||
-    customer.phone?.includes(lowerQuery)
-  );
-};
-
-// Obtener cliente por ID
-export const getCustomerById = (id: string): Customer | null => {
-  const customers = getCustomers();
-  return customers.find(c => c.id === id) || null;
-};
-
-// Crear nuevo cliente
-export const createCustomer = (data: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>): Customer => {
-  const customers = getCustomers();
-  const now = new Date().toISOString();
-
-  const newCustomer: Customer = {
-    ...data,
-    id: generateId(),
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  customers.push(newCustomer);
-  saveCustomers(customers);
-
-  return newCustomer;
-};
-
-// Actualizar cliente
-export const updateCustomer = (id: string, data: Partial<Omit<Customer, 'id' | 'createdAt'>>): Customer | null => {
-  const customers = getCustomers();
-  const index = customers.findIndex(c => c.id === id);
-
-  if (index === -1) {
-    return null;
-  }
-
-  customers[index] = {
-    ...customers[index],
-    ...data,
-    updatedAt: new Date().toISOString(),
-  };
-
-  saveCustomers(customers);
-  return customers[index];
-};
-
-// Eliminar cliente
-export const deleteCustomer = (id: string): boolean => {
-  const customers = getCustomers();
-  const filtered = customers.filter(c => c.id !== id);
-
-  if (filtered.length === customers.length) {
-    return false;
-  }
-
-  saveCustomers(filtered);
-  return true;
-};
 
 // Cliente genérico "Consumidor Final"
 export const CONSUMIDOR_FINAL: Customer = {
   id: 'consumidor-final',
   name: 'Consumidor Final',
-  documentType: 'DNI',
-  documentNumber: '00000000',
-  createdAt: '2024-01-01T00:00:00.000Z',
-  updatedAt: '2024-01-01T00:00:00.000Z',
+  customerType: 'CONSUMER',
+  taxIdType: 'DNI',
+  taxId: '00000000',
+};
+
+// Obtener todos los clientes desde el backend
+export const getCustomers = async (): Promise<Customer[]> => {
+  try {
+    const response = await api.get('/customers', {
+      params: { pageSize: 100, isActive: 'true' },
+    });
+    if (response.data.success) {
+      return response.data.data;
+    }
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+  }
+  return [];
+};
+
+// Buscar clientes
+export const searchCustomers = async (query: string): Promise<Customer[]> => {
+  if (!query || query.length < 2) {
+    return getCustomers();
+  }
+
+  try {
+    const response = await api.get('/customers/search', {
+      params: { q: query },
+    });
+    if (response.data.success) {
+      return response.data.data;
+    }
+  } catch (error) {
+    console.error('Error searching customers:', error);
+  }
+  return [];
+};
+
+// Obtener cliente por ID
+export const getCustomerById = async (id: string): Promise<Customer | null> => {
+  if (id === CONSUMIDOR_FINAL.id) {
+    return CONSUMIDOR_FINAL;
+  }
+
+  try {
+    const response = await api.get(`/customers/${id}`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+  } catch (error) {
+    console.error('Error fetching customer:', error);
+  }
+  return null;
+};
+
+// Crear nuevo cliente
+export const createCustomer = async (data: {
+  name: string;
+  customerType?: Customer['customerType'];
+  taxId?: string;
+  taxIdType?: Customer['taxIdType'];
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  address?: string;
+  city?: string;
+  notes?: string;
+}): Promise<Customer | null> => {
+  try {
+    const response = await api.post('/customers', data);
+    if (response.data.success) {
+      return response.data.data;
+    }
+  } catch (error) {
+    console.error('Error creating customer:', error);
+    throw error;
+  }
+  return null;
+};
+
+// Actualizar cliente
+export const updateCustomer = async (
+  id: string,
+  data: Partial<Omit<Customer, 'id'>>
+): Promise<Customer | null> => {
+  try {
+    const response = await api.put(`/customers/${id}`, data);
+    if (response.data.success) {
+      return response.data.data;
+    }
+  } catch (error) {
+    console.error('Error updating customer:', error);
+    throw error;
+  }
+  return null;
+};
+
+// Eliminar cliente
+export const deleteCustomer = async (id: string): Promise<boolean> => {
+  try {
+    const response = await api.delete(`/customers/${id}`);
+    return response.data.success;
+  } catch (error) {
+    console.error('Error deleting customer:', error);
+    return false;
+  }
 };
 
 // Obtener todos los clientes incluyendo Consumidor Final
-export const getAllCustomers = (): Customer[] => {
-  return [CONSUMIDOR_FINAL, ...getCustomers()];
+export const getAllCustomers = async (): Promise<Customer[]> => {
+  const customers = await getCustomers();
+  return [CONSUMIDOR_FINAL, ...customers];
 };
 
 export const customersService = {

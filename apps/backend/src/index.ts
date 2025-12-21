@@ -26,6 +26,7 @@ import mercadoPagoRoutes, { webhookRouter as mpWebhookRouter } from './routes/me
 import cashRoutes from './routes/cash.js';
 import cianboxWebhookRoutes from './routes/webhooks.js';
 import terminalsRoutes from './routes/terminals.js';
+import customersRoutes from './routes/customers.js';
 
 // Importar servicios
 import CianboxService from './services/cianbox.service.js';
@@ -105,6 +106,7 @@ app.get('/api', (_req, res) => {
       products: '/api/products',
       sales: '/api/sales',
       promotions: '/api/promotions',
+      customers: '/api/customers',
       cianbox: '/api/cianbox',
       agency: '/api/agency',
       backoffice: '/api/backoffice',
@@ -131,6 +133,7 @@ app.use('/api/pos/terminals', terminalsRoutes); // Gestión de terminales POS
 app.use('/api/backoffice/terminals', terminalsRoutes); // Alias para backoffice
 app.use('/api/webhooks', mpWebhookRouter); // Webhooks Mercado Pago (público, sin auth)
 app.use('/api/cianboxwebhooks', cianboxWebhookRoutes); // Webhooks Cianbox (público, sin auth)
+app.use('/api/customers', customersRoutes); // Gestión de clientes
 
 // Ruta 404
 app.use((_req, res) => {

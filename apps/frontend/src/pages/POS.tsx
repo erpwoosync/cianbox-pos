@@ -1743,9 +1743,9 @@ export default function POS() {
               <p className="text-sm font-medium truncate">
                 {selectedCustomer ? selectedCustomer.name : 'Consumidor Final'}
               </p>
-              {selectedCustomer && selectedCustomer.documentNumber && (
+              {selectedCustomer && selectedCustomer.taxId && (
                 <p className="text-xs text-gray-500 truncate">
-                  {selectedCustomer.documentType}: {selectedCustomer.documentNumber}
+                  {selectedCustomer.taxIdType}: {selectedCustomer.taxId}
                 </p>
               )}
             </div>
