@@ -15,13 +15,15 @@ interface Tenant {
   id: string;
   name: string;
   slug: string;
-  isActive: boolean;
+  status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
   createdAt: string;
-  dbServer?: {
+  databaseServer?: {
+    id: string;
     name: string;
+    host: string;
   };
   cianboxConnection?: {
-    apiUrl: string;
+    cuenta: string;
     lastSync: string;
   };
   _count?: {
@@ -52,11 +54,11 @@ export default function Tenants() {
           id: '1',
           name: 'Demo Store',
           slug: 'demo-store',
-          isActive: true,
+          status: 'ACTIVE',
           createdAt: new Date().toISOString(),
-          dbServer: { name: 'Primary Server' },
+          databaseServer: { id: '1', name: 'Primary Server', host: 'localhost' },
           cianboxConnection: {
-            apiUrl: 'https://demo.cianbox.com',
+            cuenta: 'demo',
             lastSync: new Date().toISOString(),
           },
           _count: { products: 150, users: 3 },
@@ -154,19 +156,19 @@ export default function Tenants() {
                     </Link>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {tenant.dbServer?.name || '-'}
+                    {tenant.databaseServer?.name || '-'}
                   </td>
                   <td className="px-6 py-4">
                     {tenant.cianboxConnection ? (
                       <div>
                         <p className="text-sm text-gray-600 truncate max-w-[200px]">
-                          {tenant.cianboxConnection.apiUrl}
+                          {tenant.cianboxConnection.cuenta}
                         </p>
                         <p className="text-xs text-gray-400">
                           Sync:{' '}
-                          {new Date(
-                            tenant.cianboxConnection.lastSync
-                          ).toLocaleDateString()}
+                          {tenant.cianboxConnection.lastSync
+                            ? new Date(tenant.cianboxConnection.lastSync).toLocaleDateString()
+                            : 'Nunca'}
                         </p>
                       </div>
                     ) : (
@@ -177,7 +179,7 @@ export default function Tenants() {
                     {tenant._count?.products || 0}
                   </td>
                   <td className="px-6 py-4">
-                    {tenant.isActive ? (
+                    {tenant.status === 'ACTIVE' ? (
                       <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
                         <CheckCircle size={12} />
                         Activo
