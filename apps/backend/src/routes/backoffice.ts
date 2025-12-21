@@ -561,6 +561,75 @@ router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Re
   }
 });
 
+// Obtener variantes de un producto padre con sus precios
+router.get('/products/:id/variants-prices', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+
+    // Verificar que el producto existe y es padre
+    const parentProduct = await prisma.product.findFirst({
+      where: { id, tenantId },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        isParent: true,
+      },
+    });
+
+    if (!parentProduct) {
+      throw new ApiError(404, 'NOT_FOUND', 'Producto no encontrado');
+    }
+
+    if (!parentProduct.isParent) {
+      throw new ApiError(400, 'INVALID_REQUEST', 'El producto no es un producto padre con variantes');
+    }
+
+    // Obtener todas las variantes con sus precios
+    const variants = await prisma.product.findMany({
+      where: { tenantId, parentProductId: id },
+      select: {
+        id: true,
+        sku: true,
+        barcode: true,
+        name: true,
+        size: true,
+        color: true,
+        isActive: true,
+        prices: {
+          select: {
+            id: true,
+            price: true,
+            priceListId: true,
+          },
+        },
+      },
+      orderBy: [{ size: 'asc' }, { color: 'asc' }],
+    });
+
+    res.json({
+      success: true,
+      data: variants.map(v => ({
+        id: v.id,
+        sku: v.sku,
+        barcode: v.barcode,
+        name: v.name,
+        size: v.size,
+        color: v.color,
+        isActive: v.isActive,
+        prices: v.prices.map(p => ({
+          id: p.id,
+          price: Number(p.price),
+          priceListId: p.priceListId,
+        })),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // =============================================
 // PRICE LISTS
 // =============================================
