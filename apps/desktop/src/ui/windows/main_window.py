@@ -1035,8 +1035,8 @@ class MainWindow(QMainWindow):
         self.cart_items_container = QWidget()
         self.cart_items_container.setStyleSheet(f"background-color: {self.theme.surface};")
         self.cart_items_layout = QVBoxLayout(self.cart_items_container)
-        self.cart_items_layout.setContentsMargins(16, 16, 16, 16)
-        self.cart_items_layout.setSpacing(8)
+        self.cart_items_layout.setContentsMargins(12, 8, 12, 8)
+        self.cart_items_layout.setSpacing(6)
         self.cart_items_layout.addStretch()
 
         self.cart_scroll.setWidget(self.cart_items_container)
@@ -1152,17 +1152,18 @@ class MainWindow(QMainWindow):
         suspend_btn = QPushButton("Suspender (F10)")
         suspend_btn.setFixedHeight(40)
         suspend_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        suspend_btn.setToolTip("Guardar venta para continuar despues")
         suspend_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {self.theme.gray_200};
-                color: {self.theme.gray_700};
-                border: none;
+                background-color: {self.theme.surface};
+                color: {self.theme.info};
+                border: 2px solid {self.theme.info};
                 border-radius: 8px;
                 font-size: 12px;
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {self.theme.gray_300};
+                background-color: {self.theme.info_bg};
             }}
         """)
         suspend_btn.clicked.connect(self._on_suspend)
@@ -1183,13 +1184,13 @@ class MainWindow(QMainWindow):
             QFrame {{
                 background-color: {self.theme.gray_50};
                 border: 1px solid {self.theme.border};
-                border-radius: 8px;
+                border-radius: 6px;
             }}
         """)
 
         layout = QHBoxLayout(frame)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(6)
 
         # Info del producto
         info = QWidget()
@@ -1326,34 +1327,49 @@ class MainWindow(QMainWindow):
         # Subtotal (con descuento aplicado)
         subtotal_value = item['subtotal']
         discount_value = item.get('discount', 0)
+        original_total = item['price'] * item['quantity']
 
         subtotal_widget = QWidget()
         subtotal_widget.setStyleSheet("background: transparent;")
-        subtotal_widget.setFixedWidth(70)
+        subtotal_widget.setFixedWidth(80)
         subtotal_layout = QVBoxLayout(subtotal_widget)
         subtotal_layout.setContentsMargins(0, 0, 0, 0)
-        subtotal_layout.setSpacing(0)
+        subtotal_layout.setSpacing(1)
 
-        subtotal = QLabel(f"${subtotal_value:,.2f}")
-        subtotal.setStyleSheet(f"""
-            color: {self.theme.primary};
-            font-size: 13px;
-            font-weight: 600;
-            background: transparent;
-        """)
-        subtotal.setAlignment(Qt.AlignmentFlag.AlignRight)
-        subtotal_layout.addWidget(subtotal)
-
-        # Mostrar descuento si aplica
-        if has_discount:
-            discount_label = QLabel(f"-${discount_value:,.2f}")
-            discount_label.setStyleSheet(f"""
-                color: {self.theme.success};
+        # Si hay descuento, mostrar precio original tachado
+        if has_discount and discount_value > 0:
+            # Precio original tachado
+            original_label = QLabel(f"${original_total:,.2f}")
+            original_label.setStyleSheet(f"""
+                color: {self.theme.gray_400};
                 font-size: 10px;
+                text-decoration: line-through;
                 background: transparent;
             """)
-            discount_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-            subtotal_layout.addWidget(discount_label)
+            original_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+            subtotal_layout.addWidget(original_label)
+
+            # Precio con descuento (destacado en verde)
+            subtotal = QLabel(f"${subtotal_value:,.2f}")
+            subtotal.setStyleSheet(f"""
+                color: {self.theme.success};
+                font-size: 13px;
+                font-weight: 700;
+                background: transparent;
+            """)
+            subtotal.setAlignment(Qt.AlignmentFlag.AlignRight)
+            subtotal_layout.addWidget(subtotal)
+        else:
+            # Sin descuento - precio normal
+            subtotal = QLabel(f"${subtotal_value:,.2f}")
+            subtotal.setStyleSheet(f"""
+                color: {self.theme.primary};
+                font-size: 13px;
+                font-weight: 600;
+                background: transparent;
+            """)
+            subtotal.setAlignment(Qt.AlignmentFlag.AlignRight)
+            subtotal_layout.addWidget(subtotal)
 
         layout.addWidget(subtotal_widget)
 
