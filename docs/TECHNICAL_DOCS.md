@@ -226,13 +226,17 @@ npm run dev  # Desarrollo (puerto 5173)
 | Método | Ruta | Descripción | Auth | Permisos |
 |--------|------|-------------|------|----------|
 | GET | `/api/products` | Listar productos | Sí | - |
-| GET | `/api/products/search?q=` | Búsqueda rápida POS | Sí | - |
+| GET | `/api/products/search?q=` | Búsqueda rápida POS (soporta productos padre) | Sí | - |
 | GET | `/api/products/:id` | Detalle producto | Sí | - |
 | POST | `/api/products` | Crear producto | Sí | `inventory:edit` |
 | PUT | `/api/products/:id` | Actualizar producto | Sí | `inventory:edit` |
 | DELETE | `/api/products/:id` | Desactivar producto | Sí | `inventory:edit` |
 | GET | `/api/products/categories` | Listar categorías | Sí | - |
+| GET | `/api/products/categories/quick-access` | Categorías de acceso rápido | Sí | - |
 | GET | `/api/products/brands` | Listar marcas | Sí | - |
+| GET | `/api/backoffice/products/:id/size-curve` | Curva de talles (productos variables) | Sí | - |
+
+**Ver documentación completa:** [API-PRODUCTOS.md](./API-PRODUCTOS.md)
 
 ### 7.3 Ventas
 
@@ -294,10 +298,18 @@ npm run dev  # Desarrollo (puerto 5173)
 **PriceList** - Listas de precios
 - `id`, `tenantId`, `cianboxPriceListId`, `name`, `currency`
 
-**Product** - Productos
+**Product** - Productos (incluye productos variables con curva de talles)
 - `id`, `tenantId`, `cianboxProductId`, `sku`, `barcode`, `name`
 - `categoryId`, `brandId`, `basePrice`, `taxRate`, `trackStock`
-- Relaciones: prices (por lista), stock (por branch)
+- **Productos Variables:** `isParent`, `parentProductId`, `size`, `color`
+- Relaciones: prices (por lista), stock (por branch), variants (si es padre)
+
+**Productos Variables:**
+- Soporta productos padre con múltiples variantes (curva de talles)
+- Variantes definidas por combinaciones de talle y color
+- Búsqueda inteligente: escanear código padre → selector de talles
+- Stock agregado automático por variante en backoffice
+- Ver [PRODUCTOS-VARIABLES.md](./PRODUCTOS-VARIABLES.md) para más detalles
 
 **ProductPrice** - Precios por lista
 - `id`, `productId`, `priceListId`, `price`, `cost`, `margin`
@@ -567,19 +579,26 @@ npm run build  # Genera dist/
 - AWS RDS
 - DigitalOcean Managed Databases
 
-## 15. Roadmap / Features Pendientes
+## 15. Features Implementadas Recientemente
+
+- [x] **Productos Variables (Curva de Talles)** - Productos padre con variantes por talle/color
+- [x] Integración con Mercado Pago (Point y QR)
+- [x] Sistema de caja con arqueos y relevos de turno
+- [x] Categorías de acceso rápido en POS
+- [x] Sincronización completa con Cianbox
+
+## 16. Roadmap / Features Pendientes
 
 - [ ] Impresión de tickets/facturas
 - [ ] Facturación electrónica (AFIP/SAT)
 - [ ] Reportes avanzados (ventas, stock, rentabilidad)
 - [ ] App móvil (React Native)
-- [ ] Sincronización bidireccional con Cianbox
-- [ ] Integración con MercadoPago/Stripe
+- [ ] Sincronización bidireccional con Cianbox (pedidos → Cianbox)
 - [ ] Backup automático
 - [ ] Multi-moneda
 - [ ] Internacionalización (i18n)
 
-## 16. Troubleshooting
+## 17. Troubleshooting
 
 ### Backend no inicia
 ```bash
@@ -611,9 +630,10 @@ echo $DATABASE_URL
 - Buscar: `prisma.product.findMany` sin `where: { tenantId }`
 - Herramienta de auditoría: `grep -r "findMany" src/`
 
-## 17. Contacto y Soporte
+## 18. Contacto y Soporte
 
 **Repositorio:** [GitHub](https://github.com/...)
 **Documentación completa:** `docs/GUIA-TECNICA-POS-CIANBOX.md`
-**Generado:** 2025-12-15
-**Versión:** 1.0.0
+**Índice de documentación:** `docs/README.md`
+**Generado:** 2025-12-21
+**Versión:** 1.1.0

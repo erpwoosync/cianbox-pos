@@ -1,5 +1,9 @@
 # API - Productos
 
+> **NOTA:** Esta documentación es una versión legacy. Para información actualizada y completa sobre la API de productos, consultar:
+> - **[API-PRODUCTOS.md](./API-PRODUCTOS.md)** - Documentación actualizada con productos variables
+> - **[PRODUCTOS-VARIABLES.md](./PRODUCTOS-VARIABLES.md)** - Sistema de curva de talles
+
 Documentación de endpoints para gestión de productos, categorías, marcas y stock.
 
 ## Descripción General

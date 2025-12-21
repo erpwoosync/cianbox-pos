@@ -195,7 +195,7 @@ model PriceList {
 ## Productos
 
 ### Product
-Productos del catálogo.
+Productos del catálogo (incluye soporte para productos variables con curva de talles).
 
 ```prisma
 model Product {
@@ -245,6 +245,13 @@ model Product {
   // Ubicación (para picking)
   location         String?   // "R1-F2-C3"
 
+  // === PRODUCTOS VARIABLES (Curva de Talles) ===
+  isParent         Boolean   @default(false)  // true = producto padre con variantes
+  isVirtualParent  Boolean   @default(false)  // true = padre virtual (creado por sync)
+  parentProductId  String?                    // ID del producto padre (null si es padre o simple)
+  size             String?                    // Talle: "38", "40", "L", "XL"
+  color            String?                    // Color: "Negro", "Blanco", "Beige"
+
   // Sincronización
   lastSyncedAt     DateTime?
   cianboxData      Json?
@@ -255,6 +262,8 @@ model Product {
   tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   category         Category?        @relation(fields: [categoryId], references: [id])
   brand            Brand?           @relation(fields: [brandId], references: [id])
+  parentProduct    Product?         @relation("ProductVariants", fields: [parentProductId], references: [id])
+  variants         Product[]        @relation("ProductVariants")
   prices           ProductPrice[]
   stock            ProductStock[]
   saleItems        SaleItem[]
@@ -265,8 +274,22 @@ model Product {
   @@index([tenantId, categoryId])
   @@index([tenantId, brandId])
   @@index([tenantId, name])
+  @@index([tenantId, parentProductId])
+  @@index([tenantId, isParent])
 }
 ```
+
+**Campos de Productos Variables:**
+
+| Campo | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `isParent` | Si es producto padre con variantes | true |
+| `isVirtualParent` | Si es padre virtual creado por sync | false |
+| `parentProductId` | ID del producto padre | "clxx..." |
+| `size` | Talle de la variante | "38", "40", "L" |
+| `color` | Color de la variante | "Negro", "Beige" |
+
+**Ver también:** [PRODUCTOS-VARIABLES.md](./PRODUCTOS-VARIABLES.md) para documentación completa del sistema de curva de talles.
 
 **Campos Importantes:**
 

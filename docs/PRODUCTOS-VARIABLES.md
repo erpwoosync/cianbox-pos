@@ -55,6 +55,8 @@ Los datos vienen de la API de Cianbox con los siguientes campos:
 
 ## API Backend
 
+**Documentación completa:** Ver [API-PRODUCTOS.md](./API-PRODUCTOS.md) para todos los endpoints de productos, precios y stock.
+
 ### GET /api/backoffice/products/:id/size-curve
 
 Obtiene la curva de talles de un producto padre.

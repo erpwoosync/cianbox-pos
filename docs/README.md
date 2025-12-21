@@ -57,15 +57,18 @@ Documentación completa de endpoints REST del backend.
 
 | Documento | Descripción | Endpoints |
 |-----------|-------------|-----------|
-| [API-PRODUCTS.md](./API-PRODUCTS.md) | Gestión de productos, categorías, marcas y stock | 15+ endpoints |
+| [API-PRODUCTOS.md](./API-PRODUCTOS.md) | **API completa de productos, precios y stock** | 10+ endpoints |
+| [API-PRODUCTS.md](./API-PRODUCTS.md) | Gestión de productos, categorías, marcas y stock (legacy) | 15+ endpoints |
+| [PRODUCTOS-VARIABLES.md](./PRODUCTOS-VARIABLES.md) | **Sistema de productos variables (curva de talles)** | - |
 
 **Endpoints principales:**
-- `GET /api/products` - Listar productos con filtros
-- `POST /api/products` - Crear producto
-- `GET /api/products/barcode/:barcode` - Buscar por código de barras
-- `GET /api/categories` - Listar categorías
-- `GET /api/brands` - Listar marcas
-- `PUT /api/products/:id/stock/:branchId` - Actualizar stock
+- `GET /api/products` - Listar productos con filtros y paginación
+- `GET /api/products/search` - Búsqueda rápida para POS (soporta productos padre)
+- `GET /api/products/:id` - Detalle de producto con precios y stock
+- `GET /api/backoffice/products/:id/size-curve` - Curva de talles (productos variables)
+- `GET /api/products/categories` - Listar categorías
+- `GET /api/products/categories/quick-access` - Categorías de acceso rápido
+- `GET /api/products/brands` - Listar marcas
 
 ### Módulo de Ventas
 
@@ -122,6 +125,19 @@ Documentación completa de endpoints REST del backend.
 - `POST /api/mercadopago/payments/sync` - Sincronizar pagos
 
 ---
+
+## 📦 Productos Variables
+
+| Documento | Descripción |
+|-----------|-------------|
+| [PRODUCTOS-VARIABLES.md](./PRODUCTOS-VARIABLES.md) | Sistema de productos con variantes (curva de talles) |
+
+**Características:**
+- Productos padre con múltiples variantes (talle x color)
+- Matriz interactiva de stock por talle y color
+- Búsqueda optimizada para POS (selector de talles)
+- Sincronización con Cianbox de productos variables
+- Stock agregado automático por variante
 
 ## 🎁 Promociones
 
@@ -408,4 +424,4 @@ Este proyecto es propiedad de Cianbox. Todos los derechos reservados.
 
 ---
 
-**Última actualización:** 19 de Diciembre de 2025
+**Última actualización:** 21 de Diciembre de 2025

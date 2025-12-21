@@ -295,6 +295,8 @@ cianbox-pos/
 | **CI/CD** | Continuous Integration/Continuous Deployment, automatización de testing y deploy |
 | **OAuth 2.0** | Protocolo de autorización para acceso delegado (usado por Mercado Pago) |
 | **Polling** | Técnica de consulta periódica para verificar el estado de una operación asíncrona |
+| **Productos Variables** | Productos padre con múltiples variantes definidas por talle y color (curva de talles) |
+| **Curva de Talles** | Matriz de stock por talle x color para productos de indumentaria y calzado |
 
 ---
 
