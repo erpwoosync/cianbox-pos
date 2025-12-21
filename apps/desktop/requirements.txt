@@ -1,0 +1,37 @@
+# ================================================
+# Cianbox POS Desktop - Dependencias
+# Python 3.11+
+# ================================================
+
+# GUI Framework
+PyQt6>=6.6.0
+PyQt6-Qt6>=6.6.0
+PyQt6-sip>=13.6.0
+
+# HTTP Client (async)
+httpx>=0.26.0
+
+# Database
+SQLAlchemy>=2.0.0
+alembic>=1.13.0
+
+# Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Configuration
+python-dotenv>=1.0.0
+
+# Logging
+loguru>=0.7.2
+
+# Security
+cryptography>=42.0.0
+keyring>=25.0.0
+
+# Utilities
+Pillow>=10.0.0
+python-dateutil>=2.8.2
+
+# Async
+qasync>=0.27.0

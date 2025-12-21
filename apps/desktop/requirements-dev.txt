@@ -1,0 +1,38 @@
+# ================================================
+# Cianbox POS Desktop - Dependencias de Desarrollo
+# ================================================
+
+-r requirements.txt
+
+# =====================
+# Testing
+# =====================
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+pytest-qt>=4.2.0
+
+# =====================
+# Code Quality
+# =====================
+black>=24.1.0
+ruff>=0.1.0
+mypy>=1.8.0
+isort>=5.13.0
+
+# =====================
+# Type Stubs
+# =====================
+types-python-dateutil
+types-pytz
+
+# =====================
+# Build & Packaging
+# =====================
+pyinstaller>=6.3.0
+
+# =====================
+# Documentation
+# =====================
+mkdocs>=1.5.0
+mkdocstrings>=0.24.0
