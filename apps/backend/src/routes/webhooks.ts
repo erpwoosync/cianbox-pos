@@ -10,7 +10,7 @@
  *   "endpoint": "productos"
  * }
  *
- * Eventos soportados: productos, categorias, marcas, listas_precio
+ * Eventos soportados: productos, categorias, marcas, listas_precio, sucursales
  * Debe responder HTTP 200 en menos de 30 segundos
  */
 
@@ -121,6 +121,12 @@ async function processWebhook(tenantId: string, payload: CianboxWebhookPayload):
         console.log(`[Webhook Cianbox] ${processed} precios actualizados`);
         break;
 
+      case 'sucursales':
+        console.log(`[Webhook Cianbox] Procesando ${ids.length} sucursales...`);
+        processed = await cianboxService.upsertBranchesByIds(tenantId, ids);
+        console.log(`[Webhook Cianbox] ${processed} sucursales actualizadas`);
+        break;
+
       default:
         console.log(`[Webhook Cianbox] Evento no soportado: ${payload.event}`);
     }
@@ -156,7 +162,7 @@ router.get('/:tenantId/test', async (req: Request, res: Response) => {
       id: tenant.id,
       name: tenant.name,
     },
-    supportedEvents: ['productos', 'categorias', 'marcas', 'listas_precio'],
+    supportedEvents: ['productos', 'categorias', 'marcas', 'listas_precio', 'sucursales'],
     timestamp: new Date().toISOString(),
   });
 });

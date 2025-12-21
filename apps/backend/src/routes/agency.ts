@@ -2465,7 +2465,7 @@ router.post(
       const { events } = req.body;
 
       // Validar eventos
-      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio'];
+      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio', 'sucursales'];
       const eventList = events || validEvents;
 
       // Obtener la URL del webhook desde la conexión o generar una
@@ -2518,7 +2518,7 @@ router.delete(
       const { events } = req.body;
 
       // Si no se especifican eventos, eliminar todos los principales
-      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio'];
+      const validEvents = ['productos', 'categorias', 'marcas', 'listas_precio', 'sucursales'];
       const eventList = events || validEvents;
 
       const cianbox = await CianboxService.forTenant(tenantId);
