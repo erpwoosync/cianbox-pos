@@ -69,11 +69,27 @@ class ProductRepository(BaseRepository[Product]):
             exact_stmt = exact_stmt.where(Product.is_active == True)
 
         exact_result = self.session.execute(exact_stmt)
-        exact_match = exact_result.scalar_one_or_none()
+        exact_matches = list(exact_result.scalars().all())
 
-        if exact_match:
-            # Coincidencia exacta encontrada (puede ser variante)
-            return [exact_match]
+        if exact_matches:
+            # Si hay una sola coincidencia exacta, retornarla
+            if len(exact_matches) == 1:
+                return exact_matches
+
+            # Si hay multiples coincidencias (ej: mismo barcode en varias variantes)
+            # Verificar si todas son variantes del mismo padre
+            parent_ids = set(p.parent_product_id for p in exact_matches if p.parent_product_id)
+            if len(parent_ids) == 1:
+                # Todas son variantes del mismo padre, retornar el padre
+                parent_id = parent_ids.pop()
+                parent_stmt = select(Product).where(Product.id == parent_id)
+                parent_result = self.session.execute(parent_stmt)
+                parent = parent_result.scalar_one_or_none()
+                if parent:
+                    return [parent]
+
+            # Si son productos diferentes o mezcla, retornar todos
+            return exact_matches
 
         # Si no hay coincidencia exacta, buscar por texto
         search_term = f"%{query}%"
