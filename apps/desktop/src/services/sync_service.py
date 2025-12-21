@@ -19,8 +19,9 @@ from sqlalchemy.orm import Session
 from src.api import get_api_client, NetworkError
 from src.api.products import ProductsAPI, ProductData, CategoryData, BrandData
 from src.api.promotions import PromotionsAPI, PromotionData, CalculationResult
+from src.api.customers import CustomersAPI, CustomerData
 from src.db import session_scope, get_session
-from src.models import Product, Category, Brand
+from src.models import Product, Category, Brand, Customer
 
 
 class SyncStatus(Enum):
@@ -40,6 +41,7 @@ class SyncResult:
     categories_synced: int = 0
     brands_synced: int = 0
     promotions_synced: int = 0
+    customers_synced: int = 0
     error_message: Optional[str] = None
     duration_seconds: float = 0.0
 
@@ -73,6 +75,7 @@ class SyncService:
 
         self._api = ProductsAPI()
         self._promotions_api = PromotionsAPI()
+        self._customers_api = CustomersAPI()
         self._lock = threading.Lock()
         self._on_progress: Optional[Callable[[str, int, int], None]] = None
         self._on_complete: Optional[Callable[[SyncResult], None]] = None
@@ -138,33 +141,40 @@ class SyncService:
         result = SyncResult(status=SyncStatus.SYNCING)
 
         try:
-            self._notify_progress("Sincronizando categorias...", 0, 4)
+            self._notify_progress("Sincronizando categorias...", 0, 5)
 
             # 1. Sincronizar categorias
             categories_count = self._sync_categories()
             result.categories_synced = categories_count
             logger.info(f"Categorias sincronizadas: {categories_count}")
 
-            self._notify_progress("Sincronizando marcas...", 1, 4)
+            self._notify_progress("Sincronizando marcas...", 1, 5)
 
             # 2. Sincronizar marcas
             brands_count = self._sync_brands()
             result.brands_synced = brands_count
             logger.info(f"Marcas sincronizadas: {brands_count}")
 
-            self._notify_progress("Sincronizando productos...", 2, 4)
+            self._notify_progress("Sincronizando productos...", 2, 5)
 
             # 3. Sincronizar productos
             products_count = self._sync_products()
             result.products_synced = products_count
             logger.info(f"Productos sincronizados: {products_count}")
 
-            self._notify_progress("Sincronizando promociones...", 3, 4)
+            self._notify_progress("Sincronizando promociones...", 3, 5)
 
             # 4. Sincronizar promociones
             promotions_count = self._sync_promotions()
             result.promotions_synced = promotions_count
             logger.info(f"Promociones sincronizadas: {promotions_count}")
+
+            self._notify_progress("Sincronizando clientes...", 4, 5)
+
+            # 5. Sincronizar clientes
+            customers_count = self._sync_customers()
+            result.customers_synced = customers_count
+            logger.info(f"Clientes sincronizados: {customers_count}")
 
             # Calcular duracion
             duration = (datetime.now() - start_time).total_seconds()
@@ -178,10 +188,11 @@ class SyncService:
             logger.info(
                 f"Sincronizacion completada en {duration:.1f}s: "
                 f"{categories_count} categorias, {brands_count} marcas, "
-                f"{products_count} productos, {promotions_count} promociones"
+                f"{products_count} productos, {promotions_count} promociones, "
+                f"{customers_count} clientes"
             )
 
-            self._notify_progress("Sincronizacion completada", 4, 4)
+            self._notify_progress("Sincronizacion completada", 5, 5)
             self._notify_complete(result)
 
             return result
@@ -779,6 +790,206 @@ class SyncService:
         return self._promotions_api.get_promotion_for_product(
             promotions, product_id, category_id, brand_id
         )
+
+    # =========================================================================
+    # CLIENTES
+    # =========================================================================
+
+    def _sync_customers(self) -> int:
+        """
+        Sincroniza clientes desde el backend.
+
+        Obtiene todos los clientes paginados y los guarda localmente.
+
+        Returns:
+            Numero de clientes sincronizados
+        """
+        synced = 0
+        page = 1
+        page_size = 100
+        has_more = True
+
+        while has_more:
+            customers, pagination = self._customers_api.get_all(
+                page=page,
+                page_size=page_size,
+            )
+
+            if not customers:
+                break
+
+            with session_scope() as session:
+                for customer_data in customers:
+                    try:
+                        self._upsert_customer(session, customer_data)
+                        synced += 1
+                    except Exception as e:
+                        logger.error(f"Error sincronizando cliente {customer_data.id}: {e}")
+
+            # Verificar si hay mas paginas
+            if pagination:
+                has_more = page < pagination.total_pages
+                page += 1
+                self._notify_progress(
+                    f"Sincronizando clientes... ({synced}/{pagination.total})",
+                    synced,
+                    pagination.total,
+                )
+            else:
+                has_more = False
+
+        return synced
+
+    def _upsert_customer(self, session: Session, data: CustomerData) -> Customer:
+        """
+        Inserta o actualiza un cliente.
+
+        Args:
+            session: Sesion de base de datos
+            data: Datos del cliente desde API
+
+        Returns:
+            Cliente creado o actualizado
+        """
+        customer = session.query(Customer).filter_by(id=data.id).first()
+
+        if customer:
+            # Actualizar existente
+            customer.name = data.name
+            customer.customer_type = data.customer_type
+            customer.tax_id = data.tax_id
+            customer.tax_id_type = data.tax_id_type
+            customer.tax_category = data.tax_category
+            customer.trade_name = data.trade_name
+            customer.first_name = data.first_name
+            customer.last_name = data.last_name
+            customer.email = data.email
+            customer.phone = data.phone
+            customer.mobile = data.mobile
+            customer.address = data.address
+            customer.city = data.city
+            customer.state = data.state
+            customer.zip_code = data.zip_code
+            customer.country = data.country
+            customer.price_list_id = data.price_list_id
+            customer.credit_limit = data.credit_limit
+            customer.credit_balance = data.credit_balance
+            customer.payment_term_days = data.payment_term_days
+            customer.global_discount = data.global_discount
+            customer.is_active = data.is_active
+            customer.cianbox_id = data.cianbox_id
+            customer.last_synced_at = datetime.now()
+        else:
+            # Crear nuevo
+            customer = Customer(
+                id=data.id,
+                tenant_id=self.tenant_id,
+                name=data.name,
+                customer_type=data.customer_type,
+                tax_id=data.tax_id,
+                tax_id_type=data.tax_id_type,
+                tax_category=data.tax_category,
+                trade_name=data.trade_name,
+                first_name=data.first_name,
+                last_name=data.last_name,
+                email=data.email,
+                phone=data.phone,
+                mobile=data.mobile,
+                address=data.address,
+                city=data.city,
+                state=data.state,
+                zip_code=data.zip_code,
+                country=data.country,
+                price_list_id=data.price_list_id,
+                credit_limit=data.credit_limit,
+                credit_balance=data.credit_balance,
+                payment_term_days=data.payment_term_days,
+                global_discount=data.global_discount,
+                is_active=data.is_active,
+                cianbox_id=data.cianbox_id,
+                last_synced_at=datetime.now(),
+            )
+            session.add(customer)
+
+        return customer
+
+    def get_local_customers(
+        self,
+        search: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Customer]:
+        """
+        Obtiene clientes desde la base de datos local.
+
+        Args:
+            search: Texto de busqueda (nombre, documento, email)
+            limit: Limite de resultados
+
+        Returns:
+            Lista de clientes
+        """
+        from src.repositories.customer_repository import CustomerRepository
+
+        with session_scope() as session:
+            repo = CustomerRepository(session)
+
+            if search:
+                customers = repo.search(
+                    tenant_id=self.tenant_id,
+                    query=search,
+                    limit=limit,
+                )
+            else:
+                customers = repo.get_active(
+                    tenant_id=self.tenant_id,
+                    limit=limit,
+                )
+
+            # Detach de session para usar fuera del context
+            session.expunge_all()
+            return customers
+
+    def get_customer_by_tax_id(self, tax_id: str) -> Optional[Customer]:
+        """
+        Busca un cliente por documento fiscal.
+
+        Args:
+            tax_id: CUIT/CUIL/DNI
+
+        Returns:
+            Cliente o None
+        """
+        from src.repositories.customer_repository import CustomerRepository
+
+        with session_scope() as session:
+            repo = CustomerRepository(session)
+            customer = repo.get_by_tax_id(
+                tenant_id=self.tenant_id,
+                tax_id=tax_id,
+            )
+
+            if customer:
+                session.expunge(customer)
+                return customer
+
+        return None
+
+    def get_customers_count(self) -> int:
+        """
+        Obtiene el numero de clientes en cache local.
+
+        Returns:
+            Cantidad de clientes activos
+        """
+        from sqlalchemy import select, func
+
+        with session_scope() as session:
+            count = session.execute(
+                select(func.count(Customer.id))
+                .where(Customer.tenant_id == self.tenant_id)
+                .where(Customer.is_active == True)
+            ).scalar()
+            return count or 0
 
 
 # Instancia singleton por tenant

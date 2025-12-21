@@ -10,6 +10,7 @@ from .product_repository import ProductRepository, CategoryRepository, BrandRepo
 from .user_repository import UserRepository
 from .config_repository import ConfigRepository
 from .device_repository import DeviceRepository
+from .customer_repository import CustomerRepository
 
 __all__ = [
     "BaseRepository",
@@ -19,4 +20,5 @@ __all__ = [
     "UserRepository",
     "ConfigRepository",
     "DeviceRepository",
+    "CustomerRepository",
 ]

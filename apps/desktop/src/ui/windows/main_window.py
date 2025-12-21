@@ -49,7 +49,8 @@ from src.api.products import ProductsAPI
 from src.ui.styles import get_theme
 from src.services import get_sync_service, SyncStatus, SyncResult
 from src.models import Product, Category
-from src.ui.dialogs import CheckoutDialog, CheckoutResult, SizeCurveDialog
+from src.ui.dialogs import CheckoutDialog, CheckoutResult, SizeCurveDialog, CustomerDialog
+from src.models import Customer
 
 
 class MainWindow(QMainWindow):
@@ -96,6 +97,7 @@ class MainWindow(QMainWindow):
         # Estado
         self.cart_items: List[Dict[str, Any]] = []
         self.selected_category: Optional[str] = None
+        self.selected_customer: Optional[Customer] = None
         self.products: List[Product] = []
         self.categories: List[Category] = []
         self.is_syncing = False
@@ -1021,6 +1023,10 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(header)
 
+        # Panel de cliente
+        customer_panel = self._create_customer_panel()
+        layout.addWidget(customer_panel)
+
         # Lista de items del carrito
         self.cart_scroll = QScrollArea()
         self.cart_scroll.setWidgetResizable(True)
@@ -1173,6 +1179,95 @@ class MainWindow(QMainWindow):
         layout.addWidget(actions_panel)
 
         return panel
+
+    def _create_customer_panel(self) -> QFrame:
+        """Crea el panel de seleccion de cliente."""
+        panel = QFrame()
+        panel.setFixedHeight(50)
+        panel.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.theme.surface};
+                border-bottom: 1px solid {self.theme.border};
+            }}
+        """)
+
+        layout = QHBoxLayout(panel)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(8)
+
+        # Icono de usuario
+        user_icon = QLabel("")
+        user_icon.setStyleSheet(f"color: {self.theme.gray_500}; font-size: 16px; background: transparent;")
+        layout.addWidget(user_icon)
+
+        # Nombre del cliente
+        self.customer_label = QLabel("Consumidor Final")
+        self.customer_label.setStyleSheet(f"""
+            color: {self.theme.text_primary};
+            font-size: 12px;
+            font-weight: 500;
+            background: transparent;
+        """)
+        layout.addWidget(self.customer_label, 1)
+
+        # Boton cambiar cliente
+        change_btn = QPushButton("Cambiar")
+        change_btn.setFixedSize(70, 30)
+        change_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        change_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.theme.primary_bg};
+                color: {self.theme.primary};
+                border: 1px solid {self.theme.primary};
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {self.theme.primary};
+                color: white;
+            }}
+        """)
+        change_btn.clicked.connect(self._on_select_customer)
+        layout.addWidget(change_btn)
+
+        return panel
+
+    def _on_select_customer(self) -> None:
+        """Abre el dialogo de seleccion de cliente."""
+        dialog = CustomerDialog(
+            sync_service=self.sync_service,
+            theme=self.theme,
+            parent=self,
+        )
+
+        if dialog.exec():
+            customer = dialog.get_selected_customer()
+            self.selected_customer = customer
+            self._update_customer_display()
+
+    def _update_customer_display(self) -> None:
+        """Actualiza la visualizacion del cliente seleccionado."""
+        if self.selected_customer:
+            name = self.selected_customer.display_name or self.selected_customer.name
+            # Mostrar nombre y descuento si aplica
+            if self.selected_customer.global_discount and float(self.selected_customer.global_discount) > 0:
+                name = f"{name} ({float(self.selected_customer.global_discount)}% dto.)"
+            self.customer_label.setText(name)
+            self.customer_label.setStyleSheet(f"""
+                color: {self.theme.primary};
+                font-size: 12px;
+                font-weight: 600;
+                background: transparent;
+            """)
+        else:
+            self.customer_label.setText("Consumidor Final")
+            self.customer_label.setStyleSheet(f"""
+                color: {self.theme.text_primary};
+                font-size: 12px;
+                font-weight: 500;
+                background: transparent;
+            """)
 
     def _create_cart_item_widget(self, item: Dict[str, Any]) -> QFrame:
         """Crea un widget para un item del carrito."""
@@ -2055,6 +2150,8 @@ class MainWindow(QMainWindow):
 
         if reply == QMessageBox.StandardButton.Yes:
             self.cart_items.clear()
+            self.selected_customer = None
+            self._update_customer_display()
             self._update_cart_display()
             self._last_cart_key = ""
             self._focus_search()
@@ -2276,7 +2373,8 @@ class MainWindow(QMainWindow):
         discount = sum(item.get("discount", 0) for item in self.cart_items)
         total = subtotal_before_discount - discount
 
-        logger.info(f"Iniciar cobro - Subtotal: ${subtotal_before_discount:,.2f}, Descuento: ${discount:,.2f}, Total: ${total:,.2f}")
+        customer_info = self.selected_customer.display_name if self.selected_customer else "Consumidor Final"
+        logger.info(f"Iniciar cobro - Cliente: {customer_info}, Subtotal: ${subtotal_before_discount:,.2f}, Descuento: ${discount:,.2f}, Total: ${total:,.2f}")
 
         # Abrir dialogo de checkout
         dialog = CheckoutDialog(
@@ -2302,8 +2400,10 @@ class MainWindow(QMainWindow):
             f"Metodos: {[p.method.value for p in result.payments]}"
         )
 
-        # Limpiar el carrito
+        # Limpiar el carrito y cliente
         self.cart_items.clear()
+        self.selected_customer = None
+        self._update_customer_display()
         self._update_cart_display()
 
         # TODO: Registrar venta en el backend

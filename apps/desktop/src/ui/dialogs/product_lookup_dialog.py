@@ -29,6 +29,7 @@ from loguru import logger
 
 from src.models import Product
 from src.api.products import ProductsAPI
+from src.ui.dialogs.size_curve_dialog import SizeCurveDialog
 
 
 class ProductLookupDialog(QDialog):
@@ -282,6 +283,27 @@ class ProductLookupDialog(QDialog):
 
         layout.addStretch()
 
+        # Boton ver variantes (solo visible para productos con talles)
+        self.variants_btn = QPushButton("Ver Variantes")
+        self.variants_btn.setFixedSize(120, 40)
+        self.variants_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.variants_btn.setVisible(False)
+        self.variants_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #3B82F6;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: #2563EB;
+            }}
+        """)
+        self.variants_btn.clicked.connect(self._on_view_variants)
+        layout.addWidget(self.variants_btn)
+
         # Boton agregar al carrito
         self.add_btn = QPushButton("Agregar al Carrito")
         self.add_btn.setFixedSize(160, 40)
@@ -381,8 +403,14 @@ class ProductLookupDialog(QDialog):
             code_item = QTableWidgetItem(code)
             self.products_table.setItem(row, 0, code_item)
 
-            # Nombre
-            name_item = QTableWidgetItem(product.name)
+            # Nombre (con badge si tiene talles)
+            name_text = product.name
+            is_parent = getattr(product, 'is_parent', False) or False
+            if is_parent:
+                name_text = f"[Var] {product.name}"
+            name_item = QTableWidgetItem(name_text)
+            if is_parent:
+                name_item.setForeground(Qt.GlobalColor.darkBlue)
             self.products_table.setItem(row, 1, name_item)
 
             # Categoria
@@ -411,40 +439,87 @@ class ProductLookupDialog(QDialog):
 
     def _on_product_selected(self) -> None:
         """Maneja la seleccion de un producto."""
-        selected = self.products_table.selectedItems()
-        if not selected:
-            return
+        try:
+            selected = self.products_table.selectedItems()
+            if not selected:
+                return
 
-        row = selected[0].row()
-        product = self.products_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            row = selected[0].row()
+            product = self.products_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
 
-        if product:
-            self.selected_product = product
-            self.add_btn.setEnabled(True)
-            self._show_product_detail(product)
+            if product:
+                self.selected_product = product
+                self.add_btn.setEnabled(True)
+                self._show_product_detail(product)
+        except Exception as e:
+            logger.error(f"Error al seleccionar producto: {e}")
+            self.results_label.setText(f"Error: {e}")
 
     def _show_product_detail(self, product: Product) -> None:
         """Muestra los detalles del producto."""
+        try:
+            self._render_product_detail(product)
+        except Exception as e:
+            logger.error(f"Error mostrando detalle de producto: {e}")
+            # Mostrar error en el panel de detalle
+            while self.detail_layout.count():
+                item = self.detail_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            error_label = QLabel(f"Error al cargar detalle:\n{e}")
+            error_label.setStyleSheet(f"color: {self.theme.danger}; font-size: 12px;")
+            error_label.setWordWrap(True)
+            self.detail_layout.addWidget(error_label)
+            self.detail_layout.addStretch()
+
+    def _render_product_detail(self, product: Product) -> None:
+        """Renderiza los detalles del producto."""
         # Limpiar contenedor
         while self.detail_layout.count():
             item = self.detail_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # Nombre
+        # Nombre con badge si tiene talles
+        name_layout = QHBoxLayout()
+        name_layout.setSpacing(8)
+        name_layout.setContentsMargins(0, 0, 0, 0)
+
         name = QLabel(product.name)
         name.setWordWrap(True)
         name.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
         name.setStyleSheet(f"color: {self.theme.text_primary};")
-        self.detail_layout.addWidget(name)
+        name_layout.addWidget(name, 1)
+
+        # Verificar is_parent de forma segura
+        is_parent = getattr(product, 'is_parent', False) or False
+        if is_parent:
+            badge = QLabel("Var")
+            badge.setStyleSheet(f"""
+                background-color: #3B82F6;
+                color: white;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 2px 6px;
+                border-radius: 3px;
+            """)
+            badge.setFixedHeight(20)
+            badge.setToolTip("Producto variable con talles/colores")
+            name_layout.addWidget(badge)
+
+        name_container = QWidget()
+        name_container.setLayout(name_layout)
+        self.detail_layout.addWidget(name_container)
 
         # Mostrar talle y color si es variante
-        if product.size or product.color:
+        product_size = getattr(product, 'size', None)
+        product_color = getattr(product, 'color', None)
+        if product_size or product_color:
             variant_parts = []
-            if product.size:
-                variant_parts.append(f"Talle: {product.size}")
-            if product.color:
-                variant_parts.append(f"Color: {product.color}")
+            if product_size:
+                variant_parts.append(f"Talle: {product_size}")
+            if product_color:
+                variant_parts.append(f"Color: {product_color}")
             variant_text = " | ".join(variant_parts)
             variant_label = QLabel(variant_text)
             variant_label.setStyleSheet(f"color: {self.theme.primary}; font-weight: 600; font-size: 12px;")
@@ -476,18 +551,14 @@ class ProductLookupDialog(QDialog):
         stock_label.setStyleSheet(f"color: {stock_color}; font-weight: 600;")
         self.detail_layout.addWidget(stock_label)
 
-        # Si es producto padre o variante, mostrar tabla de variantes
-        logger.info(f"Producto: is_parent={product.is_parent}, parent_product_id={product.parent_product_id}, size={product.size}, color={product.color}")
-        if product.is_parent:
-            self._show_variants_table(product)
-        elif product.parent_product_id:
-            # Es una variante, obtener el padre para mostrar todas las variantes
-            self._show_variants_table_for_parent_id(product.parent_product_id)
-        elif product.size or product.color:
-            # Producto parece ser variante pero no tiene parent_product_id local
-            # Intentar obtener del backend por ID
-            logger.info("Producto parece variante pero sin parent_product_id local, buscando en backend...")
-            self._try_get_parent_from_backend(product.id)
+        # Mostrar/ocultar boton Ver Variantes en footer
+        # Usar getattr para evitar errores con valores None
+        is_parent = getattr(product, 'is_parent', False) or False
+        parent_product_id = getattr(product, 'parent_product_id', None)
+        size = getattr(product, 'size', None)
+        color = getattr(product, 'color', None)
+        has_variants = is_parent or parent_product_id or size or color
+        self.variants_btn.setVisible(bool(has_variants))
 
         # Promocion
         promo = self.sync_service.get_promotion_for_product(
@@ -673,6 +744,65 @@ class ProductLookupDialog(QDialog):
         container = QWidget()
         container.setLayout(row)
         self.detail_layout.addWidget(container)
+
+    def _on_view_variants(self) -> None:
+        """Abre el dialogo de variantes para el producto seleccionado."""
+        if self.selected_product:
+            self._open_variants_dialog(self.selected_product)
+
+    def _open_variants_dialog(self, product: Product) -> None:
+        """Abre el dialogo de variantes para ver talles/colores disponibles."""
+        try:
+            # Determinar el ID del producto padre de forma segura
+            is_parent = getattr(product, 'is_parent', False) or False
+            parent_product_id = getattr(product, 'parent_product_id', None)
+            parent_id = product.id if is_parent else parent_product_id
+
+            if not parent_id:
+                # Intentar obtener del backend
+                product_data = self._products_api.get_by_id(product.id)
+                if product_data and product_data.parent_product_id:
+                    parent_id = product_data.parent_product_id
+                else:
+                    QMessageBox.information(
+                        self,
+                        "Sin variantes",
+                        "No se encontraron variantes para este producto."
+                    )
+                    return
+
+            # Obtener curva de talles
+            size_curve = self._products_api.get_size_curve(parent_id, self.branch_id)
+            if not size_curve:
+                QMessageBox.information(
+                    self,
+                    "Sin variantes",
+                    "No se encontraron variantes disponibles."
+                )
+                return
+
+            # Construir datos del producto padre para el dialogo
+            parent_product = {
+                "id": parent_id,
+                "name": product.name,
+                "basePrice": float(product.base_price) if product.base_price else 0,
+            }
+
+            # Abrir dialogo de curva de talles
+            dialog = SizeCurveDialog(
+                parent_product=parent_product,
+                size_curve_data=size_curve,
+                parent=self,
+            )
+            dialog.exec()
+
+        except Exception as e:
+            logger.error(f"Error abriendo dialogo de variantes: {e}")
+            QMessageBox.warning(
+                self,
+                "Error",
+                f"Error al cargar variantes: {e}"
+            )
 
     def _on_product_double_clicked(self) -> None:
         """Maneja doble click en un producto."""

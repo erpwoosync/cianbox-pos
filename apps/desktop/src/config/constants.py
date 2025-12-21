@@ -256,3 +256,65 @@ TIME_FORMAT = "%H:%M:%S"
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 CURRENCY_SYMBOL = "$"
 CURRENCY_DECIMALS = 2
+
+
+# ==============================================================================
+# DIMENSIONES DE VENTANA
+# ==============================================================================
+
+# Ventana principal
+MAIN_WINDOW_MIN_WIDTH = 1024
+MAIN_WINDOW_MIN_HEIGHT = 768
+MAIN_WINDOW_DEFAULT_WIDTH = 1280
+MAIN_WINDOW_DEFAULT_HEIGHT = 800
+
+# Ventana de login
+LOGIN_WINDOW_WIDTH = 450
+LOGIN_WINDOW_HEIGHT = 600
+
+# Dialogos
+DIALOG_MIN_WIDTH = 400
+DIALOG_MIN_HEIGHT = 300
+CHECKOUT_DIALOG_WIDTH = 700
+CHECKOUT_DIALOG_HEIGHT = 600
+PRODUCT_LOOKUP_WIDTH = 900
+PRODUCT_LOOKUP_HEIGHT = 600
+
+
+# ==============================================================================
+# LIMITES DE NEGOCIO
+# ==============================================================================
+
+# Ventas
+MAX_SALE_AMOUNT = 10_000_000  # Monto maximo de venta en pesos
+MIN_SALE_AMOUNT = 1  # Monto minimo de venta
+MAX_ITEM_QUANTITY = 9999  # Cantidad maxima por item
+MAX_DISCOUNT_PERCENT = 100  # Descuento maximo porcentual
+
+# Busqueda
+SEARCH_DEBOUNCE_MS = 300  # Tiempo de debounce en busqueda
+SEARCH_MIN_CHARS = 2  # Caracteres minimos para buscar
+SEARCH_MAX_RESULTS = 100  # Resultados maximos de busqueda
+
+# Cache
+PRODUCTS_CACHE_TTL_MINUTES = 60  # Tiempo de vida del cache de productos
+PROMOTIONS_CACHE_TTL_MINUTES = 5  # Tiempo de vida del cache de promociones
+
+
+# ==============================================================================
+# MENSAJES DE ERROR COMUNES
+# ==============================================================================
+
+ERROR_MESSAGES = {
+    "network": "Sin conexion a internet. Verifique su conexion.",
+    "auth": "Credenciales invalidas. Verifique usuario y contrasena.",
+    "session_expired": "Su sesion ha expirado. Inicie sesion nuevamente.",
+    "permission": "No tiene permisos para realizar esta operacion.",
+    "server": "Error del servidor. Intente nuevamente.",
+    "invalid_barcode": "Codigo de barras no reconocido.",
+    "product_not_found": "Producto no encontrado.",
+    "insufficient_stock": "Stock insuficiente para esta operacion.",
+    "invalid_amount": "Monto invalido.",
+    "terminal_pending": "Terminal pendiente de activacion.",
+    "terminal_blocked": "Terminal bloqueada. Contacte al administrador.",
+}

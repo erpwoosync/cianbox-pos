@@ -160,6 +160,7 @@ def init_database() -> None:
         OfflineQueue,
         AppConfig,
         Device,
+        Customer,
     )
 
     engine = get_engine()
