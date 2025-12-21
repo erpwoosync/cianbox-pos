@@ -2033,6 +2033,7 @@ export default function POS() {
         onClose={() => setShowProductSearchModal(false)}
         onAddToCart={addToCart}
         branchId={user?.branch?.id}
+        activePromotions={activePromotions}
       />
 
       {/* Modal selector de talles (escaneo código padre) */}

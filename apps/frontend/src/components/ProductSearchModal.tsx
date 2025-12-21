@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Search, Loader2, Package, Grid3x3, ShoppingCart, ArrowLeft, Layers } from 'lucide-react';
+import { X, Search, Loader2, Package, Grid3x3, ShoppingCart, ArrowLeft, Layers, Tag, Barcode, BoxIcon } from 'lucide-react';
 import { productsService, SizeCurveData } from '../services/api';
 
 interface Product {
@@ -20,10 +20,23 @@ interface Product {
     priceNet?: number;
     priceList?: { id: string; name: string };
   }>;
+  stock?: Array<{
+    quantity?: number;
+    reserved?: number;
+    available?: number;
+  }>;
   isParent?: boolean;
   parentProductId?: string | null;
   size?: string | null;
   color?: string | null;
+}
+
+interface ActivePromotion {
+  id: string;
+  name: string;
+  type: string;
+  discountValue: number;
+  badgeColor?: string | null;
 }
 
 interface ProductSearchModalProps {
@@ -31,6 +44,7 @@ interface ProductSearchModalProps {
   onClose: () => void;
   onAddToCart?: (product: Product) => void;
   branchId?: string;
+  activePromotions?: ActivePromotion[];
 }
 
 // Helper para obtener precio
@@ -46,11 +60,35 @@ const getProductPrice = (product: Product): number => {
   return 0;
 };
 
+// Helper para obtener stock disponible
+const getProductStock = (product: Product): number => {
+  if (!product.stock || product.stock.length === 0) return 0;
+  return product.stock.reduce((sum, s) => sum + (s.available || 0), 0);
+};
+
+// Helper para formatear badge de promoción
+const formatPromoBadge = (promo: ActivePromotion): string => {
+  switch (promo.type) {
+    case 'PERCENTAGE':
+    case 'FLASH_SALE':
+      return `-${promo.discountValue}%`;
+    case 'FIXED_AMOUNT':
+      return `-$${promo.discountValue}`;
+    case 'BUY_X_GET_Y':
+      return '2x1';
+    case 'SECOND_UNIT_DISCOUNT':
+      return `2da -${promo.discountValue}%`;
+    default:
+      return 'Promo';
+  }
+};
+
 export default function ProductSearchModal({
   isOpen,
   onClose,
   onAddToCart,
   branchId,
+  activePromotions = [],
 }: ProductSearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -124,6 +162,14 @@ export default function ProductSearchModal({
     setSizeCurve(null);
   };
 
+  // Obtener promoción aplicable al producto
+  const getProductPromotion = (_product: Product): ActivePromotion | null => {
+    if (!activePromotions.length) return null;
+    // Simplificado: buscar promoción que aplique a este producto
+    // TODO: En producción, verificar categorías, marcas, productos específicos
+    return activePromotions.find(p => p.type === 'FLASH_SALE' || p.type === 'PERCENTAGE') || null;
+  };
+
   const handleAddVariantToCart = (size: string, color: string) => {
     if (!sizeCurve || !onAddToCart || !selectedProduct) return;
 
@@ -135,11 +181,12 @@ export default function ProductSearchModal({
     const variant = sizeCurve.variants.find(v => v.id === cell.variantId);
     if (!variant) return;
 
+    // Usar nombre del padre (el carrito muestra badges de talle/color)
     const variantProduct: Product = {
       id: variant.id,
       sku: variant.sku || selectedProduct.sku,
       barcode: variant.barcode || selectedProduct.barcode,
-      name: `${selectedProduct.name} - ${size} ${color}`,
+      name: selectedProduct.name,
       shortName: selectedProduct.shortName,
       imageUrl: selectedProduct.imageUrl,
       basePrice: selectedProduct.basePrice,
@@ -297,77 +344,156 @@ export default function ProductSearchModal({
             /* Vista de detalle del producto */
             <div className="flex-1 overflow-y-auto p-4">
               {/* Info del producto */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                <div className="flex items-start gap-4">
-                  <div className={`w-24 h-24 rounded-xl flex items-center justify-center ${
-                    selectedProduct.isParent ? 'bg-purple-100' : 'bg-gray-200'
-                  }`}>
-                    {selectedProduct.imageUrl ? (
-                      <img
-                        src={selectedProduct.imageUrl}
-                        alt={selectedProduct.name}
-                        className="w-full h-full object-cover rounded-xl"
-                      />
-                    ) : selectedProduct.isParent ? (
-                      <Layers className="w-12 h-12 text-purple-400" />
-                    ) : (
-                      <Package className="w-12 h-12 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h2 className="text-xl font-bold">{selectedProduct.name}</h2>
-                      {selectedProduct.isParent && (
-                        <span className="px-2 py-1 text-sm bg-purple-600 text-white rounded-lg">
-                          Producto con Talles
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">SKU:</span>
-                        <span className="ml-2 font-medium">{selectedProduct.sku}</span>
+              <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                {(() => {
+                  const promo = getProductPromotion(selectedProduct);
+                  const stock = getProductStock(selectedProduct);
+                  return (
+                    <div className="flex flex-col lg:flex-row gap-6">
+                      {/* Imagen y badges */}
+                      <div className="relative shrink-0">
+                        <div className={`w-32 h-32 lg:w-40 lg:h-40 rounded-xl flex items-center justify-center ${
+                          selectedProduct.isParent ? 'bg-purple-100' : 'bg-gray-200'
+                        }`}>
+                          {selectedProduct.imageUrl ? (
+                            <img
+                              src={selectedProduct.imageUrl}
+                              alt={selectedProduct.name}
+                              className="w-full h-full object-cover rounded-xl"
+                            />
+                          ) : selectedProduct.isParent ? (
+                            <Layers className="w-16 h-16 text-purple-400" />
+                          ) : (
+                            <Package className="w-16 h-16 text-gray-400" />
+                          )}
+                        </div>
+                        {/* Badge promoción */}
+                        {promo && (
+                          <div
+                            style={{ backgroundColor: promo.badgeColor || '#22C55E' }}
+                            className="absolute -top-2 -right-2 text-white text-sm font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1"
+                          >
+                            <Tag className="w-4 h-4" />
+                            {formatPromoBadge(promo)}
+                          </div>
+                        )}
+                        {/* Badge talles */}
+                        {selectedProduct.isParent && (
+                          <div className={`absolute ${promo ? '-top-2 -left-2' : '-top-2 -right-2'} bg-purple-600 text-white text-sm font-bold px-3 py-1 rounded-full shadow-lg`}>
+                            Talles
+                          </div>
+                        )}
                       </div>
-                      {selectedProduct.barcode && (
-                        <div>
-                          <span className="text-gray-500">Codigo:</span>
-                          <span className="ml-2 font-medium">{selectedProduct.barcode}</span>
-                        </div>
-                      )}
-                      {selectedProduct.category && (
-                        <div>
-                          <span className="text-gray-500">Categoria:</span>
-                          <span className="ml-2 font-medium">{selectedProduct.category.name}</span>
-                        </div>
-                      )}
-                      {selectedProduct.brand && (
-                        <div>
-                          <span className="text-gray-500">Marca:</span>
-                          <span className="ml-2 font-medium">{selectedProduct.brand.name}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="mt-3">
-                      <span className="text-2xl font-bold text-blue-600">
-                        ${getProductPrice(selectedProduct).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Boton agregar si no es padre */}
-                  {!selectedProduct.isParent && onAddToCart && (
-                    <button
-                      onClick={() => {
-                        onAddToCart(selectedProduct);
-                        onClose();
-                      }}
-                      className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 flex items-center gap-2 font-medium"
-                    >
-                      <ShoppingCart className="w-5 h-5" />
-                      Agregar
-                    </button>
-                  )}
-                </div>
+                      {/* Información principal */}
+                      <div className="flex-1">
+                        {/* Nombre y badges de variante */}
+                        <div className="mb-3">
+                          <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedProduct.name}</h2>
+                          {/* Badges de talle/color para variantes */}
+                          {(selectedProduct.size || selectedProduct.color) && (
+                            <div className="flex items-center gap-2 mt-2">
+                              {selectedProduct.size && (
+                                <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-purple-100 text-purple-700 rounded-lg">
+                                  Talle: {selectedProduct.size}
+                                </span>
+                              )}
+                              {selectedProduct.color && (
+                                <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-blue-100 text-blue-700 rounded-lg">
+                                  Color: {selectedProduct.color}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {/* Badge promoción inline */}
+                          {promo && (
+                            <div className="mt-2">
+                              <span
+                                style={{ backgroundColor: `${promo.badgeColor || '#22C55E'}20`, color: promo.badgeColor || '#22C55E' }}
+                                className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium"
+                              >
+                                <Tag className="w-4 h-4" />
+                                {promo.name}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Grid de información */}
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                          {/* SKU */}
+                          <div className="bg-white rounded-lg p-3">
+                            <p className="text-xs text-gray-500 uppercase tracking-wide">SKU</p>
+                            <p className="font-semibold text-gray-900">{selectedProduct.sku || '-'}</p>
+                          </div>
+                          {/* Código de barras */}
+                          <div className="bg-white rounded-lg p-3">
+                            <p className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                              <Barcode className="w-3 h-3" /> Código
+                            </p>
+                            <p className="font-semibold text-gray-900 font-mono">{selectedProduct.barcode || '-'}</p>
+                          </div>
+                          {/* Stock (solo para productos no padre) */}
+                          {!selectedProduct.isParent && (
+                            <div className="bg-white rounded-lg p-3">
+                              <p className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                                <BoxIcon className="w-3 h-3" /> Stock
+                              </p>
+                              <p className={`font-semibold ${
+                                stock <= 0 ? 'text-red-600' : stock < 5 ? 'text-amber-600' : 'text-green-600'
+                              }`}>
+                                {stock} unidades
+                              </p>
+                            </div>
+                          )}
+                          {/* Categoría */}
+                          {selectedProduct.category && (
+                            <div className="bg-white rounded-lg p-3">
+                              <p className="text-xs text-gray-500 uppercase tracking-wide">Categoría</p>
+                              <p className="font-semibold text-gray-900">{selectedProduct.category.name}</p>
+                            </div>
+                          )}
+                          {/* Marca */}
+                          {selectedProduct.brand && (
+                            <div className="bg-white rounded-lg p-3">
+                              <p className="text-xs text-gray-500 uppercase tracking-wide">Marca</p>
+                              <p className="font-semibold text-gray-900">{selectedProduct.brand.name}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Precio y botón agregar */}
+                        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                          <div>
+                            <p className="text-sm text-gray-500">Precio</p>
+                            <span className="text-3xl font-bold text-green-600">
+                              ${getProductPrice(selectedProduct).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          {/* Botón agregar si no es padre */}
+                          {!selectedProduct.isParent && onAddToCart && (
+                            <button
+                              onClick={() => {
+                                onAddToCart(selectedProduct);
+                                onClose();
+                              }}
+                              disabled={stock <= 0}
+                              className={`px-8 py-4 rounded-xl flex items-center gap-2 font-semibold text-lg transition-all ${
+                                stock <= 0
+                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                  : 'bg-green-600 text-white hover:bg-green-700 hover:scale-105 shadow-lg'
+                              }`}
+                            >
+                              <ShoppingCart className="w-6 h-6" />
+                              {stock <= 0 ? 'Sin Stock' : 'Agregar'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Curva de talles */}
