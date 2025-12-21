@@ -5,7 +5,7 @@ Permite buscar productos por codigo de barras, SKU o nombre
 y ver informacion detallada del producto.
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from PyQt6.QtWidgets import (
     QDialog,
@@ -28,6 +28,7 @@ from PyQt6.QtGui import QFont
 from loguru import logger
 
 from src.models import Product
+from src.api.products import ProductsAPI
 
 
 class ProductLookupDialog(QDialog):
@@ -40,13 +41,15 @@ class ProductLookupDialog(QDialog):
     - Agregar producto al carrito
     """
 
-    def __init__(self, sync_service, theme, parent=None):
+    def __init__(self, sync_service, theme, branch_id: str = None, parent=None):
         super().__init__(parent)
 
         self.sync_service = sync_service
         self.theme = theme
+        self.branch_id = branch_id
         self.selected_product: Optional[Product] = None
         self._search_timer: Optional[QTimer] = None
+        self._products_api = ProductsAPI()
 
         self._setup_ui()
         self._load_initial_products()
@@ -514,8 +517,9 @@ class ProductLookupDialog(QDialog):
         """Muestra la tabla de variantes usando el ID del padre."""
         try:
             # Obtener curva de talles desde la API usando el ID del padre
-            size_curve = self.sync_service.get_size_curve(parent_id)
-            self._render_variants_table(size_curve)
+            size_curve = self._products_api.get_size_curve(parent_id, self.branch_id)
+            if size_curve:
+                self._render_variants_table(size_curve)
         except Exception as e:
             logger.error(f"Error cargando variantes del padre: {e}")
 
@@ -523,8 +527,9 @@ class ProductLookupDialog(QDialog):
         """Muestra la tabla de variantes del producto padre."""
         try:
             # Obtener curva de talles desde la API
-            size_curve = self.sync_service.get_size_curve(parent_product.id)
-            self._render_variants_table(size_curve)
+            size_curve = self._products_api.get_size_curve(parent_product.id, self.branch_id)
+            if size_curve:
+                self._render_variants_table(size_curve)
         except Exception as e:
             logger.error(f"Error cargando variantes: {e}")
 

@@ -1740,7 +1740,8 @@ class MainWindow(QMainWindow):
         try:
             from src.ui.dialogs.product_lookup_dialog import ProductLookupDialog
 
-            dialog = ProductLookupDialog(self.sync_service, self.theme, self)
+            branch_id = self.user.get("branch_id")
+            dialog = ProductLookupDialog(self.sync_service, self.theme, branch_id, self)
             if dialog.exec():
                 # Si se selecciono un producto, agregarlo al carrito
                 product = dialog.selected_product
