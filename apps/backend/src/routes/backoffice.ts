@@ -2715,6 +2715,10 @@ router.get('/diagnostics/branch-stock', async (req: AuthenticatedRequest, res: R
         id: true,
         name: true,
         code: true,
+        address: true,
+        city: true,
+        state: true,
+        phone: true,
         cianboxBranchId: true,
         isActive: true,
         _count: {
@@ -2724,7 +2728,7 @@ router.get('/diagnostics/branch-stock', async (req: AuthenticatedRequest, res: R
           },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: { cianboxBranchId: 'asc' },
     });
 
     // Obtener total de stock por sucursal
@@ -2747,6 +2751,10 @@ router.get('/diagnostics/branch-stock', async (req: AuthenticatedRequest, res: R
         id: branch.id,
         name: branch.name,
         code: branch.code,
+        address: branch.address,
+        city: branch.city,
+        state: branch.state,
+        phone: branch.phone,
         cianboxBranchId: branch.cianboxBranchId,
         isActive: branch.isActive,
         pointsOfSaleCount: branch._count.pointsOfSale,

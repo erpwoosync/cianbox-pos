@@ -7,6 +7,8 @@ interface Branch {
   name: string;
   code: string;
   address?: string;
+  city?: string;
+  state?: string;
   phone?: string;
   isActive: boolean;
   cianboxBranchId?: number | null;
@@ -79,10 +81,18 @@ export default function Branches() {
     }
   };
 
-  const filteredBranches = branches.filter((branch) =>
-    branch.name.toLowerCase().includes(search.toLowerCase()) ||
-    branch.code?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredBranches = branches
+    .filter((branch) =>
+      branch.name.toLowerCase().includes(search.toLowerCase()) ||
+      branch.code?.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Ordenar por cianboxBranchId (null/undefined van al final)
+      if (a.cianboxBranchId == null && b.cianboxBranchId == null) return 0;
+      if (a.cianboxBranchId == null) return 1;
+      if (b.cianboxBranchId == null) return -1;
+      return a.cianboxBranchId - b.cianboxBranchId;
+    });
 
   const unmappedCount = summary?.unmapped || branches.filter(b => !b.hasCianboxMapping && !b.cianboxBranchId).length;
 
@@ -212,21 +222,21 @@ export default function Branches() {
                       <p className="text-sm text-gray-500 mt-1">
                         Codigo: {branch.code || '-'}
                       </p>
-                      {branch.productStockCount !== undefined && (
-                        <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-                          <Package size={14} />
-                          {branch.productStockCount} productos con stock
-                        </p>
-                      )}
-                      {branch.address && (
+                      {(branch.address || branch.city) && (
                         <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
                           <MapPin size={14} />
-                          {branch.address}
+                          {[branch.address, branch.city, branch.state].filter(Boolean).join(', ')}
                         </p>
                       )}
                       {branch.phone && (
                         <p className="text-sm text-gray-500 mt-1">
                           Tel: {branch.phone}
+                        </p>
+                      )}
+                      {branch.productStockCount !== undefined && branch.productStockCount > 0 && (
+                        <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
+                          <Package size={14} />
+                          {branch.productStockCount} productos con stock
                         </p>
                       )}
                     </div>
