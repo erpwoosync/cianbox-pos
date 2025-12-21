@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { productsApi, pricesApi, stockApi, Product, ProductPrice, ProductStock, SizeCurveData } from '../services/api';
-import { Package, ArrowLeft, RefreshCw, DollarSign, Warehouse, Tag, FolderTree, Grid3x3, Layers } from 'lucide-react';
+import { Package, ArrowLeft, RefreshCw, DollarSign, Warehouse, Tag, FolderTree, Grid3x3, Layers, Info } from 'lucide-react';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [prices, setPrices] = useState<ProductPrice[]>([]);
   const [stock, setStock] = useState<ProductStock[]>([]);
+  const [stockInfo, setStockInfo] = useState<{ isAggregated: boolean; variantCount?: number; message?: string }>({ isAggregated: false });
   const [sizeCurve, setSizeCurve] = useState<SizeCurveData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
@@ -21,14 +22,19 @@ export default function ProductDetail() {
   const loadProduct = async () => {
     setLoading(true);
     try {
-      const [productData, pricesData, stockData] = await Promise.all([
+      const [productData, pricesData, stockResponse] = await Promise.all([
         productsApi.getById(id!),
         pricesApi.getByProduct(id!),
         stockApi.getByProduct(id!),
       ]);
       setProduct(productData);
       setPrices(pricesData);
-      setStock(stockData);
+      setStock(stockResponse.data);
+      setStockInfo({
+        isAggregated: stockResponse.isAggregated,
+        variantCount: stockResponse.variantCount,
+        message: stockResponse.message,
+      });
 
       // Si es producto padre, cargar curva de talles
       if (productData.isParent) {
@@ -209,9 +215,27 @@ export default function ProductDetail() {
 
           {activeTab === 'stock' && (
             <div>
+              {/* Mensaje informativo para stock agregado de variantes */}
+              {stockInfo.isAggregated && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+                  <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">
+                      Stock agregado de {stockInfo.variantCount} variantes
+                    </p>
+                    <p className="text-sm text-blue-600 mt-1">
+                      Este es un producto padre con variantes de talle/color. El stock mostrado es la suma total de todas las variantes por sucursal. Para ver el detalle por variante, consulte la pestaña "Curva de Talles".
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {stock.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">
-                  No hay stock registrado para este producto
+                  {stockInfo.isAggregated
+                    ? 'No hay stock registrado en ninguna variante'
+                    : 'No hay stock registrado para este producto'
+                  }
                 </p>
               ) : (
                 <div className="overflow-x-auto">

@@ -330,6 +330,7 @@ router.get('/products/:id/prices', async (req: AuthenticatedRequest, res: Respon
 });
 
 // Obtener stock de producto
+// Para productos padre (isParent: true), devuelve stock agregado de todas las variantes por sucursal
 router.get('/products/:id/stock', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.user!.tenantId;
@@ -338,12 +339,73 @@ router.get('/products/:id/stock', async (req: AuthenticatedRequest, res: Respons
     // Verificar que el producto pertenece al tenant
     const product = await prisma.product.findFirst({
       where: { id, tenantId },
+      select: { id: true, isParent: true, name: true },
     });
 
     if (!product) {
       throw new ApiError(404, 'NOT_FOUND', 'Producto no encontrado');
     }
 
+    // Si es producto padre, agregar stock de todas las variantes por sucursal
+    if (product.isParent) {
+      // Obtener todas las variantes
+      const variants = await prisma.product.findMany({
+        where: { tenantId, parentProductId: id },
+        select: { id: true },
+      });
+
+      const variantIds = variants.map(v => v.id);
+
+      // Obtener stock de todas las variantes
+      const variantStock = await prisma.productStock.findMany({
+        where: { productId: { in: variantIds } },
+        include: {
+          branch: { select: { id: true, name: true } },
+        },
+      });
+
+      // Agregar por sucursal
+      const stockByBranch: Record<string, {
+        id: string;
+        branchId: string;
+        branch: { id: string; name: string } | null;
+        quantity: number;
+        reserved: number;
+        available: number;
+        variantCount: number;
+      }> = {};
+
+      for (const s of variantStock) {
+        if (!stockByBranch[s.branchId]) {
+          stockByBranch[s.branchId] = {
+            id: `agg-${s.branchId}`,
+            branchId: s.branchId,
+            branch: s.branch,
+            quantity: 0,
+            reserved: 0,
+            available: 0,
+            variantCount: 0,
+          };
+        }
+        stockByBranch[s.branchId].quantity += Number(s.quantity) || 0;
+        stockByBranch[s.branchId].reserved += Number(s.reserved) || 0;
+        stockByBranch[s.branchId].available += Number(s.available) || 0;
+        stockByBranch[s.branchId].variantCount += 1;
+      }
+
+      const aggregatedStock = Object.values(stockByBranch);
+
+      res.json({
+        success: true,
+        data: aggregatedStock,
+        isAggregated: true,
+        variantCount: variantIds.length,
+        message: `Stock agregado de ${variantIds.length} variantes`,
+      });
+      return;
+    }
+
+    // Para productos simples o variantes, devolver stock directo
     const stock = await prisma.productStock.findMany({
       where: { productId: id },
       include: {
@@ -354,6 +416,7 @@ router.get('/products/:id/stock', async (req: AuthenticatedRequest, res: Respons
     res.json({
       success: true,
       data: stock,
+      isAggregated: false,
     });
   } catch (error) {
     next(error);

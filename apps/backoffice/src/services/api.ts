@@ -202,10 +202,22 @@ export const pricesApi = {
 };
 
 // Stock API
+export interface StockResponse {
+  data: ProductStock[];
+  isAggregated: boolean;
+  variantCount?: number;
+  message?: string;
+}
+
 export const stockApi = {
-  getByProduct: async (productId: string) => {
+  getByProduct: async (productId: string): Promise<StockResponse> => {
     const response = await api.get(`/backoffice/products/${productId}/stock`);
-    return response.data.data;
+    return {
+      data: response.data.data,
+      isAggregated: response.data.isAggregated || false,
+      variantCount: response.data.variantCount,
+      message: response.data.message,
+    };
   },
   getAll: async (params?: { lowStock?: boolean; search?: string }) => {
     const response = await api.get('/backoffice/stock', { params });
