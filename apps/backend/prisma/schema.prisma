@@ -475,6 +475,7 @@ model Product {
 
   // === PRODUCTOS VARIABLES (Curva de Talles) ===
   isParent         Boolean   @default(false)  // true = producto padre con variantes
+  isVirtualParent  Boolean   @default(false)  // true = padre creado por sync (no existe en Cianbox)
   parentProductId  String?                    // ID del producto padre (null si es padre o simple)
   size             String?                    // Talle: "38", "40", "L", "XL"
   color            String?                    // Color: "Negro", "Blanco", "Beige"

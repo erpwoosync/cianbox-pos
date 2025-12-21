@@ -813,29 +813,119 @@ export class CianboxService {
     // === SEGUNDA PASADA: Resolver relaciones padre-hijo para curva de talles ===
     console.log(`[Cianbox] Resolviendo relaciones padre-hijo de productos variables...`);
     let parentRelationsResolved = 0;
+    let virtualParentsCreated = 0;
+
+    // 1. Recopilar todos los id_producto_padre únicos de las variantes
+    const parentIdsNeeded = new Set<number>();
+    const variantsByParentId = new Map<number, typeof products>();
 
     for (const product of products) {
-      // Solo procesar variantes (tienen id_producto_padre > 0)
       if (product.id_producto_padre && product.id_producto_padre > 0) {
-        // Buscar el producto padre en nuestra BD
-        const parentProduct = await prisma.product.findFirst({
-          where: { tenantId, cianboxProductId: product.id_producto_padre },
-          select: { id: true },
-        });
+        parentIdsNeeded.add(product.id_producto_padre);
 
-        if (parentProduct) {
-          // Actualizar la variante con la referencia al padre
-          await prisma.product.updateMany({
-            where: { tenantId, cianboxProductId: product.id },
-            data: { parentProductId: parentProduct.id },
-          });
-          parentRelationsResolved++;
+        // Agrupar variantes por padre para crear padre virtual si es necesario
+        if (!variantsByParentId.has(product.id_producto_padre)) {
+          variantsByParentId.set(product.id_producto_padre, []);
         }
+        variantsByParentId.get(product.id_producto_padre)!.push(product);
       }
     }
 
-    if (parentRelationsResolved > 0) {
+    console.log(`[Cianbox] Encontrados ${parentIdsNeeded.size} productos padre referenciados`);
+
+    // 2. Para cada id_producto_padre, verificar si existe o crear padre virtual
+    for (const cianboxParentId of parentIdsNeeded) {
+      // Buscar si el padre existe en nuestra BD
+      let parentProduct = await prisma.product.findFirst({
+        where: { tenantId, cianboxProductId: cianboxParentId },
+        select: { id: true, isVirtualParent: true },
+      });
+
+      // Si no existe, crear padre virtual
+      if (!parentProduct) {
+        const variants = variantsByParentId.get(cianboxParentId) || [];
+        if (variants.length === 0) continue;
+
+        // Usar la primera variante como referencia para crear el padre
+        const refVariant = variants[0];
+
+        // Extraer nombre del padre quitando talle y color del nombre de la variante
+        let parentName = refVariant.producto || 'Producto Variable';
+        // Quitar patrones comunes de talle/color del final
+        // Ej: "JEAN RECTO CELESTE - 38 Beige" -> "JEAN RECTO CELESTE"
+        // Ej: "Remera Básica T.M Negro" -> "Remera Básica"
+        parentName = parentName
+          .replace(/\s*[-–]\s*\d+\s*\w*$/i, '')  // " - 38 Beige"
+          .replace(/\s+T\.\s*\w+\s*\w*$/i, '')    // " T.M Negro"
+          .replace(/\s+Talle\s*\w+\s*\w*$/i, '')  // " Talle M Negro"
+          .replace(/\s+\d{2,3}\s*\w*$/i, '')     // " 38 Beige" (talle numérico al final)
+          .trim();
+
+        // Si el nombre quedó vacío, usar el original
+        if (!parentName) {
+          parentName = refVariant.producto || 'Producto Variable';
+        }
+
+        // Buscar categoría y marca de la variante
+        let categoryId: string | null = null;
+        let brandId: string | null = null;
+
+        if (refVariant.id_categoria) {
+          const category = await prisma.category.findFirst({
+            where: { tenantId, cianboxCategoryId: refVariant.id_categoria },
+          });
+          categoryId = category?.id || null;
+        }
+
+        if (refVariant.id_marca) {
+          const brand = await prisma.brand.findFirst({
+            where: { tenantId, cianboxBrandId: refVariant.id_marca },
+          });
+          brandId = brand?.id || null;
+        }
+
+        // Crear el padre virtual
+        const virtualParent = await prisma.product.create({
+          data: {
+            tenantId,
+            cianboxProductId: cianboxParentId,
+            name: parentName,
+            sku: refVariant.codigo_interno ? `${refVariant.codigo_interno}-PADRE` : null,
+            barcode: null, // El padre virtual no tiene código de barras propio
+            categoryId,
+            brandId,
+            basePrice: refVariant.precio_neto || 0,
+            baseCost: refVariant.costo || 0,
+            taxRate: this.normalizeTaxRate(refVariant.alicuota_iva),
+            taxIncluded: true,
+            isParent: true,
+            isVirtualParent: true, // ← Marcado como virtual
+            isActive: true,
+            lastSyncedAt: new Date(),
+            // No hay data de Cianbox para padres virtuales
+          },
+        });
+
+        parentProduct = { id: virtualParent.id, isVirtualParent: true };
+        virtualParentsCreated++;
+        console.log(`[Cianbox] Creado padre virtual: "${parentName}" (cianboxId: ${cianboxParentId})`);
+      }
+
+      // 3. Asignar la relación a todas las variantes de este padre
+      const updateResult = await prisma.product.updateMany({
+        where: {
+          tenantId,
+          cianboxProductId: { in: (variantsByParentId.get(cianboxParentId) || []).map(v => v.id) },
+        },
+        data: { parentProductId: parentProduct.id },
+      });
+
+      parentRelationsResolved += updateResult.count;
+    }
+
+    if (virtualParentsCreated > 0 || parentRelationsResolved > 0) {
       console.log(`[Cianbox] Resueltas ${parentRelationsResolved} relaciones padre-hijo`);
+      console.log(`[Cianbox] Creados ${virtualParentsCreated} padres virtuales`);
     }
 
     // Actualizar última sincronización
@@ -843,11 +933,11 @@ export class CianboxService {
       where: { id: this.connection.id },
       data: {
         lastSync: new Date(),
-        syncStatus: `Sincronizados ${synced} productos con precios, stock y ${parentRelationsResolved} relaciones de variantes`,
+        syncStatus: `Sincronizados ${synced} productos, ${parentRelationsResolved} variantes vinculadas, ${virtualParentsCreated} padres virtuales`,
       },
     });
 
-    console.log(`[Cianbox] Sincronización de productos completada: ${synced} productos`);
+    console.log(`[Cianbox] Sincronización de productos completada: ${synced} productos, ${virtualParentsCreated} padres virtuales`);
     return synced;
   }
 
