@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { productsApi, pricesApi, stockApi, Product, ProductPrice, ProductStock, SizeCurveData } from '../services/api';
-import { Package, ArrowLeft, RefreshCw, DollarSign, Warehouse, Tag, FolderTree, Grid3x3, Layers, Info } from 'lucide-react';
+import { Package, ArrowLeft, RefreshCw, DollarSign, Warehouse, Tag, FolderTree, Grid3x3, Layers, Info, MapPin } from 'lucide-react';
+
+interface Branch {
+  id: string;
+  name: string;
+  code: string;
+}
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -13,23 +19,37 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
 
+  // Estado para sucursales y filtro de curva de talles
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [loadingSizeCurve, setLoadingSizeCurve] = useState(false);
+
   useEffect(() => {
     if (id) {
       loadProduct();
     }
   }, [id]);
 
+  // Recargar curva de talles cuando cambia la sucursal
+  useEffect(() => {
+    if (product?.isParent && id) {
+      loadSizeCurve(selectedBranchId || undefined);
+    }
+  }, [selectedBranchId]);
+
   const loadProduct = async () => {
     setLoading(true);
     try {
-      const [productData, pricesData, stockResponse] = await Promise.all([
+      const [productData, pricesData, stockResponse, branchesData] = await Promise.all([
         productsApi.getById(id!),
         pricesApi.getByProduct(id!),
         stockApi.getByProduct(id!),
+        stockApi.getBranches(),
       ]);
       setProduct(productData);
       setPrices(pricesData);
       setStock(stockResponse.data);
+      setBranches(branchesData);
       setStockInfo({
         isAggregated: stockResponse.isAggregated,
         variantCount: stockResponse.variantCount,
@@ -49,6 +69,19 @@ export default function ProductDetail() {
       console.error('Error loading product:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSizeCurve = async (branchId?: string) => {
+    if (!id) return;
+    setLoadingSizeCurve(true);
+    try {
+      const curveData = await productsApi.getSizeCurve(id, branchId);
+      setSizeCurve(curveData);
+    } catch (err) {
+      console.error('Error loading size curve:', err);
+    } finally {
+      setLoadingSizeCurve(false);
     }
   };
 
@@ -303,8 +336,29 @@ export default function ProductDetail() {
           {/* Tab de Curva de Talles */}
           {activeTab === 'sizeCurve' && sizeCurve && (
             <div>
-              {/* Header con totales */}
-              <div className="mb-6 flex items-center gap-4">
+              {/* Header con selector de sucursal y totales */}
+              <div className="mb-6 flex flex-wrap items-center gap-4">
+                {/* Selector de sucursal */}
+                <div className="flex items-center gap-2">
+                  <MapPin size={18} className="text-gray-500" />
+                  <select
+                    value={selectedBranchId}
+                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={loadingSizeCurve}
+                  >
+                    <option value="">Todas las sucursales</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                  {loadingSizeCurve && (
+                    <RefreshCw size={16} className="animate-spin text-blue-600" />
+                  )}
+                </div>
+
                 <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
                   <Layers size={18} className="text-blue-600" />
                   <span className="text-sm text-gray-600">Variantes:</span>
@@ -312,7 +366,7 @@ export default function ProductDetail() {
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg">
                   <Warehouse size={18} className="text-green-600" />
-                  <span className="text-sm text-gray-600">Stock Total:</span>
+                  <span className="text-sm text-gray-600">Stock {selectedBranchId ? 'Sucursal' : 'Total'}:</span>
                   <span className="font-bold text-green-600">{sizeCurve.totals.total}</span>
                 </div>
               </div>
