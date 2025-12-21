@@ -160,6 +160,31 @@ La busqueda ahora incluye los campos `isParent`, `size`, `color` en los resultad
 - Click en celda con stock agrega variante al carrito
 - Celdas deshabilitadas si no hay stock
 
+**Archivo:** `apps/frontend/src/components/TalleSelectorModal.tsx`
+
+- Selector de talles optimizado para escaneo rapido
+- Grid de talles ordenados con stock visible
+- Atajos de teclado (1-9) para seleccion rapida
+- ESC para cancelar
+- Click o tecla → agrega variante y cierra
+
+### Flujo de escaneo
+
+```
+Escaneo de codigo
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│  Codigo unico (variante)                │
+│  → Agrega directo al carrito            │
+├─────────────────────────────────────────┤
+│  Codigo de producto padre               │
+│  → Muestra selector de talles           │
+│  → Usuario elige talle (click o 1-9)    │
+│  → Agrega variante al carrito           │
+└─────────────────────────────────────────┘
+```
+
 ---
 
 ## Integracion POS Windows (Desktop)
@@ -295,9 +320,11 @@ if (product.id_producto_padre && product.id_producto_padre > 0) {
 | `apps/backoffice/src/pages/ProductDetail.tsx` | Tab curva de talles |
 | `apps/backoffice/src/pages/Products.tsx` | Filtros de variantes |
 | `apps/frontend/src/services/api.ts` | Tipos y funcion getSizeCurve |
-| `apps/frontend/src/pages/POS.tsx` | Integracion productos padre, boton consultar |
-| `apps/frontend/src/components/SizeCurveModal.tsx` | Modal rapido de seleccion |
+| `apps/frontend/src/pages/POS.tsx` | Integracion productos padre, boton consultar, selector talles |
+| `apps/frontend/src/components/SizeCurveModal.tsx` | Modal rapido de seleccion (desde grid) |
 | `apps/frontend/src/components/ProductSearchModal.tsx` | Consultor de productos con curva de talles |
+| `apps/frontend/src/components/TalleSelectorModal.tsx` | Selector de talles para escaneo codigo padre |
+| `apps/backend/src/routes/products.ts` | Busqueda por codigo padre retorna variantes |
 
 ---
 

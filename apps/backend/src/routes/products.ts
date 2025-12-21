@@ -16,6 +16,7 @@ const productQuerySchema = z.object({
   search: z.string().optional(),
   categoryId: z.string().optional(),
   brandId: z.string().optional(),
+  branchId: z.string().optional(), // Opcional: si se pasa, incluye stock de esa sucursal
   isActive: z.enum(['true', 'false']).optional(),
   page: z.string().default('1'),
   pageSize: z.string().default('50'),
@@ -263,7 +264,7 @@ router.get(
         throw new ValidationError('Parámetros inválidos', validation.error.errors);
       }
 
-      const { search, categoryId, brandId, isActive, page, pageSize } = validation.data;
+      const { search, categoryId, brandId, branchId, isActive, page, pageSize } = validation.data;
       const skip = (parseInt(page) - 1) * parseInt(pageSize);
       const take = parseInt(pageSize);
 
@@ -292,19 +293,27 @@ router.get(
         where.isActive = isActive === 'true';
       }
 
+      // Construir include - incluir stock solo si se pasa branchId
+      const include: Record<string, unknown> = {
+        category: { select: { id: true, name: true } },
+        brand: { select: { id: true, name: true } },
+        prices: {
+          include: {
+            priceList: { select: { id: true, name: true } },
+          },
+        },
+      };
+
+      // Si se pasa branchId, incluir stock filtrado por sucursal
+      if (branchId) {
+        include.stock = { where: { branchId } };
+      }
+
       // Ejecutar consultas en paralelo
       const [products, total] = await Promise.all([
         prisma.product.findMany({
           where,
-          include: {
-            category: { select: { id: true, name: true } },
-            brand: { select: { id: true, name: true } },
-            prices: {
-              include: {
-                priceList: { select: { id: true, name: true } },
-              },
-            },
-          },
+          include,
           skip,
           take,
           orderBy: { name: 'asc' },
@@ -312,9 +321,28 @@ router.get(
         prisma.product.count({ where }),
       ]);
 
+      // Si se pasó branchId, calcular currentStock para cada producto
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let responseData: any[] = products;
+      if (branchId) {
+        responseData = products.map((product) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const stockRecords = (product as any).stock || [];
+          const currentStock = stockRecords.reduce(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (sum: number, s: any) => sum + Number(s.available || 0),
+            0
+          );
+          return {
+            ...product,
+            currentStock,
+          };
+        });
+      }
+
       res.json({
         success: true,
-        data: products,
+        data: responseData,
         pagination: {
           page: parseInt(page),
           pageSize: parseInt(pageSize),
@@ -345,6 +373,23 @@ router.get(
         return res.json({ success: true, data: [] });
       }
 
+      // Include común para productos
+      const productInclude = {
+        category: { select: { id: true, name: true } },
+        brand: { select: { id: true, name: true } },
+        prices: priceListId
+          ? {
+              where: { priceListId },
+              include: { priceList: { select: { id: true, name: true } } },
+            }
+          : {
+              include: { priceList: { select: { id: true, name: true } } },
+            },
+        stock: branchId
+          ? { where: { branchId } }
+          : true,
+      };
+
       // Buscar por código de barras exacto primero
       let product = await prisma.product.findFirst({
         where: {
@@ -352,24 +397,41 @@ router.get(
           barcode: query,
           isActive: true,
         },
-        include: {
-          category: { select: { id: true, name: true } },
-          brand: { select: { id: true, name: true } },
-          prices: priceListId
-            ? {
-                where: { priceListId },
-                include: { priceList: { select: { id: true, name: true } } },
-              }
-            : {
-                include: { priceList: { select: { id: true, name: true } } },
-              },
-          stock: branchId
-            ? { where: { branchId } }
-            : true,
-        },
+        include: productInclude,
       });
 
       if (product) {
+        // Si es producto padre, retornar todas sus variantes para selector de talles
+        if (product.isParent) {
+          const variantes = await prisma.product.findMany({
+            where: {
+              tenantId: req.user!.tenantId,
+              parentProductId: product.id,
+              isActive: true,
+            },
+            include: productInclude,
+            orderBy: [{ size: 'asc' }, { color: 'asc' }],
+          });
+
+          // Retornar variantes con info del padre
+          return res.json({
+            success: true,
+            data: variantes.map(v => ({
+              ...v,
+              parentName: product!.name,
+              parentPrice: product!.basePrice,
+            })),
+            isParentSearch: true,
+            parent: {
+              id: product.id,
+              name: product.name,
+              barcode: product.barcode,
+              price: product.basePrice,
+            },
+          });
+        }
+
+        // Producto simple o variante, retornar directo
         return res.json({ success: true, data: [product] });
       }
 
@@ -380,49 +442,52 @@ router.get(
           sku: query,
           isActive: true,
         },
-        include: {
-          category: { select: { id: true, name: true } },
-          brand: { select: { id: true, name: true } },
-          prices: priceListId
-            ? {
-                where: { priceListId },
-                include: { priceList: { select: { id: true, name: true } } },
-              }
-            : {
-                include: { priceList: { select: { id: true, name: true } } },
-              },
-          stock: branchId
-            ? { where: { branchId } }
-            : true,
-        },
+        include: productInclude,
       });
 
       if (product) {
+        // Si es producto padre, retornar todas sus variantes
+        if (product.isParent) {
+          const variantes = await prisma.product.findMany({
+            where: {
+              tenantId: req.user!.tenantId,
+              parentProductId: product.id,
+              isActive: true,
+            },
+            include: productInclude,
+            orderBy: [{ size: 'asc' }, { color: 'asc' }],
+          });
+
+          return res.json({
+            success: true,
+            data: variantes.map(v => ({
+              ...v,
+              parentName: product!.name,
+              parentPrice: product!.basePrice,
+            })),
+            isParentSearch: true,
+            parent: {
+              id: product.id,
+              name: product.name,
+              sku: product.sku,
+              price: product.basePrice,
+            },
+          });
+        }
+
         return res.json({ success: true, data: [product] });
       }
 
-      // Buscar por nombre (parcial)
+      // Buscar por nombre (parcial) - excluir variantes, mostrar solo padres y simples
       const products = await prisma.product.findMany({
         where: {
           tenantId: req.user!.tenantId,
           isActive: true,
           name: { contains: query, mode: 'insensitive' },
+          // Excluir variantes (solo mostrar productos padre y simples)
+          parentProductId: null,
         },
-        include: {
-          category: { select: { id: true, name: true } },
-          brand: { select: { id: true, name: true } },
-          prices: priceListId
-            ? {
-                where: { priceListId },
-                include: { priceList: { select: { id: true, name: true } } },
-              }
-            : {
-                include: { priceList: { select: { id: true, name: true } } },
-              },
-          stock: branchId
-            ? { where: { branchId } }
-            : true,
-        },
+        include: productInclude,
         take: 20,
         orderBy: { name: 'asc' },
       });

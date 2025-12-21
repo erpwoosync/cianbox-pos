@@ -31,6 +31,7 @@ import CashMovementModal from '../components/CashMovementModal';
 import CashCountModal from '../components/CashCountModal';
 import SizeCurveModal from '../components/SizeCurveModal';
 import ProductSearchModal from '../components/ProductSearchModal';
+import TalleSelectorModal from '../components/TalleSelectorModal';
 
 interface Product {
   id: string;
@@ -50,9 +51,15 @@ interface Product {
     priceNet?: number;
     priceList?: { id: string; name: string }
   }>;
+  stock?: Array<{
+    quantity?: number;
+    reserved?: number;
+    available?: number;
+  }>;
   // Productos variables (curva de talles)
   isParent?: boolean;
   parentProductId?: string | null;
+  parentName?: string;
   size?: string | null;
   color?: string | null;
 }
@@ -254,6 +261,20 @@ export default function POS() {
 
   // Estado de consultor de productos
   const [showProductSearchModal, setShowProductSearchModal] = useState(false);
+
+  // Estado de selector de talles (escaneo de código padre)
+  const [showTalleSelectorModal, setShowTalleSelectorModal] = useState(false);
+  const [talleVariantes, setTalleVariantes] = useState<Array<{
+    id: string;
+    sku: string;
+    barcode: string;
+    name: string;
+    size: string;
+    color?: string;
+    stock: number;
+    price: number;
+  }>>([]);
+  const [talleParentInfo, setTalleParentInfo] = useState<{ name: string; price: number } | null>(null);
 
   // Estado offline/online
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -654,11 +675,41 @@ export default function POS() {
         user?.branch?.id
       );
       if (response.success) {
+        // Caso: Escaneo de código padre con múltiples variantes
+        if (response.isParentSearch && response.data.length > 1) {
+          // Preparar variantes para el selector de talles
+          const variantes = response.data.map((p: Product) => ({
+            id: p.id,
+            sku: p.sku,
+            barcode: p.barcode,
+            name: p.name,
+            size: p.size || '',
+            color: p.color || undefined,
+            stock: p.stock?.reduce((sum: number, s: { available?: number }) => sum + (s.available || 0), 0) || 0,
+            price: getProductPrice(p),
+          }));
+
+          setTalleVariantes(variantes);
+          setTalleParentInfo({
+            name: response.parent?.name || response.data[0].parentName || response.data[0].name,
+            price: response.parent?.price || getProductPrice(response.data[0]),
+          });
+          setShowTalleSelectorModal(true);
+          setSearchQuery('');
+          setSearchResults([]);
+          return;
+        }
+
         setSearchResults(response.data);
 
         // Si es un código de barras exacto y hay un resultado, agregar al carrito
         if (response.data.length === 1 && response.data[0].barcode === query) {
-          addToCart(response.data[0]);
+          // Si es producto padre, mostrar selector
+          if (response.data[0].isParent) {
+            handleProductClick(response.data[0]);
+          } else {
+            addToCart(response.data[0]);
+          }
           setSearchQuery('');
           setSearchResults([]);
         }
@@ -723,6 +774,35 @@ export default function POS() {
     addToCart(variant);
     setShowSizeCurveModal(false);
     setSelectedParentProduct(null);
+  };
+
+  // Handler cuando se selecciona un talle del selector rápido
+  const handleTalleSelect = (variante: {
+    id: string;
+    sku: string;
+    barcode: string;
+    name: string;
+    size: string;
+    color?: string;
+    stock: number;
+    price: number;
+  }) => {
+    // Construir producto para agregar al carrito
+    const product: Product = {
+      id: variante.id,
+      sku: variante.sku,
+      barcode: variante.barcode,
+      name: `${talleParentInfo?.name || variante.name} - T.${variante.size}${variante.color ? ` ${variante.color}` : ''}`,
+      basePrice: variante.price,
+      size: variante.size,
+      color: variante.color || null,
+      isParent: false,
+    };
+
+    addToCart(product);
+    setShowTalleSelectorModal(false);
+    setTalleVariantes([]);
+    setTalleParentInfo(null);
   };
 
   // Actualizar cantidad
@@ -1917,6 +1997,22 @@ export default function POS() {
         onAddToCart={addToCart}
         branchId={user?.branch?.id}
       />
+
+      {/* Modal selector de talles (escaneo código padre) */}
+      {talleParentInfo && (
+        <TalleSelectorModal
+          isOpen={showTalleSelectorModal}
+          onClose={() => {
+            setShowTalleSelectorModal(false);
+            setTalleVariantes([]);
+            setTalleParentInfo(null);
+          }}
+          onSelect={handleTalleSelect}
+          productName={talleParentInfo.name}
+          price={talleParentInfo.price}
+          variantes={talleVariantes}
+        />
+      )}
     </div>
   );
 }
