@@ -473,6 +473,12 @@ model Product {
   // Ubicación (para picking)
   location         String?   // "R1-F2-C3" (Rack-Fila-Columna)
 
+  // === PRODUCTOS VARIABLES (Curva de Talles) ===
+  isParent         Boolean   @default(false)  // true = producto padre con variantes
+  parentProductId  String?                    // ID del producto padre (null si es padre o simple)
+  size             String?                    // Talle: "38", "40", "L", "XL"
+  color            String?                    // Color: "Negro", "Blanco", "Beige"
+
   // Sincronización
   lastSyncedAt     DateTime?
   cianboxData      Json?     // Datos raw de Cianbox para referencia
@@ -484,6 +490,8 @@ model Product {
   tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   category         Category?        @relation(fields: [categoryId], references: [id])
   brand            Brand?           @relation(fields: [brandId], references: [id])
+  parentProduct    Product?         @relation("ProductVariants", fields: [parentProductId], references: [id])
+  variants         Product[]        @relation("ProductVariants")
   prices           ProductPrice[]
   stock            ProductStock[]
   saleItems        SaleItem[]
@@ -495,6 +503,8 @@ model Product {
   @@index([tenantId, categoryId])
   @@index([tenantId, brandId])
   @@index([tenantId, name])
+  @@index([tenantId, parentProductId])
+  @@index([tenantId, isParent])
   @@map("products")
 }
 

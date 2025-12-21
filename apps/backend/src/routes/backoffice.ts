@@ -184,12 +184,14 @@ router.get('/brands/:id', async (req: AuthenticatedRequest, res: Response, next:
 router.get('/products', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.user!.tenantId;
-    const { categoryId, brandId, search } = req.query;
+    const { categoryId, brandId, search, parentsOnly, hideVariants } = req.query;
 
     const where: {
       tenantId: string;
       categoryId?: string;
       brandId?: string;
+      isParent?: boolean;
+      parentProductId?: null;
       OR?: Array<{ name?: { contains: string; mode: 'insensitive' }; sku?: { contains: string; mode: 'insensitive' }; barcode?: { contains: string } }>;
     } = { tenantId };
 
@@ -199,6 +201,16 @@ router.get('/products', async (req: AuthenticatedRequest, res: Response, next: N
 
     if (brandId) {
       where.brandId = brandId as string;
+    }
+
+    // Filtro: solo productos padre (con variantes)
+    if (parentsOnly === 'true') {
+      where.isParent = true;
+    }
+
+    // Filtro: ocultar variantes (mostrar padres y productos simples)
+    if (hideVariants === 'true') {
+      where.parentProductId = null;
     }
 
     if (search) {
@@ -224,6 +236,9 @@ router.get('/products', async (req: AuthenticatedRequest, res: Response, next: N
           include: {
             branch: { select: { id: true, name: true } },
           },
+        },
+        _count: {
+          select: { variants: true },
         },
       },
       orderBy: { name: 'asc' },
@@ -258,6 +273,14 @@ router.get('/products/:id', async (req: AuthenticatedRequest, res: Response, nex
           include: {
             branch: { select: { id: true, name: true } },
           },
+        },
+        // Producto padre (si es variante)
+        parentProduct: {
+          select: { id: true, name: true, sku: true, imageUrl: true },
+        },
+        // Contador de variantes (si es padre)
+        _count: {
+          select: { variants: true },
         },
       },
     });
@@ -331,6 +354,138 @@ router.get('/products/:id/stock', async (req: AuthenticatedRequest, res: Respons
     res.json({
       success: true,
       data: stock,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Obtener curva de talles de un producto padre
+router.get('/products/:id/size-curve', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+    const { branchId } = req.query;
+
+    // Verificar que el producto existe y es padre
+    const parentProduct = await prisma.product.findFirst({
+      where: { id, tenantId },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        imageUrl: true,
+        isParent: true,
+        cianboxProductId: true,
+      },
+    });
+
+    if (!parentProduct) {
+      throw new ApiError(404, 'NOT_FOUND', 'Producto no encontrado');
+    }
+
+    if (!parentProduct.isParent) {
+      throw new ApiError(400, 'INVALID_REQUEST', 'El producto no es un producto padre con variantes');
+    }
+
+    // Obtener todas las variantes del producto padre
+    const variants = await prisma.product.findMany({
+      where: { tenantId, parentProductId: id },
+      select: {
+        id: true,
+        sku: true,
+        barcode: true,
+        size: true,
+        color: true,
+        isActive: true,
+        stock: {
+          where: branchId ? { branchId: branchId as string } : undefined,
+          select: {
+            quantity: true,
+            reserved: true,
+            available: true,
+            branch: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ size: 'asc' }, { color: 'asc' }],
+    });
+
+    // Extraer talles y colores únicos
+    const sizes = [...new Set(variants.map(v => v.size).filter(Boolean))].sort();
+    const colors = [...new Set(variants.map(v => v.color).filter(Boolean))].sort();
+
+    // Construir matriz de variantes con stock
+    const matrix: Record<string, {
+      variantId: string;
+      sku: string | null;
+      barcode: string | null;
+      isActive: boolean;
+      stock: number;
+      reserved: number;
+      available: number;
+    }> = {};
+
+    const totalsBySize: Record<string, number> = {};
+    const totalsByColor: Record<string, number> = {};
+    let totalStock = 0;
+
+    for (const variant of variants) {
+      const key = `${variant.size || 'N/A'}-${variant.color || 'N/A'}`;
+
+      // Sumar stock de todas las sucursales (o solo la filtrada)
+      const stockSum = variant.stock.reduce((sum, s) => sum + Number(s.available || 0), 0);
+      const reservedSum = variant.stock.reduce((sum, s) => sum + Number(s.reserved || 0), 0);
+      const quantitySum = variant.stock.reduce((sum, s) => sum + Number(s.quantity || 0), 0);
+
+      matrix[key] = {
+        variantId: variant.id,
+        sku: variant.sku,
+        barcode: variant.barcode,
+        isActive: variant.isActive,
+        stock: quantitySum,
+        reserved: reservedSum,
+        available: stockSum,
+      };
+
+      // Totales por talle
+      const sizeKey = variant.size || 'N/A';
+      totalsBySize[sizeKey] = (totalsBySize[sizeKey] || 0) + stockSum;
+
+      // Totales por color
+      const colorKey = variant.color || 'N/A';
+      totalsByColor[colorKey] = (totalsByColor[colorKey] || 0) + stockSum;
+
+      totalStock += stockSum;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        parent: {
+          id: parentProduct.id,
+          name: parentProduct.name,
+          sku: parentProduct.sku,
+          imageUrl: parentProduct.imageUrl,
+        },
+        sizes,
+        colors,
+        variants: variants.map(v => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          sku: v.sku,
+          barcode: v.barcode,
+          isActive: v.isActive,
+          stock: v.stock.reduce((sum, s) => sum + Number(s.available || 0), 0),
+        })),
+        matrix,
+        totals: {
+          bySize: totalsBySize,
+          byColor: totalsByColor,
+          total: totalStock,
+        },
+      },
     });
   } catch (error) {
     next(error);

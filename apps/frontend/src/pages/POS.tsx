@@ -28,6 +28,7 @@ import CashPanel from '../components/CashPanel';
 import CashOpenModal from '../components/CashOpenModal';
 import CashMovementModal from '../components/CashMovementModal';
 import CashCountModal from '../components/CashCountModal';
+import SizeCurveModal from '../components/SizeCurveModal';
 
 interface Product {
   id: string;
@@ -47,6 +48,11 @@ interface Product {
     priceNet?: number;
     priceList?: { id: string; name: string }
   }>;
+  // Productos variables (curva de talles)
+  isParent?: boolean;
+  parentProductId?: string | null;
+  size?: string | null;
+  color?: string | null;
 }
 
 interface AppliedPromotion {
@@ -239,6 +245,10 @@ export default function POS() {
   const [showMPQRModal, setShowMPQRModal] = useState(false);
   const [mpPointAvailable, setMpPointAvailable] = useState(false);
   const [mpQRAvailable, setMpQRAvailable] = useState(false);
+
+  // Estado de curva de talles (productos variables)
+  const [showSizeCurveModal, setShowSizeCurveModal] = useState(false);
+  const [selectedParentProduct, setSelectedParentProduct] = useState<Product | null>(null);
 
   // Estado offline/online
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -689,6 +699,25 @@ export default function POS() {
 
     setSearchQuery('');
     setSearchResults([]);
+  };
+
+  // Handler para clic en producto - maneja productos padre (curva de talles)
+  const handleProductClick = (product: Product) => {
+    if (product.isParent) {
+      // Si es producto padre, mostrar modal de curva de talles
+      setSelectedParentProduct(product);
+      setShowSizeCurveModal(true);
+    } else {
+      // Si es producto simple o variante, agregar directamente
+      addToCart(product);
+    }
+  };
+
+  // Handler cuando se selecciona una variante del modal
+  const handleVariantSelect = (variant: Product) => {
+    addToCart(variant);
+    setShowSizeCurveModal(false);
+    setSelectedParentProduct(null);
   };
 
   // Actualizar cantidad
@@ -1336,10 +1365,12 @@ export default function POS() {
             {searchResults.map((product) => (
               <button
                 key={product.id}
-                onClick={() => addToCart(product)}
+                onClick={() => handleProductClick(product)}
                 className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 border-b last:border-0"
               >
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                  product.isParent ? 'bg-purple-100' : 'bg-gray-100'
+                }`}>
                   {product.imageUrl ? (
                     <img
                       src={product.imageUrl}
@@ -1351,9 +1382,18 @@ export default function POS() {
                   )}
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-medium">{product.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{product.name}</p>
+                    {product.isParent && (
+                      <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                        Talles
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500">
                     {product.sku} | {product.barcode}
+                    {product.size && ` | T: ${product.size}`}
+                    {product.color && ` | ${product.color}`}
                   </p>
                 </div>
                 <p className="font-semibold">
@@ -1411,26 +1451,35 @@ export default function POS() {
                 return (
                   <button
                     key={product.id}
-                    onClick={() => addToCart(product)}
+                    onClick={() => handleProductClick(product)}
                     style={promo ? {
                       borderColor: `${promo.badgeColor || '#22C55E'}40`,
+                    } : product.isParent ? {
+                      borderColor: '#a855f740',
                     } : undefined}
                     className={`bg-white rounded-xl p-3 shadow-sm border-2 transition-all text-left relative ${
                       promo
                         ? 'hover:shadow-md'
+                        : product.isParent
+                        ? 'hover:shadow-md hover:border-purple-400'
                         : 'border-gray-100 hover:shadow-md hover:border-primary-200'
                     }`}
                     onMouseEnter={(e) => {
                       if (promo) {
                         e.currentTarget.style.borderColor = `${promo.badgeColor || '#22C55E'}80`;
+                      } else if (product.isParent) {
+                        e.currentTarget.style.borderColor = '#a855f780';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (promo) {
                         e.currentTarget.style.borderColor = `${promo.badgeColor || '#22C55E'}40`;
+                      } else if (product.isParent) {
+                        e.currentTarget.style.borderColor = '#a855f740';
                       }
                     }}
                   >
+                    {/* Badge de promoción */}
                     {promo && (
                       <div
                         style={{ backgroundColor: promo.badgeColor || '#22C55E' }}
@@ -1440,7 +1489,15 @@ export default function POS() {
                         {formatPromotionBadge(promo)}
                       </div>
                     )}
-                    <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
+                    {/* Badge de producto padre (curva de talles) */}
+                    {product.isParent && !promo && (
+                      <div className="absolute -top-2 -right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm z-10">
+                        Talles
+                      </div>
+                    )}
+                    <div className={`aspect-square rounded-lg mb-2 flex items-center justify-center overflow-hidden ${
+                      product.isParent ? 'bg-purple-50' : 'bg-gray-100'
+                    }`}>
                       {product.imageUrl ? (
                         <img
                           src={product.imageUrl}
@@ -1823,6 +1880,20 @@ export default function POS() {
         mode={cashCountMode}
         expectedAmount={expectedCash}
       />
+
+      {/* Modal de curva de talles */}
+      {selectedParentProduct && (
+        <SizeCurveModal
+          isOpen={showSizeCurveModal}
+          onClose={() => {
+            setShowSizeCurveModal(false);
+            setSelectedParentProduct(null);
+          }}
+          onSelectVariant={handleVariantSelect}
+          parentProduct={selectedParentProduct}
+          branchId={user?.branch?.id}
+        />
+      )}
     </div>
   );
 }

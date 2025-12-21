@@ -697,6 +697,10 @@ export class CianboxService {
         imageUrl: product.imagenes?.[0] || null,
         isActive: product.vigente ?? true,
         isService: !product.afecta_stock,
+        // Curva de talles (productos variables)
+        isParent: product.es_padre ?? false,
+        size: product.talle || null,
+        color: product.color || null,
         lastSyncedAt: new Date(),
         cianboxData: product as unknown as object,
       };
@@ -806,12 +810,40 @@ export class CianboxService {
       }
     }
 
+    // === SEGUNDA PASADA: Resolver relaciones padre-hijo para curva de talles ===
+    console.log(`[Cianbox] Resolviendo relaciones padre-hijo de productos variables...`);
+    let parentRelationsResolved = 0;
+
+    for (const product of products) {
+      // Solo procesar variantes (tienen id_producto_padre > 0)
+      if (product.id_producto_padre && product.id_producto_padre > 0) {
+        // Buscar el producto padre en nuestra BD
+        const parentProduct = await prisma.product.findFirst({
+          where: { tenantId, cianboxProductId: product.id_producto_padre },
+          select: { id: true },
+        });
+
+        if (parentProduct) {
+          // Actualizar la variante con la referencia al padre
+          await prisma.product.updateMany({
+            where: { tenantId, cianboxProductId: product.id },
+            data: { parentProductId: parentProduct.id },
+          });
+          parentRelationsResolved++;
+        }
+      }
+    }
+
+    if (parentRelationsResolved > 0) {
+      console.log(`[Cianbox] Resueltas ${parentRelationsResolved} relaciones padre-hijo`);
+    }
+
     // Actualizar última sincronización
     await prisma.cianboxConnection.update({
       where: { id: this.connection.id },
       data: {
         lastSync: new Date(),
-        syncStatus: `Sincronizados ${synced} productos con precios y stock`,
+        syncStatus: `Sincronizados ${synced} productos con precios, stock y ${parentRelationsResolved} relaciones de variantes`,
       },
     });
 
@@ -1331,6 +1363,10 @@ export class CianboxService {
         imageUrl: product.imagenes?.[0] || null,
         isActive: product.vigente ?? true,
         isService: !product.afecta_stock,
+        // Curva de talles (productos variables)
+        isParent: product.es_padre ?? false,
+        size: product.talle || null,
+        color: product.color || null,
         lastSyncedAt: new Date(),
         cianboxData: product as unknown as object,
       };

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { productsApi, categoriesApi, brandsApi, Product, Category, Brand } from '../services/api';
-import { Package, RefreshCw, Search, Filter, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, RefreshCw, Search, Filter, Eye, ChevronLeft, ChevronRight, Layers, Grid3x3 } from 'lucide-react';
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -12,6 +12,8 @@ export default function Products() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [hideVariants, setHideVariants] = useState(true); // Por defecto ocultar variantes
+  const [parentsOnly, setParentsOnly] = useState(false);
   const [page, setPage] = useState(1);
   const itemsPerPage = 20;
 
@@ -44,7 +46,12 @@ export default function Products() {
       (product.barcode && product.barcode.includes(search));
     const matchesCategory = !categoryFilter || product.category?.id === categoryFilter;
     const matchesBrand = !brandFilter || product.brand?.id === brandFilter;
-    return matchesSearch && matchesCategory && matchesBrand;
+
+    // Filtros de productos variables
+    const matchesParentsOnly = !parentsOnly || product.isParent === true;
+    const matchesHideVariants = !hideVariants || !product.parentProductId;
+
+    return matchesSearch && matchesCategory && matchesBrand && matchesParentsOnly && matchesHideVariants;
   });
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
@@ -93,55 +100,86 @@ export default function Products() {
             >
               <Filter size={18} />
               Filtros
-              {(categoryFilter || brandFilter) && (
+              {(categoryFilter || brandFilter || parentsOnly) && (
                 <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
-                  {(categoryFilter ? 1 : 0) + (brandFilter ? 1 : 0)}
+                  {(categoryFilter ? 1 : 0) + (brandFilter ? 1 : 0) + (parentsOnly ? 1 : 0)}
                 </span>
               )}
             </button>
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Categoría
+            <div className="mt-4 pt-4 border-t space-y-4">
+              {/* Filtros de productos variables */}
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={hideVariants}
+                    onChange={(e) => {
+                      setHideVariants(e.target.checked);
+                      setPage(1);
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Ocultar variantes</span>
                 </label>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => {
-                    setCategoryFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                >
-                  <option value="">Todas las categorías</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={parentsOnly}
+                    onChange={(e) => {
+                      setParentsOnly(e.target.checked);
+                      if (e.target.checked) setHideVariants(true);
+                      setPage(1);
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Solo productos padre (con variantes)</span>
+                </label>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Marca
-                </label>
-                <select
-                  value={brandFilter}
-                  onChange={(e) => {
-                    setBrandFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                >
-                  <option value="">Todas las marcas</option>
-                  {brands.map((brand) => (
-                    <option key={brand.id} value={brand.id}>
-                      {brand.name}
-                    </option>
-                  ))}
-                </select>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Categoría
+                  </label>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => {
+                      setCategoryFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  >
+                    <option value="">Todas las categorías</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Marca
+                  </label>
+                  <select
+                    value={brandFilter}
+                    onChange={(e) => {
+                      setBrandFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  >
+                    <option value="">Todas las marcas</option>
+                    {brands.map((brand) => (
+                      <option key={brand.id} value={brand.id}>
+                        {brand.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           )}
@@ -175,6 +213,9 @@ export default function Products() {
                       Marca
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      Variantes
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                       Estado
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
@@ -187,14 +228,29 @@ export default function Products() {
                     <tr key={product.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <Package size={20} className="text-gray-400" />
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            product.isParent ? 'bg-purple-100' : 'bg-gray-100'
+                          }`}>
+                            {product.isParent ? (
+                              <Layers size={20} className="text-purple-600" />
+                            ) : (
+                              <Package size={20} className="text-gray-400" />
+                            )}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900">{product.name}</p>
-                            {product.barcode && (
-                              <p className="text-sm text-gray-500">{product.barcode}</p>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-900">{product.name}</p>
+                              {product.isParent && (
+                                <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                                  Padre
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              {product.barcode && <span>{product.barcode}</span>}
+                              {product.size && <span>Talle: {product.size}</span>}
+                              {product.color && <span>Color: {product.color}</span>}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -204,6 +260,19 @@ export default function Products() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {product.brand?.name || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {product.isParent && product._count?.variants ? (
+                          <Link
+                            to={`/products/${product.id}`}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full hover:bg-purple-200 transition-colors"
+                          >
+                            <Grid3x3 size={14} />
+                            <span className="text-xs font-medium">{product._count.variants}</span>
+                          </Link>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span

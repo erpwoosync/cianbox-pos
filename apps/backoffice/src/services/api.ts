@@ -116,7 +116,13 @@ export const brandsApi = {
 
 // Products API
 export const productsApi = {
-  getAll: async (params?: { categoryId?: string; brandId?: string; search?: string }) => {
+  getAll: async (params?: {
+    categoryId?: string;
+    brandId?: string;
+    search?: string;
+    parentsOnly?: boolean;  // Solo productos padre con variantes
+    hideVariants?: boolean; // Ocultar variantes, mostrar padres y simples
+  }) => {
     const response = await api.get('/backoffice/products', { params });
     return response.data.data;
   },
@@ -136,7 +142,48 @@ export const productsApi = {
     const response = await api.delete(`/backoffice/products/${id}`);
     return response.data;
   },
+  // Curva de talles para productos padre
+  getSizeCurve: async (productId: string, branchId?: string) => {
+    const params = branchId ? { branchId } : undefined;
+    const response = await api.get(`/backoffice/products/${productId}/size-curve`, { params });
+    return response.data.data as SizeCurveData;
+  },
 };
+
+// Tipos para curva de talles
+export interface SizeCurveData {
+  parent: {
+    id: string;
+    name: string;
+    sku: string | null;
+    imageUrl: string | null;
+  };
+  sizes: string[];
+  colors: string[];
+  variants: Array<{
+    id: string;
+    size: string | null;
+    color: string | null;
+    sku: string | null;
+    barcode: string | null;
+    isActive: boolean;
+    stock: number;
+  }>;
+  matrix: Record<string, {
+    variantId: string;
+    sku: string | null;
+    barcode: string | null;
+    isActive: boolean;
+    stock: number;
+    reserved: number;
+    available: number;
+  }>;
+  totals: {
+    bySize: Record<string, number>;
+    byColor: Record<string, number>;
+    total: number;
+  };
+}
 
 // Prices API
 export const pricesApi = {
@@ -268,6 +315,14 @@ export interface Product {
   isActive: boolean;
   prices?: ProductPrice[];
   stock?: ProductStock[];
+  // Productos variables (curva de talles)
+  isParent?: boolean;
+  parentProductId?: string | null;
+  size?: string | null;
+  color?: string | null;
+  _count?: {
+    variants: number;
+  };
 }
 
 export interface ProductPrice {

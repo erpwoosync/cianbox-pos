@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { productsApi, pricesApi, stockApi, Product, ProductPrice, ProductStock } from '../services/api';
-import { Package, ArrowLeft, RefreshCw, DollarSign, Warehouse, Tag, FolderTree } from 'lucide-react';
+import { productsApi, pricesApi, stockApi, Product, ProductPrice, ProductStock, SizeCurveData } from '../services/api';
+import { Package, ArrowLeft, RefreshCw, DollarSign, Warehouse, Tag, FolderTree, Grid3x3, Layers } from 'lucide-react';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [prices, setPrices] = useState<ProductPrice[]>([]);
   const [stock, setStock] = useState<ProductStock[]>([]);
+  const [sizeCurve, setSizeCurve] = useState<SizeCurveData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('info');
 
@@ -28,6 +29,16 @@ export default function ProductDetail() {
       setProduct(productData);
       setPrices(pricesData);
       setStock(stockData);
+
+      // Si es producto padre, cargar curva de talles
+      if (productData.isParent) {
+        try {
+          const curveData = await productsApi.getSizeCurve(id!);
+          setSizeCurve(curveData);
+        } catch (err) {
+          console.error('Error loading size curve:', err);
+        }
+      }
     } catch (error) {
       console.error('Error loading product:', error);
     } finally {
@@ -54,10 +65,13 @@ export default function ProductDetail() {
     );
   }
 
+  // Tabs dinámicos: agregar "Curva de Talles" si es producto padre
   const tabs = [
     { id: 'info', label: 'Información', icon: Package },
     { id: 'prices', label: 'Precios', icon: DollarSign },
     { id: 'stock', label: 'Stock', icon: Warehouse },
+    // Agregar tab de curva de talles si es producto padre
+    ...(product?.isParent ? [{ id: 'sizeCurve', label: 'Curva de Talles', icon: Grid3x3 }] : []),
   ];
 
   return (
@@ -259,6 +273,115 @@ export default function ProductDetail() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab de Curva de Talles */}
+          {activeTab === 'sizeCurve' && sizeCurve && (
+            <div>
+              {/* Header con totales */}
+              <div className="mb-6 flex items-center gap-4">
+                <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
+                  <Layers size={18} className="text-blue-600" />
+                  <span className="text-sm text-gray-600">Variantes:</span>
+                  <span className="font-bold text-blue-600">{sizeCurve.variants.length}</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg">
+                  <Warehouse size={18} className="text-green-600" />
+                  <span className="text-sm text-gray-600">Stock Total:</span>
+                  <span className="font-bold text-green-600">{sizeCurve.totals.total}</span>
+                </div>
+              </div>
+
+              {/* Matriz de talles/colores */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-3 bg-gray-100 text-left text-xs font-medium text-gray-600 uppercase border">
+                        Talle / Color
+                      </th>
+                      {sizeCurve.colors.map((color) => (
+                        <th
+                          key={color}
+                          className="px-4 py-3 bg-gray-100 text-center text-xs font-medium text-gray-600 uppercase border min-w-[80px]"
+                        >
+                          {color}
+                        </th>
+                      ))}
+                      <th className="px-4 py-3 bg-gray-200 text-center text-xs font-bold text-gray-700 uppercase border min-w-[80px]">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sizeCurve.sizes.map((size) => (
+                      <tr key={size}>
+                        <td className="px-4 py-3 bg-gray-50 font-medium text-gray-900 border">
+                          {size}
+                        </td>
+                        {sizeCurve.colors.map((color) => {
+                          const key = `${size}-${color}`;
+                          const cell = sizeCurve.matrix[key];
+                          const stock = cell?.available ?? 0;
+                          return (
+                            <td
+                              key={key}
+                              className={`px-4 py-3 text-center border font-medium ${
+                                stock <= 0
+                                  ? 'bg-red-50 text-red-600'
+                                  : stock < 5
+                                  ? 'bg-amber-50 text-amber-600'
+                                  : 'bg-green-50 text-green-600'
+                              }`}
+                              title={cell ? `SKU: ${cell.sku || '-'}\nCódigo: ${cell.barcode || '-'}` : 'Sin variante'}
+                            >
+                              {stock}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-3 bg-gray-100 text-center font-bold text-gray-900 border">
+                          {sizeCurve.totals.bySize[size] || 0}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td className="px-4 py-3 bg-gray-200 font-bold text-gray-900 border">
+                        Total
+                      </td>
+                      {sizeCurve.colors.map((color) => (
+                        <td
+                          key={color}
+                          className="px-4 py-3 bg-gray-100 text-center font-bold text-gray-900 border"
+                        >
+                          {sizeCurve.totals.byColor[color] || 0}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3 bg-blue-100 text-center font-bold text-blue-700 border">
+                        {sizeCurve.totals.total}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Leyenda */}
+              <div className="mt-4 flex items-center gap-4 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 bg-green-50 border rounded"></div>
+                  <span>Stock OK (≥5)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 bg-amber-50 border rounded"></div>
+                  <span>Stock bajo (1-4)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 bg-red-50 border rounded"></div>
+                  <span>Sin stock (0)</span>
+                </div>
+              </div>
             </div>
           )}
         </div>

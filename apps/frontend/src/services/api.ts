@@ -124,6 +124,47 @@ export const authService = {
   },
 };
 
+// Tipos de productos variables (curva de talles)
+export interface SizeCurveVariant {
+  id: string;
+  size: string | null;
+  color: string | null;
+  sku: string | null;
+  barcode: string | null;
+  isActive: boolean;
+  stock: number;
+}
+
+export interface SizeCurveMatrix {
+  [key: string]: {
+    variantId: string;
+    sku: string | null;
+    barcode: string | null;
+    isActive: boolean;
+    stock: number;
+    reserved: number;
+    available: number;
+  };
+}
+
+export interface SizeCurveData {
+  parent: {
+    id: string;
+    name: string;
+    sku: string | null;
+    imageUrl: string | null;
+  };
+  sizes: string[];
+  colors: string[];
+  variants: SizeCurveVariant[];
+  matrix: SizeCurveMatrix;
+  totals: {
+    bySize: Record<string, number>;
+    byColor: Record<string, number>;
+    total: number;
+  };
+}
+
 // Servicios de productos
 export const productsService = {
   list: async (params?: {
@@ -156,6 +197,13 @@ export const productsService = {
 
   getBrands: async () => {
     const response = await api.get('/products/brands');
+    return response.data;
+  },
+
+  // Obtener curva de talles de un producto padre
+  getSizeCurve: async (productId: string, branchId?: string): Promise<ApiResponse<SizeCurveData>> => {
+    const params = branchId ? { branchId } : undefined;
+    const response = await api.get(`/backoffice/products/${productId}/size-curve`, { params });
     return response.data;
   },
 };
