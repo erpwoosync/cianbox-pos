@@ -1606,9 +1606,9 @@ export default function POS() {
                         {formatPromotionBadge(promo)}
                       </div>
                     )}
-                    {/* Badge de producto padre (curva de talles) */}
-                    {product.isParent && !promo && (
-                      <div className="absolute -top-2 -right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm z-10">
+                    {/* Badge de producto padre (curva de talles) - siempre visible */}
+                    {product.isParent && (
+                      <div className={`absolute ${promo ? '-top-2 -left-2' : '-top-2 -right-2'} bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm z-10`}>
                         Talles
                       </div>
                     )}
