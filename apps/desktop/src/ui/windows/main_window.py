@@ -1789,6 +1789,41 @@ class MainWindow(QMainWindow):
                 search=query,
                 limit=50,
             )
+
+            # Si hay exactamente 1 resultado y es una variante con codigo de barras exacto,
+            # agregarlo directamente al carrito sin mostrar dialogo de seleccion
+            if len(products) == 1:
+                product = products[0]
+                product_dict = product if isinstance(product, dict) else {
+                    "id": product.id,
+                    "code": product.sku or "",
+                    "name": product.name,
+                    "price": float(product.base_price or 0),
+                    "barcode": product.barcode,
+                    "sku": product.sku,
+                    "is_parent": product.is_parent,
+                    "parent_product_id": product.parent_product_id,
+                    "size": product.size,
+                    "color": product.color,
+                    "category_id": product.category_id,
+                    "brand_id": product.brand_id,
+                }
+
+                barcode = product_dict.get("barcode") or ""
+                sku = product_dict.get("sku") or ""
+                is_exact_match = (query == barcode or query == sku)
+                is_variant = product_dict.get("parent_product_id") is not None
+                is_parent = product_dict.get("is_parent", False)
+
+                # Si es coincidencia exacta de codigo y es una variante (no padre),
+                # agregar directamente al carrito
+                if is_exact_match and is_variant and not is_parent:
+                    logger.info(f"Codigo exacto de variante, agregando directo: {product_dict['name']}")
+                    self._add_product_to_cart(product_dict)
+                    self.search_input.clear()
+                    self._focus_search()
+                    return
+
             self._render_products(products)
             logger.debug(f"Busqueda: '{query}' - {len(products)} resultados")
         except Exception as e:
