@@ -271,6 +271,9 @@ router.get(
       // Construir filtros
       const where: Record<string, unknown> = {
         tenantId: req.user!.tenantId,
+        // Excluir variantes (solo mostrar productos padre y simples)
+        // Las variantes se acceden a través del selector de talle/color
+        parentProductId: null,
       };
 
       if (search) {
