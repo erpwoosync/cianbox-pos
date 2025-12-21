@@ -2636,12 +2636,40 @@ router.delete('/branches/cleanup-unmapped',
         console.log(`[Cleanup] Eliminados ${branch._count.productStock} registros de stock huérfano`);
       }
 
-      // No se pueden migrar ventas históricas, mantenerlas vinculadas causa error
-      // Las ventas quedarán con branchId inválido, pero esto es aceptable para datos históricos
-      // Si hay ventas, no eliminar la sucursal
+      // Migrar ventas a la sucursal destino
       if (branch._count.sales > 0) {
-        console.log(`[Cleanup] Sucursal ${branch.name} tiene ${branch._count.sales} ventas, no se puede eliminar`);
-        continue;
+        await prisma.sale.updateMany({
+          where: { branchId: branch.id },
+          data: { branchId: targetBranch.id },
+        });
+        console.log(`[Cleanup] Migradas ${branch._count.sales} ventas de ${branch.name}`);
+      }
+
+      // Migrar items de venta (tienen branchId propio)
+      const saleItemsUpdated = await prisma.saleItem.updateMany({
+        where: { branchId: branch.id },
+        data: { branchId: targetBranch.id },
+      });
+      if (saleItemsUpdated.count > 0) {
+        console.log(`[Cleanup] Migrados ${saleItemsUpdated.count} items de venta`);
+      }
+
+      // Migrar sesiones de caja
+      const cashSessionsUpdated = await prisma.cashSession.updateMany({
+        where: { branchId: branch.id },
+        data: { branchId: targetBranch.id },
+      });
+      if (cashSessionsUpdated.count > 0) {
+        console.log(`[Cleanup] Migradas ${cashSessionsUpdated.count} sesiones de caja`);
+      }
+
+      // Migrar cajas registradoras
+      const cashRegistersUpdated = await prisma.cashRegister.updateMany({
+        where: { branchId: branch.id },
+        data: { branchId: targetBranch.id },
+      });
+      if (cashRegistersUpdated.count > 0) {
+        console.log(`[Cleanup] Migradas ${cashRegistersUpdated.count} cajas registradoras`);
       }
 
       // Eliminar la sucursal
