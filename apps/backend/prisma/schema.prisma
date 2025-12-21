@@ -124,6 +124,7 @@ model Tenant {
   printPoints       PrintPoint[]
   mercadoPagoConfigs MercadoPagoConfig[]  // Plural: puede tener config para Point y QR
   mercadoPagoOrders MercadoPagoOrder[]
+  posTerminals      PosTerminal[]
 
   @@map("tenants")
 }
@@ -175,6 +176,9 @@ model User {
   movementsCreated     CashMovement[]  @relation("MovementCreatedBy")
   cashCountsCounted    CashCount[]     @relation("CashCountCountedBy")
   cashCountsVerified   CashCount[]     @relation("CashCountVerifiedBy")
+
+  // Terminales POS
+  terminalLogins       PosTerminal[]   @relation("TerminalLastLogin")
 
   @@unique([tenantId, email])
   @@index([tenantId, branchId])
@@ -333,6 +337,7 @@ model PointOfSale {
   cashRegisters CashRegister[]
   cashSessions  CashSession[]
   sessions      UserSession[]
+  terminals     PosTerminal[]
 
   @@unique([tenantId, branchId, code])
   @@map("points_of_sale")
@@ -1489,4 +1494,58 @@ model SystemConfig {
 
   @@unique([tenantId, key])
   @@map("system_configs")
+}
+
+// ==============================================
+// TERMINALES POS (PCs físicas con software POS)
+// ==============================================
+
+model PosTerminal {
+  id              String            @id @default(cuid())
+  tenantId        String
+
+  // Identificación del hardware
+  hostname        String            // Nombre de la PC (ej: "CAJA-01", "PC-VENTAS")
+  macAddress      String            // MAC de la placa de red (ej: "00:1A:2B:3C:4D:5E")
+  deviceId        String            @unique // UUID generado para identificar este terminal
+
+  // Información adicional del dispositivo
+  osVersion       String?           // "Windows 10 Pro", "Windows 11"
+  appVersion      String?           // Versión del software POS instalado
+  ipAddress       String?           // Última IP conocida
+
+  // Nombre amigable (editable por admin)
+  name            String?           // "Caja Principal", "Terminal Depósito"
+  description     String?
+
+  // Vinculación con Punto de Venta
+  pointOfSaleId   String?           // Link al PointOfSale (sucursal + lista de precios)
+
+  // Estado
+  status          PosTerminalStatus @default(PENDING)
+
+  // Tracking
+  registeredAt    DateTime          @default(now()) // Primera vez que se registró
+  lastSeenAt      DateTime          @default(now()) // Última conexión
+  lastLoginUserId String?           // Último usuario que inició sesión
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relaciones
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pointOfSale   PointOfSale? @relation(fields: [pointOfSaleId], references: [id])
+  lastLoginUser User?        @relation("TerminalLastLogin", fields: [lastLoginUserId], references: [id])
+
+  @@unique([tenantId, macAddress]) // Una MAC por tenant
+  @@unique([tenantId, hostname])   // Un hostname por tenant
+  @@index([tenantId, status])
+  @@map("pos_terminals")
+}
+
+enum PosTerminalStatus {
+  PENDING     // Registrado, pendiente de activación
+  ACTIVE      // Activo, puede operar
+  DISABLED    // Desactivado por admin
+  BLOCKED     // Bloqueado (seguridad)
 }
