@@ -590,11 +590,12 @@ class MainWindow(QMainWindow):
         """)
         layout.addWidget(label)
 
-        # Contenedor de botones de categorias
+        # Contenedor de botones de categorias (botones mas anchos para evitar cortes)
         self.quick_category_buttons: List[QPushButton] = []
         for i in range(9):  # F1-F9
             btn = QPushButton(f"F{i+1}")
-            btn.setFixedSize(60, 26)
+            btn.setFixedHeight(26)
+            btn.setMinimumWidth(70)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setProperty("quick_index", i)
             btn.setStyleSheet(f"""
@@ -605,6 +606,7 @@ class MainWindow(QMainWindow):
                     border-radius: 4px;
                     font-size: 10px;
                     font-weight: 500;
+                    padding: 0 6px;
                 }}
                 QPushButton:hover {{
                     background-color: {self.theme.primary_bg};
@@ -632,12 +634,15 @@ class MainWindow(QMainWindow):
         for i, btn in enumerate(self.quick_category_buttons):
             if i < len(active_categories):
                 cat = active_categories[i]
-                # Truncar nombre si es muy largo
-                name = cat.name[:8] + ".." if len(cat.name) > 10 else cat.name
-                btn.setText(f"F{i+1} {name}")
+                # Normalizar nombre: reemplazar __ por espacio y capitalizar
+                display_name = cat.name.replace("__", " ").replace("_", " ")
+                # Truncar si es muy largo para el boton
+                short_name = display_name[:10] + ".." if len(display_name) > 12 else display_name
+                btn.setText(f"F{i+1} {short_name}")
                 btn.setProperty("category_id", cat.id)
                 btn.setEnabled(True)
-                btn.setToolTip(f"F{i+1}: {cat.name}")
+                # Tooltip con nombre completo y normalizado
+                btn.setToolTip(f"F{i+1}: {display_name}\nClick o presiona F{i+1}")
 
                 # Estilo con color de categoria si existe
                 cat_color = getattr(cat, 'color', None) or self.theme.primary
@@ -984,7 +989,7 @@ class MainWindow(QMainWindow):
         cart_title.setStyleSheet(f"color: {self.theme.text_primary}; background: transparent;")
         header_layout.addWidget(cart_title)
 
-        self.cart_count_label = QLabel("0 items")
+        self.cart_count_label = QLabel("0 unidades")
         self.cart_count_label.setStyleSheet(f"""
             color: {self.theme.gray_500};
             font-size: 12px;
@@ -1250,18 +1255,20 @@ class MainWindow(QMainWindow):
         qty_layout.setContentsMargins(0, 0, 0, 0)
         qty_layout.setSpacing(4)
 
-        # Boton -
-        minus_btn = QPushButton("-")
-        minus_btn.setFixedSize(24, 24)
+        # Boton - (usar unicode minus sign)
+        minus_btn = QPushButton("\u2212")  # Unicode minus sign
+        minus_btn.setFixedSize(26, 26)
         minus_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        minus_btn.setToolTip("Quitar una unidad")
         minus_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.gray_200};
                 color: {self.theme.text_primary};
                 border: none;
                 border-radius: 4px;
-                font-size: 14px;
+                font-size: 16px;
                 font-weight: bold;
+                font-family: Arial, sans-serif;
             }}
             QPushButton:hover {{
                 background-color: {self.theme.gray_300};
@@ -1292,18 +1299,20 @@ class MainWindow(QMainWindow):
         qty_input.editingFinished.connect(lambda: self._set_item_quantity(item_id, qty_input.text()))
         qty_layout.addWidget(qty_input)
 
-        # Boton +
-        plus_btn = QPushButton("+")
-        plus_btn.setFixedSize(24, 24)
+        # Boton + (usar unicode plus sign)
+        plus_btn = QPushButton("\u002B")  # Plus sign
+        plus_btn.setFixedSize(26, 26)
         plus_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        plus_btn.setToolTip("Agregar una unidad")
         plus_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.primary};
                 color: white;
                 border: none;
                 border-radius: 4px;
-                font-size: 14px;
+                font-size: 16px;
                 font-weight: bold;
+                font-family: Arial, sans-serif;
             }}
             QPushButton:hover {{
                 background-color: {self.theme.primary_dark};
@@ -1348,18 +1357,20 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(subtotal_widget)
 
-        # Boton eliminar
-        delete_btn = QPushButton("✕")
-        delete_btn.setFixedSize(24, 24)
+        # Boton eliminar (usar X simple)
+        delete_btn = QPushButton("X")
+        delete_btn.setFixedSize(26, 26)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete_btn.setToolTip("Eliminar producto del carrito")
         delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.danger};
                 color: white;
                 border: none;
-                border-radius: 12px;
+                border-radius: 13px;
                 font-size: 12px;
                 font-weight: bold;
+                font-family: Arial, sans-serif;
             }}
             QPushButton:hover {{
                 background-color: #DC2626;
@@ -1405,9 +1416,16 @@ class MainWindow(QMainWindow):
 
         statusbar.addPermanentWidget(QLabel(" | "))
 
-        # Turno
-        self.cash_label = QLabel("Turno: Sin abrir")
-        self.cash_label.setStyleSheet(f"color: {self.theme.gray_500};")
+        # Turno - resaltado si no esta abierto
+        self.cash_label = QLabel("⚠ Turno: Sin abrir")
+        self.cash_label.setStyleSheet(f"""
+            color: {self.theme.warning};
+            font-weight: 600;
+            padding: 2px 8px;
+            background-color: {self.theme.warning_bg};
+            border-radius: 4px;
+        """)
+        self.cash_label.setToolTip("El turno de caja no esta abierto. Abrelo para registrar ventas.")
         statusbar.addPermanentWidget(self.cash_label)
 
     def _setup_shortcuts(self) -> None:
@@ -1950,9 +1968,15 @@ class MainWindow(QMainWindow):
             widget = self._create_cart_item_widget(cart_item)
             self.cart_items_layout.insertWidget(self.cart_items_layout.count() - 1, widget)
 
-        # Actualizar contador
-        total_items = sum(item["quantity"] for item in self.cart_items)
-        self.cart_count_label.setText(f"{total_items} items")
+        # Actualizar contador - mostrar productos y unidades
+        total_units = sum(item["quantity"] for item in self.cart_items)
+        total_products = len(self.cart_items)
+        if total_products == 0:
+            self.cart_count_label.setText("0 unidades")
+        elif total_products == 1:
+            self.cart_count_label.setText(f"{total_units} {'unidad' if total_units == 1 else 'unidades'}")
+        else:
+            self.cart_count_label.setText(f"{total_products} productos ({total_units} uds)")
 
         # Calcular totales
         subtotal_before_discount = sum(item["price"] * item["quantity"] for item in self.cart_items)
