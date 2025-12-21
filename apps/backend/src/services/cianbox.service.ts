@@ -1191,6 +1191,7 @@ export class CianboxService {
         await prisma.branch.update({
           where: { id: existingBranch.id },
           data: {
+            name, // Actualizar nombre también
             address: branch.domicilio || existingBranch.address,
             city: branch.localidad || existingBranch.city,
             state: branch.provincia || existingBranch.state,
