@@ -695,7 +695,8 @@ export class CianboxService {
         minStock: product.cantidad_minima || null,
         location: product.ubicacion || null,
         imageUrl: product.imagenes?.[0] || null,
-        isActive: product.vigente ?? true,
+        // Productos padres siempre activos (sus variantes determinan disponibilidad)
+        isActive: product.es_padre ? true : (product.vigente ?? true),
         isService: !product.afecta_stock,
         // Curva de talles (productos variables)
         isParent: product.es_padre ?? false,
@@ -1541,7 +1542,8 @@ export class CianboxService {
         minStock: product.cantidad_minima || null,
         location: product.ubicacion || null,
         imageUrl: product.imagenes?.[0] || null,
-        isActive: product.vigente ?? true,
+        // Productos padres siempre activos (sus variantes determinan disponibilidad)
+        isActive: product.es_padre ? true : (product.vigente ?? true),
         isService: !product.afecta_stock,
         // Curva de talles (productos variables)
         isParent: product.es_padre ?? false,
