@@ -1,8 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient, MercadoPagoAppType } from '@prisma/client';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { mercadoPagoService } from '../services/mercadopago.service';
+
+// Clave secreta para validar webhooks de MP
+const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -1343,6 +1347,65 @@ router.get('/payments/pending-sync', authenticate, async (req: AuthenticatedRequ
 // ============================================
 
 /**
+ * Valida la firma del webhook de Mercado Pago
+ * Según documentación: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks
+ */
+function validateWebhookSignature(
+  xSignature: string | undefined,
+  xRequestId: string | undefined,
+  dataId: string | undefined
+): boolean {
+  if (!MP_WEBHOOK_SECRET) {
+    console.warn('[Webhook MP] MP_WEBHOOK_SECRET no configurado, saltando validación de firma');
+    return true; // Si no hay secret configurado, permitir (para desarrollo)
+  }
+
+  if (!xSignature) {
+    console.warn('[Webhook MP] Header x-signature no presente');
+    return false;
+  }
+
+  // Parsear x-signature: ts=1234567890,v1=abc123...
+  const signatureParts: Record<string, string> = {};
+  xSignature.split(',').forEach((part) => {
+    const [key, value] = part.split('=');
+    if (key && value) {
+      signatureParts[key.trim()] = value.trim();
+    }
+  });
+
+  const ts = signatureParts['ts'];
+  const v1 = signatureParts['v1'];
+
+  if (!ts || !v1) {
+    console.warn('[Webhook MP] Firma incompleta, falta ts o v1');
+    return false;
+  }
+
+  // Construir el manifest para verificar
+  // Formato: id:{data.id};request-id:{x-request-id};ts:{ts};
+  const manifest = `id:${dataId || ''};request-id:${xRequestId || ''};ts:${ts};`;
+
+  // Calcular HMAC-SHA256
+  const calculatedHash = crypto
+    .createHmac('sha256', MP_WEBHOOK_SECRET)
+    .update(manifest)
+    .digest('hex');
+
+  const isValid = calculatedHash === v1;
+
+  if (!isValid) {
+    console.warn('[Webhook MP] Firma inválida', {
+      manifest,
+      expected: v1,
+      calculated: calculatedHash,
+    });
+  }
+
+  return isValid;
+}
+
+/**
  * POST /api/webhooks/mercadopago
  * Recibe notificaciones de Mercado Pago
  */
@@ -1354,14 +1417,23 @@ webhookRouter.post('/mercadopago', async (req: Request, res: Response) => {
     const xRequestId = req.headers['x-request-id'] as string;
     const dataId = req.query['data.id'] as string || req.body?.data?.id;
 
-    console.log('Webhook MP recibido:', {
+    console.log('[Webhook MP] Recibido:', {
       headers: {
-        'x-signature': xSignature,
+        'x-signature': xSignature ? `${xSignature.substring(0, 30)}...` : undefined,
         'x-request-id': xRequestId,
       },
       query: req.query,
       body: req.body,
     });
+
+    // Validar firma del webhook
+    if (!validateWebhookSignature(xSignature, xRequestId, dataId)) {
+      console.error('[Webhook MP] Firma inválida, ignorando webhook');
+      // Respondemos 200 igual para que MP no reintente
+      return res.status(200).send('OK');
+    }
+
+    console.log('[Webhook MP] Firma válida, procesando...');
 
     // Procesar el webhook
     await mercadoPagoService.processWebhook(req.body);
@@ -1369,7 +1441,7 @@ webhookRouter.post('/mercadopago', async (req: Request, res: Response) => {
     // Siempre responder 200 para que MP no reintente
     res.status(200).send('OK');
   } catch (error) {
-    console.error('Error procesando webhook MP:', error);
+    console.error('[Webhook MP] Error procesando:', error);
     // Aun con error, respondemos 200 para evitar reintentos
     res.status(200).send('OK');
   }
