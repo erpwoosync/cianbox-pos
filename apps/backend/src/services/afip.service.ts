@@ -540,6 +540,30 @@ class AfipService {
   }
 
   /**
+   * Obtiene los puntos de venta habilitados en AFIP
+   */
+  async getSalesPointsFromAfip(tenantId: string): Promise<Array<{ number: number; type: string; blocked: string; dropDate: string | null }>> {
+    const afipInstance = await this.getAfipInstance(tenantId);
+    if (!afipInstance) {
+      throw new Error('Configuración AFIP no encontrada');
+    }
+
+    const result = await afipInstance.instance.ElectronicBilling.getSalesPoints();
+
+    // Normalizar respuesta
+    if (!result || !Array.isArray(result)) {
+      return [];
+    }
+
+    return result.map((sp: any) => ({
+      number: sp.Nro || sp.nro,
+      type: sp.EmisionTipo || sp.emisionTipo || 'N/A',
+      blocked: sp.Bloqueado || sp.bloqueado || 'N',
+      dropDate: sp.FchBaja || sp.fchBaja || null,
+    }));
+  }
+
+  /**
    * Consulta estado de los servidores de AFIP
    */
   async checkServerStatus(tenantId: string): Promise<{ appserver: string; dbserver: string; authserver: string }> {

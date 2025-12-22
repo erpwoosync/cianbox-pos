@@ -581,6 +581,25 @@ router.get('/status', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 /**
+ * GET /afip/afip-sales-points
+ * Obtiene los puntos de venta habilitados directamente de AFIP
+ */
+router.get('/afip-sales-points', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+
+    const salesPoints = await afipService.getSalesPointsFromAfip(tenantId);
+    res.json(salesPoints);
+  } catch (error: any) {
+    console.error('Error al obtener puntos de venta de AFIP:', error);
+    res.status(500).json({
+      error: 'Error al obtener puntos de venta',
+      message: error.message,
+    });
+  }
+});
+
+/**
  * GET /afip/last-voucher
  * Obtiene el último número de comprobante desde AFIP
  */

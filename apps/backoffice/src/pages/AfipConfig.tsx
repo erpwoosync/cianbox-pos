@@ -14,7 +14,8 @@ import {
   Settings,
   Receipt,
   QrCode,
-  ExternalLink
+  ExternalLink,
+  Download
 } from 'lucide-react';
 
 type Tab = 'config' | 'salesPoints' | 'invoices';
@@ -58,6 +59,7 @@ export default function AfipConfigPage() {
   const [showAddSalesPoint, setShowAddSalesPoint] = useState(false);
   const [newSalesPoint, setNewSalesPoint] = useState({ number: 1, name: '', pointOfSaleId: '' });
   const [creatingSalesPoint, setCreatingSalesPoint] = useState(false);
+  const [importingFromAfip, setImportingFromAfip] = useState(false);
 
   // Invoices state
   const [invoices, setInvoices] = useState<AfipInvoice[]>([]);
@@ -172,6 +174,50 @@ export default function AfipConfigPage() {
       showNotification('error', error.response?.data?.error || 'Error al crear punto de venta');
     } finally {
       setCreatingSalesPoint(false);
+    }
+  };
+
+  const handleImportFromAfip = async () => {
+    try {
+      setImportingFromAfip(true);
+      const afipPoints = await afipApi.getAfipSalesPoints();
+
+      // Filtrar los que no están bloqueados y no existen aún
+      const existingNumbers = salesPoints.map(sp => sp.number);
+      const toImport = afipPoints.filter(
+        ap => ap.blocked === 'N' && !ap.dropDate && !existingNumbers.includes(ap.number)
+      );
+
+      if (toImport.length === 0) {
+        if (afipPoints.length === 0) {
+          showNotification('error', 'No se encontraron puntos de venta en AFIP');
+        } else {
+          showNotification('success', `Encontrados ${afipPoints.length} puntos de venta. Todos ya están configurados.`);
+        }
+        return;
+      }
+
+      // Crear los puntos de venta que faltan
+      let created = 0;
+      for (const ap of toImport) {
+        try {
+          await afipApi.createSalesPoint({
+            number: ap.number,
+            name: `Punto de Venta ${ap.number} (${ap.type})`,
+          });
+          created++;
+        } catch (e) {
+          console.error(`Error creating sales point ${ap.number}:`, e);
+        }
+      }
+
+      await loadSalesPoints();
+      showNotification('success', `Importados ${created} puntos de venta de AFIP`);
+    } catch (error: any) {
+      console.error('Error importing from AFIP:', error);
+      showNotification('error', error.response?.data?.message || 'Error al importar de AFIP');
+    } finally {
+      setImportingFromAfip(false);
     }
   };
 
@@ -479,14 +525,24 @@ export default function AfipConfigPage() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Puntos de Venta AFIP</h2>
-            <button
-              onClick={() => setShowAddSalesPoint(true)}
-              disabled={!configured}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Plus className="w-4 h-4" />
-              Agregar Punto de Venta
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleImportFromAfip}
+                disabled={!configured || importingFromAfip}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                <Download className={`w-4 h-4 ${importingFromAfip ? 'animate-bounce' : ''}`} />
+                {importingFromAfip ? 'Importando...' : 'Importar de AFIP'}
+              </button>
+              <button
+                onClick={() => setShowAddSalesPoint(true)}
+                disabled={!configured}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" />
+                Agregar Manual
+              </button>
+            </div>
           </div>
 
           {!configured && (

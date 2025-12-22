@@ -1358,6 +1358,10 @@ export const afipApi = {
     const response = await api.get('/afip/status');
     return response.data as { appserver: string; dbserver: string; authserver: string };
   },
+  getAfipSalesPoints: async () => {
+    const response = await api.get('/afip/afip-sales-points');
+    return response.data as Array<{ number: number; type: string; blocked: string; dropDate: string | null }>;
+  },
   getLastVoucher: async (salesPointNumber: number, voucherType: string) => {
     const response = await api.get('/afip/last-voucher', { params: { salesPointNumber, voucherType } });
     return response.data as { lastNumber: number };
