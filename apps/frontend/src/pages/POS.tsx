@@ -35,6 +35,7 @@ import ProductSearchModal from '../components/ProductSearchModal';
 import TalleSelectorModal from '../components/TalleSelectorModal';
 import CustomerSelectorModal from '../components/CustomerSelectorModal';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
+import { offlineSyncService } from '../services/offlineSync';
 
 interface Product {
   id: string;
@@ -517,6 +518,9 @@ export default function POS() {
       console.error('Error cargando datos:', error);
     } finally {
       setIsLoadingProducts(false);
+
+      // Sincronizar datos a IndexedDB en segundo plano
+      offlineSyncService.syncAll().catch(console.error);
     }
   };
 
