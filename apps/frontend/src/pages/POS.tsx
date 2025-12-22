@@ -228,6 +228,12 @@ export default function POS() {
     initialTicket.id
   );
 
+  // Ref para tener siempre el ticket activo actualizado (evita problemas de closure)
+  const currentTicketIdRef = useRef(currentTicketId);
+  useEffect(() => {
+    currentTicketIdRef.current = currentTicketId;
+  }, [currentTicketId]);
+
   const [showTicketList, setShowTicketList] = useState(false);
 
   // Estado del carrito (computed from current ticket)
@@ -564,24 +570,26 @@ export default function POS() {
     });
   };
 
-  // Actualizar items del ticket actual
+  // Actualizar items del ticket actual (usa ref para evitar problemas de closure)
   const updateCart = (updater: (items: CartItem[]) => CartItem[]) => {
-    if (!currentTicketId) return;
+    const ticketId = currentTicketIdRef.current;
+    if (!ticketId) return;
     setTickets((prev: Ticket[]) =>
       prev.map((ticket: Ticket) =>
-        ticket.id === currentTicketId
+        ticket.id === ticketId
           ? { ...ticket, items: updater(ticket.items) }
           : ticket
       )
     );
   };
 
-  // Actualizar cliente del ticket actual
+  // Actualizar cliente del ticket actual (usa ref para evitar problemas de closure)
   const updateTicketCustomer = (customer: Customer | null) => {
-    if (!currentTicketId) return;
+    const ticketId = currentTicketIdRef.current;
+    if (!ticketId) return;
     setTickets((prev: Ticket[]) =>
       prev.map((ticket: Ticket) =>
-        ticket.id === currentTicketId
+        ticket.id === ticketId
           ? {
               ...ticket,
               customerId: customer?.id,
