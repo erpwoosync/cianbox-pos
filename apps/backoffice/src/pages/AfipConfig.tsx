@@ -321,6 +321,17 @@ export default function AfipConfigPage() {
     }
   };
 
+  const handleLinkPOS = async (afipSalesPointId: string, pointOfSaleId: string | null) => {
+    try {
+      await afipApi.updateSalesPoint(afipSalesPointId, { pointOfSaleId: pointOfSaleId || undefined });
+      await loadSalesPoints();
+      showNotification('success', pointOfSaleId ? 'Punto de venta vinculado' : 'Vinculación eliminada');
+    } catch (error: any) {
+      console.error('Error linking POS:', error);
+      showNotification('error', 'Error al vincular punto de venta');
+    }
+  };
+
   const handleViewInvoice = async (invoice: AfipInvoice) => {
     setSelectedInvoice(invoice);
     try {
@@ -814,7 +825,18 @@ export default function AfipConfigPage() {
                         <span className="font-mono font-semibold">{String(sp.number).padStart(4, '0')}</span>
                       </td>
                       <td className="px-4 py-3">{sp.name || '-'}</td>
-                      <td className="px-4 py-3">{sp.pointOfSale?.name || '-'}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={sp.pointOfSaleId || ''}
+                          onChange={(e) => handleLinkPOS(sp.id, e.target.value || null)}
+                          className="w-full px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Sin vincular</option>
+                          {systemPOSList.map(pos => (
+                            <option key={pos.id} value={pos.id}>{pos.name}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-4 py-3 font-mono">{sp.lastInvoiceB || 0}</td>
                       <td className="px-4 py-3">
                         {sp.isActive ? (
