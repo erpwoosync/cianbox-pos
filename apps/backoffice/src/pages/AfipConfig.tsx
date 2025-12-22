@@ -30,6 +30,11 @@ interface SystemPOS {
   id: string;
   code: string;
   name: string;
+  branch?: {
+    id: string;
+    name: string;
+    code: string;
+  };
 }
 
 export default function AfipConfigPage() {
@@ -834,7 +839,9 @@ export default function AfipConfigPage() {
                         >
                           <option value="">Sin vincular</option>
                           {systemPOSList.map(pos => (
-                            <option key={pos.id} value={pos.id}>{pos.name}</option>
+                            <option key={pos.id} value={pos.id}>
+                              {pos.branch?.name ? `${pos.branch.name} - ${pos.name}` : pos.name}
+                            </option>
                           ))}
                         </select>
                       </td>
