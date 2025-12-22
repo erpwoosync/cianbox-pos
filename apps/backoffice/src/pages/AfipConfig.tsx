@@ -124,7 +124,8 @@ export default function AfipConfigPage() {
         setSalesPoints(configRes.config.salesPoints || []);
       }
       setConstants(constantsRes);
-      setSystemPOSList(posRes.data || []);
+      // posRes ya viene como array desde pointsOfSaleApi.getAll()
+      setSystemPOSList(Array.isArray(posRes) ? posRes : []);
     } catch (error: any) {
       console.error('Error loading AFIP config:', error);
       showNotification('error', 'Error al cargar la configuración');
