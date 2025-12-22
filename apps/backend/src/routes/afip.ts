@@ -592,9 +592,19 @@ router.get('/afip-sales-points', async (req: AuthenticatedRequest, res: Response
     res.json(salesPoints);
   } catch (error: any) {
     console.error('Error al obtener puntos de venta de AFIP:', error);
+    console.error('Error details:', JSON.stringify(error.response?.data || error, null, 2));
+
+    // Si no tiene puntos de venta, devolver array vacío
+    if (error.message?.includes('no tiene puntos de venta') ||
+        error.message?.includes('No sales points') ||
+        error.response?.status === 400) {
+      return res.json([]);
+    }
+
     res.status(500).json({
       error: 'Error al obtener puntos de venta',
       message: error.message,
+      details: error.response?.data,
     });
   }
 });
