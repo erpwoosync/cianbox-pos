@@ -88,16 +88,17 @@ interface MPDevice {
 }
 
 interface MPWebhookEvent {
-  action: string;
-  api_version: string;
-  data: {
+  action?: string;
+  api_version?: string;
+  data?: {
     id: string;
   };
-  date_created: string;
-  id: number;
-  live_mode: boolean;
-  type: string;
-  user_id: string;
+  date_created?: string;
+  id?: number | string;
+  live_mode?: boolean;
+  type?: string;
+  topic?: string; // Formato alternativo de MP
+  user_id?: string | number;
 }
 
 interface MPPaymentWebhookData {
@@ -1053,39 +1054,56 @@ class MercadoPagoService {
   /**
    * Procesa un webhook de Mercado Pago
    * Soporta eventos de tipo 'order' (Point) y 'payment' (QR y otros)
+   * También soporta topic_merchant_order_wh para merchant orders
    */
   async processWebhook(event: MPWebhookEvent): Promise<void> {
-    console.log('Procesando webhook MP:', event);
+    console.log('[Webhook MP] Procesando evento:', event);
 
-    const eventId = event.data.id;
+    // Extraer el ID del evento de diferentes formatos posibles
+    const eventId = event.data?.id || event.id;
+    const eventType = event.type || event.topic;
+
+    if (!eventId) {
+      console.warn('[Webhook MP] No se pudo extraer ID del evento:', event);
+      return;
+    }
+
+    console.log(`[Webhook MP] Tipo: ${eventType}, ID: ${eventId}`);
 
     // Procesar eventos de órdenes (Point)
-    if (event.type === 'order') {
+    if (eventType === 'order') {
       const order = await prisma.mercadoPagoOrder.findUnique({
-        where: { orderId: eventId },
+        where: { orderId: String(eventId) },
       });
 
       if (!order) {
-        console.log('Orden no encontrada en DB:', eventId);
+        console.log('[Webhook MP] Orden no encontrada en DB:', eventId);
         return;
       }
 
       try {
-        await this.getOrderStatus(order.tenantId, eventId);
-        console.log('Orden actualizada desde webhook:', eventId);
+        await this.getOrderStatus(order.tenantId, String(eventId));
+        console.log('[Webhook MP] Orden actualizada:', eventId);
       } catch (error) {
-        console.error('Error actualizando orden desde webhook:', error);
+        console.error('[Webhook MP] Error actualizando orden:', error);
       }
       return;
     }
 
     // Procesar eventos de pagos (QR y otros)
-    if (event.type === 'payment') {
-      await this.processPaymentWebhook(eventId, event.user_id);
+    if (eventType === 'payment') {
+      await this.processPaymentWebhook(String(eventId), String(event.user_id || ''));
       return;
     }
 
-    console.log('Evento ignorado, tipo:', event.type);
+    // Procesar merchant orders (puede contener info de pago QR)
+    if (eventType === 'topic_merchant_order_wh' || eventType === 'merchant_order') {
+      console.log('[Webhook MP] Merchant order recibida, ID:', eventId);
+      // Las merchant orders contienen info agregada, el pago ya debería procesarse por el evento payment
+      return;
+    }
+
+    console.log('[Webhook MP] Evento ignorado, tipo:', eventType);
   }
 
   /**
