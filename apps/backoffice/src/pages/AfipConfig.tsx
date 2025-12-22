@@ -195,6 +195,8 @@ export default function AfipConfigPage() {
       setImportingFromAfip(true);
       const result = await afipApi.getAfipSalesPoints();
 
+      console.log('AFIP sales points result:', result);
+
       // Verificar si estamos en modo testing
       if (!result.isProduction) {
         showNotification('error', result.message || 'En modo testing no hay puntos de venta reales. Activa modo producción para importar.');
@@ -202,19 +204,37 @@ export default function AfipConfigPage() {
       }
 
       const afipPoints = result.salesPoints;
+      console.log('AFIP points:', afipPoints);
 
-      // Filtrar los que no están bloqueados y no existen aún
-      const existingNumbers = salesPoints.map(sp => sp.number);
-      const toImport = afipPoints.filter(
-        ap => ap.blocked === 'N' && !ap.dropDate && !existingNumbers.includes(ap.number)
-      );
+      if (afipPoints.length === 0) {
+        showNotification('error', result.message || 'No se encontraron puntos de venta en AFIP');
+        return;
+      }
+
+      // Contar bloqueados y dados de baja
+      const blocked = afipPoints.filter(ap => ap.blocked !== 'N');
+      const dropped = afipPoints.filter(ap => ap.dropDate);
+      const available = afipPoints.filter(ap => ap.blocked === 'N' && !ap.dropDate);
+
+      console.log('Blocked:', blocked.length, 'Dropped:', dropped.length, 'Available:', available.length);
+
+      if (available.length === 0) {
+        showNotification('error', `Encontrados ${afipPoints.length} puntos de venta, pero todos están bloqueados (${blocked.length}) o dados de baja (${dropped.length}).`);
+        return;
+      }
+
+      // Recargar puntos de venta actuales de la DB
+      const currentSalesPoints = await afipApi.getSalesPoints();
+      const existingNumbers = currentSalesPoints.map(sp => sp.number);
+      console.log('Existing in DB:', existingNumbers);
+
+      // Filtrar los que no existen aún
+      const toImport = available.filter(ap => !existingNumbers.includes(ap.number));
+      console.log('To import:', toImport);
 
       if (toImport.length === 0) {
-        if (afipPoints.length === 0) {
-          showNotification('error', result.message || 'No se encontraron puntos de venta en AFIP');
-        } else {
-          showNotification('success', `Encontrados ${afipPoints.length} puntos de venta. Todos ya están configurados.`);
-        }
+        showNotification('success', `Encontrados ${available.length} puntos de venta disponibles. Todos ya están configurados en el sistema.`);
+        await loadSalesPoints(); // Recargar para mostrar en la tabla
         return;
       }
 
@@ -233,7 +253,7 @@ export default function AfipConfigPage() {
       }
 
       await loadSalesPoints();
-      showNotification('success', `Importados ${created} puntos de venta de AFIP`);
+      showNotification('success', `Importados ${created} de ${toImport.length} puntos de venta de AFIP`);
     } catch (error: any) {
       console.error('Error importing from AFIP:', error);
       showNotification('error', error.response?.data?.message || 'Error al importar de AFIP');
