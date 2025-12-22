@@ -578,11 +578,13 @@ class AfipService {
       console.log(JSON.stringify(result, null, 2));
 
       // Loguear cada punto de venta para debug
-      if (Array.isArray(result)) {
-        result.forEach((sp: any, idx: number) => {
-          console.log(`PV ${idx + 1}:`, JSON.stringify(sp));
-        });
-      }
+      const rawPoints = Array.isArray(result) ? result : (result?.ResultGet || [result]);
+      rawPoints.forEach((sp: any, idx: number) => {
+        console.log(`PV ${idx + 1} raw:`, JSON.stringify(sp));
+        console.log(`  - Nro: ${sp.Nro || sp.nro || sp.PtoVta}`);
+        console.log(`  - Bloqueado: ${sp.Bloqueado} (type: ${typeof sp.Bloqueado})`);
+        console.log(`  - FchBaja: ${sp.FchBaja} (type: ${typeof sp.FchBaja})`);
+      });
 
       // Normalizar respuesta
       let salesPoints: Array<{ number: number; type: string; blocked: string; dropDate: string | null }> = [];
@@ -601,13 +603,30 @@ class AfipService {
         return 'N';
       };
 
+      // Función helper para normalizar fecha de baja
+      // Solo considerar como baja si tiene un valor real de fecha (no null, undefined, '', 'NULL', 0, etc)
+      const normalizeDropDate = (value: any): string | null => {
+        if (!value || value === '' || value === 'NULL' || value === 'null' || value === 0 || value === '0') {
+          return null;
+        }
+        // Si tiene un valor, verificar que sea una fecha válida (formato YYYYMMDD o similar)
+        const strValue = String(value);
+        // AFIP usa formato YYYYMMDD para fechas
+        if (/^\d{8}$/.test(strValue) || /^\d{4}-\d{2}-\d{2}/.test(strValue)) {
+          return strValue;
+        }
+        // Si no tiene formato de fecha, no es una fecha de baja real
+        console.log(`  - FchBaja value "${value}" no parece fecha válida, ignorando`);
+        return null;
+      };
+
       // Si es un array, mapearlo
       if (Array.isArray(result)) {
         salesPoints = result.map((sp: any) => ({
           number: sp.Nro || sp.nro || sp.PtoVta || sp.ptoVta,
           type: sp.EmisionTipo || sp.emisionTipo || sp.Tipo || sp.tipo || 'N/A',
           blocked: normalizeBlocked(sp.Bloqueado ?? sp.bloqueado),
-          dropDate: sp.FchBaja || sp.fchBaja || null,
+          dropDate: normalizeDropDate(sp.FchBaja ?? sp.fchBaja),
         }));
       }
       // Si es un objeto con ResultGet, extraer de ahí
@@ -616,7 +635,7 @@ class AfipService {
           number: sp.Nro || sp.nro || sp.PtoVta || sp.ptoVta,
           type: sp.EmisionTipo || sp.emisionTipo || sp.Tipo || sp.tipo || 'N/A',
           blocked: normalizeBlocked(sp.Bloqueado ?? sp.bloqueado),
-          dropDate: sp.FchBaja || sp.fchBaja || null,
+          dropDate: normalizeDropDate(sp.FchBaja ?? sp.fchBaja),
         }));
       }
       // Si es un objeto con PtoVta (un solo punto de venta)
@@ -625,7 +644,7 @@ class AfipService {
           number: result.Nro || result.PtoVta,
           type: result.EmisionTipo || 'N/A',
           blocked: normalizeBlocked(result.Bloqueado),
-          dropDate: result.FchBaja || null,
+          dropDate: normalizeDropDate(result.FchBaja),
         }];
       }
 
