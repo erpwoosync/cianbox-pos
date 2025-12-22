@@ -1254,6 +1254,83 @@ async function generatePOSCode(tenantId: string, branchId: string): Promise<stri
   return code;
 }
 
+// Regenerar códigos de POS con formato viejo (CAJA-XX) al nuevo formato (BRANCH_CODE-CAJA-XX)
+router.post(
+  '/points-of-sale/regenerate-codes',
+  authorize('pos:write', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+
+      // Buscar todos los POS con código formato viejo (que empiecen con "CAJA-")
+      const oldFormatPOS = await prisma.pointOfSale.findMany({
+        where: {
+          tenantId,
+          code: { startsWith: 'CAJA-' },
+        },
+        include: {
+          branch: { select: { id: true, code: true, name: true } },
+        },
+      });
+
+      if (oldFormatPOS.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No hay puntos de venta con formato viejo para actualizar',
+          updated: 0,
+        });
+      }
+
+      const updates: { id: string; oldCode: string; newCode: string; branch: string }[] = [];
+
+      for (const pos of oldFormatPOS) {
+        const branchCode = pos.branch?.code || 'SUC';
+
+        // Extraer el número del código viejo (CAJA-01 -> 01)
+        const match = pos.code.match(/CAJA-(\d+)/);
+        const number = match ? match[1] : '01';
+
+        // Generar nuevo código
+        let newCode = `${branchCode}-CAJA-${number}`;
+
+        // Verificar que no exista ya
+        let attempts = 0;
+        while (attempts < 100) {
+          const exists = await prisma.pointOfSale.findFirst({
+            where: { tenantId, code: newCode, id: { not: pos.id } },
+          });
+          if (!exists) break;
+          attempts++;
+          const newNum = (parseInt(number) + attempts).toString().padStart(2, '0');
+          newCode = `${branchCode}-CAJA-${newNum}`;
+        }
+
+        // Actualizar el POS
+        await prisma.pointOfSale.update({
+          where: { id: pos.id },
+          data: { code: newCode },
+        });
+
+        updates.push({
+          id: pos.id,
+          oldCode: pos.code,
+          newCode,
+          branch: pos.branch?.name || 'Sin sucursal',
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Se actualizaron ${updates.length} puntos de venta`,
+        updated: updates.length,
+        details: updates,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.post(
   '/points-of-sale',
   authorize('pos:write', '*'),
