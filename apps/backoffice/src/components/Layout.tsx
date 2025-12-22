@@ -30,6 +30,7 @@ import {
   Settings,
   Boxes,
   Receipt,
+  FileText,
   LucideIcon,
 } from 'lucide-react';
 
@@ -90,6 +91,7 @@ const menuGroups: MenuGroup[] = [
       { path: '/roles', label: 'Roles', icon: Shield },
       { path: '/users', label: 'Usuarios', icon: Users },
       { path: '/integrations', label: 'Integraciones', icon: Plug },
+      { path: '/afip', label: 'Facturación AFIP', icon: FileText },
     ],
   },
 ];

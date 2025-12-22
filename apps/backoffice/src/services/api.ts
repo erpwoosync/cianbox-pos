@@ -1194,4 +1194,178 @@ export const customersApi = {
   },
 };
 
+// ==============================================
+// AFIP Facturación Electrónica
+// ==============================================
+
+export interface AfipConfig {
+  id: string;
+  tenantId: string;
+  cuit: string;
+  businessName: string;
+  tradeName?: string;
+  taxCategory: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  activityStartDate?: string;
+  isProduction: boolean;
+  isActive: boolean;
+  hasCertificate?: boolean;
+  hasKey?: boolean;
+  hasAccessToken?: boolean;
+  lastSync?: string;
+  salesPoints?: AfipSalesPoint[];
+}
+
+export interface AfipSalesPoint {
+  id: string;
+  tenantId: string;
+  afipConfigId: string;
+  number: number;
+  name?: string;
+  lastInvoiceA: number;
+  lastInvoiceB: number;
+  lastInvoiceC: number;
+  lastCreditNoteA: number;
+  lastCreditNoteB: number;
+  lastCreditNoteC: number;
+  lastDebitNoteA: number;
+  lastDebitNoteB: number;
+  lastDebitNoteC: number;
+  pointOfSaleId?: string;
+  isActive: boolean;
+  pointOfSale?: { id: string; name: string };
+}
+
+export interface AfipInvoice {
+  id: string;
+  tenantId: string;
+  afipConfigId: string;
+  salesPointId: string;
+  voucherType: string;
+  number: number;
+  cae: string;
+  caeExpiration: string;
+  issueDate: string;
+  receiverDocType: string;
+  receiverDocNum: string;
+  receiverName?: string;
+  receiverTaxCategory?: string;
+  netAmount: number;
+  exemptAmount: number;
+  taxAmount: number;
+  otherTaxes: number;
+  totalAmount: number;
+  concept: number;
+  status: string;
+  salesPoint?: { number: number; name?: string };
+}
+
+export interface AfipConstants {
+  DOC_TYPES: Record<string, number>;
+  IVA_CONDITIONS: Record<string, number>;
+  IVA_RATES: Record<string, { id: number; rate: number }>;
+  CONCEPTS: Record<string, number>;
+  VOUCHER_TYPE_CODES: Record<string, number>;
+  TAX_CATEGORIES: string[];
+}
+
+export const afipApi = {
+  // Configuración
+  getConfig: async () => {
+    const response = await api.get('/afip/config');
+    return response.data as { configured: boolean; config: AfipConfig | null };
+  },
+  saveConfig: async (data: Partial<AfipConfig>) => {
+    const response = await api.post('/afip/config', data);
+    return response.data as { success: boolean; config: AfipConfig };
+  },
+
+  // Puntos de venta
+  getSalesPoints: async () => {
+    const response = await api.get('/afip/sales-points');
+    return response.data as AfipSalesPoint[];
+  },
+  createSalesPoint: async (data: { number: number; name?: string; pointOfSaleId?: string }) => {
+    const response = await api.post('/afip/sales-points', data);
+    return response.data as AfipSalesPoint;
+  },
+  updateSalesPoint: async (id: string, data: Partial<AfipSalesPoint>) => {
+    const response = await api.put(`/afip/sales-points/${id}`, data);
+    return response.data as AfipSalesPoint;
+  },
+  deleteSalesPoint: async (id: string) => {
+    const response = await api.delete(`/afip/sales-points/${id}`);
+    return response.data as { success: boolean };
+  },
+
+  // Comprobantes
+  getInvoices: async (params?: { page?: number; limit?: number; salesPointId?: string; voucherType?: string; from?: string; to?: string }) => {
+    const response = await api.get('/afip/invoices', { params });
+    return response.data as { data: AfipInvoice[]; pagination: { page: number; limit: number; total: number; pages: number } };
+  },
+  getInvoice: async (id: string) => {
+    const response = await api.get(`/afip/invoices/${id}`);
+    return response.data as AfipInvoice;
+  },
+  getInvoiceQr: async (id: string) => {
+    const response = await api.get(`/afip/invoices/${id}/qr`);
+    return response.data as { qrUrl: string };
+  },
+  createInvoice: async (data: {
+    salesPointId: string;
+    voucherType: string;
+    concept?: number;
+    receiverDocType: number;
+    receiverDocNum: string;
+    receiverName?: string;
+    receiverTaxCategory?: number;
+    netAmount: number;
+    exemptAmount?: number;
+    taxAmount: number;
+    otherTaxes?: number;
+    totalAmount: number;
+    saleId?: string;
+  }) => {
+    const response = await api.post('/afip/invoices', data);
+    return response.data;
+  },
+  createFacturaB: async (data: {
+    salesPointId: string;
+    totalAmount: number;
+    receiverDocType?: number;
+    receiverDocNum?: string;
+    receiverName?: string;
+    taxRate?: number;
+    saleId?: string;
+  }) => {
+    const response = await api.post('/afip/invoices/factura-b', data);
+    return response.data;
+  },
+  createNotaCreditoB: async (data: {
+    salesPointId: string;
+    originalInvoiceId: string;
+    amount?: number;
+  }) => {
+    const response = await api.post('/afip/invoices/nota-credito-b', data);
+    return response.data;
+  },
+
+  // Estado y utilidades
+  getServerStatus: async () => {
+    const response = await api.get('/afip/status');
+    return response.data as { appserver: string; dbserver: string; authserver: string };
+  },
+  getLastVoucher: async (salesPointNumber: number, voucherType: string) => {
+    const response = await api.get('/afip/last-voucher', { params: { salesPointNumber, voucherType } });
+    return response.data as { lastNumber: number };
+  },
+  getConstants: async () => {
+    const response = await api.get('/afip/constants');
+    return response.data as AfipConstants;
+  },
+};
+
 export default api;

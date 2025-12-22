@@ -26,6 +26,7 @@ import LinkSaleToOrphan from './pages/LinkSaleToOrphan';
 import Terminals from './pages/Terminals';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
+import AfipConfig from './pages/AfipConfig';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -75,6 +76,7 @@ export default function App() {
                 <Route path="/terminals" element={<Terminals />} />
                 <Route path="/customers" element={<Customers />} />
                 <Route path="/customers/:id" element={<CustomerDetail />} />
+                <Route path="/afip" element={<AfipConfig />} />
               </Routes>
             </Layout>
           </PrivateRoute>

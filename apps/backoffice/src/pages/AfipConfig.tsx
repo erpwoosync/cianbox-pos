@@ -1,0 +1,766 @@
+import { useState, useEffect } from 'react';
+import { afipApi, AfipConfig, AfipSalesPoint, AfipInvoice, AfipConstants, pointsOfSaleApi } from '../services/api';
+import {
+  FileText,
+  Plus,
+  Save,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Building2,
+  Eye,
+  Trash2,
+  Settings,
+  Receipt,
+  QrCode,
+  ExternalLink
+} from 'lucide-react';
+
+type Tab = 'config' | 'salesPoints' | 'invoices';
+
+interface AfipConfigForm extends Partial<AfipConfig> {
+  afipAccessToken?: string;
+}
+
+interface SystemPOS {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export default function AfipConfigPage() {
+  const [activeTab, setActiveTab] = useState<Tab>('config');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Config state
+  const [configured, setConfigured] = useState(false);
+  const [config, setConfig] = useState<AfipConfigForm>({
+    cuit: '',
+    businessName: '',
+    tradeName: '',
+    taxCategory: 'RESPONSABLE_INSCRIPTO',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    isProduction: false,
+    isActive: true,
+    afipAccessToken: '',
+  });
+  const [constants, setConstants] = useState<AfipConstants | null>(null);
+
+  // Sales Points state
+  const [salesPoints, setSalesPoints] = useState<AfipSalesPoint[]>([]);
+  const [systemPOSList, setSystemPOSList] = useState<SystemPOS[]>([]);
+  const [showAddSalesPoint, setShowAddSalesPoint] = useState(false);
+  const [newSalesPoint, setNewSalesPoint] = useState({ number: 1, name: '', pointOfSaleId: '' });
+  const [creatingSalesPoint, setCreatingSalesPoint] = useState(false);
+
+  // Invoices state
+  const [invoices, setInvoices] = useState<AfipInvoice[]>([]);
+  const [invoicePagination, setInvoicePagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<AfipInvoice | null>(null);
+  const [invoiceQrUrl, setInvoiceQrUrl] = useState<string | null>(null);
+
+  // Server status
+  const [serverStatus, setServerStatus] = useState<{ appserver: string; dbserver: string; authserver: string } | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'invoices') {
+      loadInvoices();
+    }
+  }, [activeTab, invoicePagination.page]);
+
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      const [configRes, constantsRes, posRes] = await Promise.all([
+        afipApi.getConfig(),
+        afipApi.getConstants(),
+        pointsOfSaleApi.getAll(),
+      ]);
+
+      setConfigured(configRes.configured);
+      if (configRes.config) {
+        setConfig(configRes.config);
+        setSalesPoints(configRes.config.salesPoints || []);
+      }
+      setConstants(constantsRes);
+      setSystemPOSList(posRes.data || []);
+    } catch (error: any) {
+      console.error('Error loading AFIP config:', error);
+      showNotification('error', 'Error al cargar la configuración');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSalesPoints = async () => {
+    try {
+      const data = await afipApi.getSalesPoints();
+      setSalesPoints(data);
+    } catch (error: any) {
+      console.error('Error loading sales points:', error);
+    }
+  };
+
+  const loadInvoices = async () => {
+    try {
+      setLoadingInvoices(true);
+      const data = await afipApi.getInvoices({ page: invoicePagination.page, limit: invoicePagination.limit });
+      setInvoices(data.data);
+      setInvoicePagination(data.pagination);
+    } catch (error: any) {
+      console.error('Error loading invoices:', error);
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleSaveConfig = async () => {
+    try {
+      setSaving(true);
+      await afipApi.saveConfig(config);
+      setConfigured(true);
+      showNotification('success', 'Configuración guardada correctamente');
+    } catch (error: any) {
+      console.error('Error saving config:', error);
+      showNotification('error', error.response?.data?.error || 'Error al guardar la configuración');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    try {
+      setCheckingStatus(true);
+      const status = await afipApi.getServerStatus();
+      setServerStatus(status);
+      showNotification('success', 'Estado de servidores obtenido');
+    } catch (error: any) {
+      console.error('Error checking status:', error);
+      showNotification('error', 'Error al verificar estado de AFIP');
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
+  const handleCreateSalesPoint = async () => {
+    try {
+      setCreatingSalesPoint(true);
+      await afipApi.createSalesPoint(newSalesPoint);
+      await loadSalesPoints();
+      setShowAddSalesPoint(false);
+      setNewSalesPoint({ number: 1, name: '', pointOfSaleId: '' });
+      showNotification('success', 'Punto de venta creado');
+    } catch (error: any) {
+      console.error('Error creating sales point:', error);
+      showNotification('error', error.response?.data?.error || 'Error al crear punto de venta');
+    } finally {
+      setCreatingSalesPoint(false);
+    }
+  };
+
+  const handleDeleteSalesPoint = async (id: string) => {
+    if (!confirm('¿Desactivar este punto de venta?')) return;
+    try {
+      await afipApi.deleteSalesPoint(id);
+      await loadSalesPoints();
+      showNotification('success', 'Punto de venta desactivado');
+    } catch (error: any) {
+      console.error('Error deleting sales point:', error);
+      showNotification('error', 'Error al desactivar punto de venta');
+    }
+  };
+
+  const handleViewInvoice = async (invoice: AfipInvoice) => {
+    setSelectedInvoice(invoice);
+    try {
+      const { qrUrl } = await afipApi.getInvoiceQr(invoice.id);
+      setInvoiceQrUrl(qrUrl);
+    } catch (error) {
+      setInvoiceQrUrl(null);
+    }
+  };
+
+  const getVoucherTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      FACTURA_A: 'Factura A',
+      FACTURA_B: 'Factura B',
+      FACTURA_C: 'Factura C',
+      NOTA_CREDITO_A: 'NC A',
+      NOTA_CREDITO_B: 'NC B',
+      NOTA_CREDITO_C: 'NC C',
+      NOTA_DEBITO_A: 'ND A',
+      NOTA_DEBITO_B: 'ND B',
+      NOTA_DEBITO_C: 'ND C',
+    };
+    return labels[type] || type;
+  };
+
+  const getStatusBadge = (status: string) => {
+    if (status === 'ISSUED') return <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Emitida</span>;
+    if (status === 'ERROR') return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded">Error</span>;
+    if (status === 'VOIDED') return <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">Anulada</span>;
+    return <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">{status}</span>;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <FileText className="w-8 h-8 text-blue-600" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Facturación Electrónica AFIP</h1>
+            <p className="text-gray-500">Configuración y emisión de comprobantes</p>
+          </div>
+        </div>
+        <button
+          onClick={handleCheckStatus}
+          disabled={checkingStatus || !configured}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${checkingStatus ? 'animate-spin' : ''}`} />
+          Verificar AFIP
+        </button>
+      </div>
+
+      {/* Notification */}
+      {notification && (
+        <div className={`p-4 rounded-lg flex items-center gap-2 ${
+          notification.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`}>
+          {notification.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+          {notification.message}
+        </div>
+      )}
+
+      {/* Server Status */}
+      {serverStatus && (
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="font-semibold mb-2">Estado de Servidores AFIP</h3>
+          <div className="flex gap-4">
+            <div className="flex items-center gap-2">
+              <span className={`w-3 h-3 rounded-full ${serverStatus.appserver === 'OK' ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span>App Server: {serverStatus.appserver}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`w-3 h-3 rounded-full ${serverStatus.dbserver === 'OK' ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span>DB Server: {serverStatus.dbserver}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`w-3 h-3 rounded-full ${serverStatus.authserver === 'OK' ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span>Auth Server: {serverStatus.authserver}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-4">
+          {[
+            { id: 'config', label: 'Configuración', icon: Settings },
+            { id: 'salesPoints', label: 'Puntos de Venta', icon: Building2 },
+            { id: 'invoices', label: 'Comprobantes', icon: Receipt },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as Tab)}
+              className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'config' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold mb-4">Datos Fiscales</h2>
+
+          {!config.hasAccessToken && (
+            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              <span className="text-yellow-800">
+                Necesitas configurar el Access Token de AfipSDK para emitir comprobantes.
+                <a href="https://afipsdk.com" target="_blank" rel="noopener noreferrer" className="ml-1 underline">
+                  Obtener token
+                </a>
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">CUIT *</label>
+              <input
+                type="text"
+                value={config.cuit || ''}
+                onChange={e => setConfig({ ...config, cuit: e.target.value })}
+                placeholder="20-12345678-9"
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Condición IVA *</label>
+              <select
+                value={config.taxCategory || ''}
+                onChange={e => setConfig({ ...config, taxCategory: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Seleccionar...</option>
+                {constants?.TAX_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Razón Social *</label>
+              <input
+                type="text"
+                value={config.businessName || ''}
+                onChange={e => setConfig({ ...config, businessName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de Fantasía</label>
+              <input
+                type="text"
+                value={config.tradeName || ''}
+                onChange={e => setConfig({ ...config, tradeName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Domicilio Fiscal</label>
+              <input
+                type="text"
+                value={config.address || ''}
+                onChange={e => setConfig({ ...config, address: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
+              <input
+                type="text"
+                value={config.city || ''}
+                onChange={e => setConfig({ ...config, city: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Provincia</label>
+              <input
+                type="text"
+                value={config.state || ''}
+                onChange={e => setConfig({ ...config, state: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Código Postal</label>
+              <input
+                type="text"
+                value={config.zipCode || ''}
+                onChange={e => setConfig({ ...config, zipCode: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Inicio de Actividades</label>
+              <input
+                type="date"
+                value={config.activityStartDate?.split('T')[0] || ''}
+                onChange={e => setConfig({ ...config, activityStartDate: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <hr className="my-6" />
+
+          <h2 className="text-lg font-semibold mb-4">Credenciales AfipSDK</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Access Token *</label>
+              <input
+                type="password"
+                value={(config as any).afipAccessToken || ''}
+                onChange={e => setConfig({ ...config, afipAccessToken: e.target.value } as any)}
+                placeholder="Token de AfipSDK"
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Obtén tu token en{' '}
+                <a href="https://afipsdk.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                  afipsdk.com
+                </a>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={config.isProduction || false}
+                  onChange={e => setConfig({ ...config, isProduction: e.target.checked })}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Modo Producción</span>
+              </label>
+              {config.isProduction && (
+                <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                  Los comprobantes serán reales
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={handleSaveConfig}
+              disabled={saving || !config.cuit || !config.businessName || !config.taxCategory}
+              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? 'Guardando...' : 'Guardar Configuración'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'salesPoints' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Puntos de Venta AFIP</h2>
+            <button
+              onClick={() => setShowAddSalesPoint(true)}
+              disabled={!configured}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Plus className="w-4 h-4" />
+              Agregar Punto de Venta
+            </button>
+          </div>
+
+          {!configured && (
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2 mb-4">
+              <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              <span className="text-yellow-800">Debes configurar los datos fiscales primero</span>
+            </div>
+          )}
+
+          {salesPoints.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Building2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>No hay puntos de venta configurados</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Número</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Nombre</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">POS Vinculado</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Última Factura B</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Estado</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {salesPoints.map(sp => (
+                    <tr key={sp.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <span className="font-mono font-semibold">{String(sp.number).padStart(4, '0')}</span>
+                      </td>
+                      <td className="px-4 py-3">{sp.name || '-'}</td>
+                      <td className="px-4 py-3">{sp.pointOfSale?.name || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{sp.lastInvoiceB || 0}</td>
+                      <td className="px-4 py-3">
+                        {sp.isActive ? (
+                          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Activo</span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">Inactivo</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleDeleteSalesPoint(sp.id)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Desactivar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Modal agregar punto de venta */}
+          {showAddSalesPoint && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 className="text-lg font-semibold mb-4">Agregar Punto de Venta</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Número de Punto de Venta *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={newSalesPoint.number}
+                      onChange={e => setNewSalesPoint({ ...newSalesPoint, number: parseInt(e.target.value) || 1 })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Debe coincidir con el habilitado en AFIP</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre (opcional)</label>
+                    <input
+                      type="text"
+                      value={newSalesPoint.name}
+                      onChange={e => setNewSalesPoint({ ...newSalesPoint, name: e.target.value })}
+                      placeholder="Ej: Caja Principal"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vincular con POS (opcional)</label>
+                    <select
+                      value={newSalesPoint.pointOfSaleId}
+                      onChange={e => setNewSalesPoint({ ...newSalesPoint, pointOfSaleId: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Sin vincular</option>
+                      {systemPOSList.map(pos => (
+                        <option key={pos.id} value={pos.id}>{pos.name} ({pos.code})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setShowAddSalesPoint(false)}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleCreateSalesPoint}
+                    disabled={creatingSalesPoint || !newSalesPoint.number}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {creatingSalesPoint ? 'Creando...' : 'Crear'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'invoices' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold mb-4">Comprobantes Emitidos</h2>
+
+          {loadingInvoices ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Receipt className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>No hay comprobantes emitidos</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Fecha</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Tipo</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Punto Venta</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Número</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Cliente</th>
+                      <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Total</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">CAE</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Estado</th>
+                      <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {invoices.map(inv => (
+                      <tr key={inv.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm">{new Date(inv.issueDate).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <span className="font-semibold">{getVoucherTypeLabel(inv.voucherType)}</span>
+                        </td>
+                        <td className="px-4 py-3 font-mono">{String(inv.salesPoint?.number || '').padStart(4, '0')}</td>
+                        <td className="px-4 py-3 font-mono">{String(inv.number).padStart(8, '0')}</td>
+                        <td className="px-4 py-3 text-sm">{inv.receiverName || 'Consumidor Final'}</td>
+                        <td className="px-4 py-3 text-right font-semibold">${Number(inv.totalAmount).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-mono text-xs">{inv.cae !== 'ERROR' ? inv.cae : '-'}</td>
+                        <td className="px-4 py-3">{getStatusBadge(inv.status)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => handleViewInvoice(inv)}
+                            className="text-blue-600 hover:text-blue-800"
+                            title="Ver detalle"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {invoicePagination.pages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <span className="text-sm text-gray-500">
+                    Mostrando {(invoicePagination.page - 1) * invoicePagination.limit + 1} -{' '}
+                    {Math.min(invoicePagination.page * invoicePagination.limit, invoicePagination.total)} de {invoicePagination.total}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setInvoicePagination({ ...invoicePagination, page: invoicePagination.page - 1 })}
+                      disabled={invoicePagination.page <= 1}
+                      className="px-3 py-1 border rounded disabled:opacity-50"
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      onClick={() => setInvoicePagination({ ...invoicePagination, page: invoicePagination.page + 1 })}
+                      disabled={invoicePagination.page >= invoicePagination.pages}
+                      className="px-3 py-1 border rounded disabled:opacity-50"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Modal detalle comprobante */}
+          {selectedInvoice && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+                <h3 className="text-lg font-semibold mb-4">
+                  {getVoucherTypeLabel(selectedInvoice.voucherType)} {String(selectedInvoice.salesPoint?.number || '').padStart(4, '0')}-{String(selectedInvoice.number).padStart(8, '0')}
+                </h3>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Fecha de emisión:</span>
+                    <span>{new Date(selectedInvoice.issueDate).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Cliente:</span>
+                    <span>{selectedInvoice.receiverName || 'Consumidor Final'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Documento:</span>
+                    <span>{selectedInvoice.receiverDocType === '99' ? 'CF' : selectedInvoice.receiverDocNum}</span>
+                  </div>
+                  <hr />
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Neto Gravado:</span>
+                    <span>${Number(selectedInvoice.netAmount).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">IVA:</span>
+                    <span>${Number(selectedInvoice.taxAmount).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold">
+                    <span>Total:</span>
+                    <span>${Number(selectedInvoice.totalAmount).toFixed(2)}</span>
+                  </div>
+                  <hr />
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">CAE:</span>
+                    <span className="font-mono">{selectedInvoice.cae}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Vencimiento CAE:</span>
+                    <span>{new Date(selectedInvoice.caeExpiration).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {invoiceQrUrl && (
+                  <div className="mt-4 text-center">
+                    <a
+                      href={invoiceQrUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      Ver QR en AFIP
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => { setSelectedInvoice(null); setInvoiceQrUrl(null); }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
