@@ -423,11 +423,17 @@ export default function AfipConfigPage() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Access Token *</label>
+              {config.hasAccessToken && !config.afipAccessToken && (
+                <div className="mb-2 flex items-center gap-2 text-sm text-green-600">
+                  <CheckCircle className="w-4 h-4" />
+                  Token configurado. Dejá vacío para mantener el actual.
+                </div>
+              )}
               <input
                 type="password"
-                value={(config as any).afipAccessToken || ''}
-                onChange={e => setConfig({ ...config, afipAccessToken: e.target.value } as any)}
-                placeholder="Token de AfipSDK"
+                value={config.afipAccessToken || ''}
+                onChange={e => setConfig({ ...config, afipAccessToken: e.target.value })}
+                placeholder={config.hasAccessToken ? "Dejar vacío para mantener el actual" : "Token de AfipSDK"}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <p className="text-xs text-gray-500 mt-1">

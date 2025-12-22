@@ -88,15 +88,26 @@ router.post('/config', async (req: AuthenticatedRequest, res: Response) => {
     // Parsear fecha si existe
     const activityStartDate = data.activityStartDate ? new Date(data.activityStartDate) : null;
 
+    // No sobrescribir credenciales si vienen vacías
+    const { afipAccessToken, afipCert, afipKey, ...restData } = data;
+    const credentialsUpdate: Record<string, string> = {};
+    if (afipAccessToken) credentialsUpdate.afipAccessToken = afipAccessToken;
+    if (afipCert) credentialsUpdate.afipCert = afipCert;
+    if (afipKey) credentialsUpdate.afipKey = afipKey;
+
     const config = await prisma.afipConfig.upsert({
       where: { tenantId },
       update: {
-        ...data,
+        ...restData,
+        ...credentialsUpdate,
         activityStartDate,
       },
       create: {
         tenantId,
-        ...data,
+        ...restData,
+        afipAccessToken: afipAccessToken || null,
+        afipCert: afipCert || null,
+        afipKey: afipKey || null,
         activityStartDate,
       },
     });
@@ -105,15 +116,15 @@ router.post('/config', async (req: AuthenticatedRequest, res: Response) => {
     afipService.invalidateInstance(tenantId);
 
     // No exponer certificados ni claves
-    const { afipCert, afipKey, afipAccessToken, ...safeConfig } = config;
+    const { afipCert: savedCert, afipKey: savedKey, afipAccessToken: savedToken, ...safeConfig } = config;
 
     res.json({
       success: true,
       config: {
         ...safeConfig,
-        hasCertificate: !!afipCert,
-        hasKey: !!afipKey,
-        hasAccessToken: !!afipAccessToken,
+        hasCertificate: !!savedCert,
+        hasKey: !!savedKey,
+        hasAccessToken: !!savedToken,
       },
     });
   } catch (error: any) {
