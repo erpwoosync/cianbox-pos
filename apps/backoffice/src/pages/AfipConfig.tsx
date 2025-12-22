@@ -63,6 +63,20 @@ export default function AfipConfigPage() {
   const [creatingSalesPoint, setCreatingSalesPoint] = useState(false);
   const [importingFromAfip, setImportingFromAfip] = useState(false);
 
+  // Import modal state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [afipPointsList, setAfipPointsList] = useState<Array<{
+    number: number;
+    type: string;
+    blocked: string;
+    dropDate: string | null;
+    isAvailable: boolean;
+    reason?: string;
+    alreadyExists: boolean;
+    selected: boolean;
+  }>>([]);
+  const [importingSelected, setImportingSelected] = useState(false);
+
   // Invoices state
   const [invoices, setInvoices] = useState<AfipInvoice[]>([]);
   const [invoicePagination, setInvoicePagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
@@ -211,42 +225,68 @@ export default function AfipConfigPage() {
         return;
       }
 
-      // Filtrar:
-      // - dropped: dados de baja definitivamente (FchBaja)
-      // - usedByOther: bloqueados porque están en uso por otro software
-      // - available: libres para usar (no dados de baja y no bloqueados)
-      const dropped = afipPoints.filter(ap => ap.dropDate);
-      const usedByOther = afipPoints.filter(ap => !ap.dropDate && ap.blocked === 'S');
-      const available = afipPoints.filter(ap => !ap.dropDate && ap.blocked !== 'S');
-
-      console.log('Dropped:', dropped.length, 'Used by other software:', usedByOther.length, 'Available:', available.length);
-
-      if (available.length === 0) {
-        let message = `Encontrados ${afipPoints.length} puntos de venta.`;
-        if (usedByOther.length > 0) message += ` ${usedByOther.length} en uso por otro software.`;
-        if (dropped.length > 0) message += ` ${dropped.length} dados de baja.`;
-        message += ' Ninguno disponible para importar.';
-        showNotification('error', message);
-        return;
-      }
-
       // Recargar puntos de venta actuales de la DB
       const currentSalesPoints = await afipApi.getSalesPoints();
       const existingNumbers = currentSalesPoints.map(sp => sp.number);
-      console.log('Existing in DB:', existingNumbers);
 
-      // Filtrar los que no existen aún
-      const toImport = available.filter(ap => !existingNumbers.includes(ap.number));
-      console.log('To import:', toImport);
+      // Preparar lista con estado de cada punto de venta
+      const pointsList = afipPoints.map(ap => {
+        const alreadyExists = existingNumbers.includes(ap.number);
+        const hasBaja = !!ap.dropDate;
+        const isBlocked = ap.blocked === 'S';
 
-      if (toImport.length === 0) {
-        showNotification('success', `Encontrados ${available.length} puntos de venta disponibles. Todos ya están configurados en el sistema.`);
-        await loadSalesPoints(); // Recargar para mostrar en la tabla
-        return;
-      }
+        let isAvailable = !hasBaja && !alreadyExists;
+        let reason = '';
 
-      // Crear los puntos de venta que faltan (solo los libres)
+        if (alreadyExists) {
+          reason = 'Ya configurado';
+        } else if (hasBaja) {
+          reason = 'Dado de baja';
+        } else if (isBlocked) {
+          reason = 'Usado por otro software';
+          // Aún así se puede importar si el usuario quiere
+          isAvailable = true;
+        }
+
+        return {
+          ...ap,
+          isAvailable,
+          reason,
+          alreadyExists,
+          selected: isAvailable && !isBlocked, // Pre-seleccionar solo los libres
+        };
+      });
+
+      setAfipPointsList(pointsList);
+      setShowImportModal(true);
+    } catch (error: any) {
+      console.error('Error importing from AFIP:', error);
+      showNotification('error', error.response?.data?.message || 'Error al importar de AFIP');
+    } finally {
+      setImportingFromAfip(false);
+    }
+  };
+
+  const handleTogglePointSelection = (number: number) => {
+    setAfipPointsList(prev => prev.map(p =>
+      p.number === number && p.isAvailable
+        ? { ...p, selected: !p.selected }
+        : p
+    ));
+  };
+
+  const handleImportSelected = async () => {
+    const toImport = afipPointsList.filter(p => p.selected && p.isAvailable && !p.alreadyExists);
+
+    if (toImport.length === 0) {
+      showNotification('error', 'No hay puntos de venta seleccionados para importar');
+      return;
+    }
+
+    try {
+      setImportingSelected(true);
       let created = 0;
+
       for (const ap of toImport) {
         try {
           await afipApi.createSalesPoint({
@@ -260,12 +300,12 @@ export default function AfipConfigPage() {
       }
 
       await loadSalesPoints();
-      showNotification('success', `Importados ${created} de ${toImport.length} puntos de venta de AFIP`);
+      setShowImportModal(false);
+      showNotification('success', `Importados ${created} de ${toImport.length} puntos de venta`);
     } catch (error: any) {
-      console.error('Error importing from AFIP:', error);
-      showNotification('error', error.response?.data?.message || 'Error al importar de AFIP');
+      showNotification('error', 'Error al importar puntos de venta');
     } finally {
-      setImportingFromAfip(false);
+      setImportingSelected(false);
     }
   };
 
@@ -1018,6 +1058,118 @@ export default function AfipConfigPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Import Sales Points Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Puntos de Venta en AFIP</h3>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-10"></th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">N°</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Tipo</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {afipPointsList.map(point => {
+                    const isDisabled = !point.isAvailable || point.alreadyExists;
+                    return (
+                      <tr
+                        key={point.number}
+                        className={isDisabled ? 'bg-gray-50 text-gray-400' : 'hover:bg-blue-50'}
+                      >
+                        <td className="px-3 py-2">
+                          {point.isAvailable && !point.alreadyExists ? (
+                            <input
+                              type="checkbox"
+                              checked={point.selected}
+                              onChange={() => handleTogglePointSelection(point.number)}
+                              className="rounded border-gray-300 text-blue-600"
+                            />
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 font-mono font-semibold">
+                          {String(point.number).padStart(4, '0')}
+                        </td>
+                        <td className="px-3 py-2 text-sm">{point.type}</td>
+                        <td className="px-3 py-2">
+                          {point.alreadyExists ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
+                              <CheckCircle className="w-3 h-3" />
+                              Ya configurado
+                            </span>
+                          ) : point.dropDate ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs rounded">
+                              <XCircle className="w-3 h-3" />
+                              Dado de baja
+                            </span>
+                          ) : point.blocked === 'S' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded">
+                              <AlertTriangle className="w-3 h-3" />
+                              En uso (otro software)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+                              <CheckCircle className="w-3 h-3" />
+                              Disponible
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between pt-4 mt-4 border-t">
+              <div className="text-sm text-gray-500">
+                {afipPointsList.filter(p => p.selected && !p.alreadyExists).length} seleccionados para importar
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleImportSelected}
+                  disabled={importingSelected || afipPointsList.filter(p => p.selected && !p.alreadyExists).length === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {importingSelected ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Importando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Importar Seleccionados
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
