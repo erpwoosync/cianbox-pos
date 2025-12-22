@@ -355,6 +355,22 @@ export const cianboxService = {
   },
 };
 
+// Tipos de sucursales
+export interface Branch {
+  id: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+}
+
+// Servicios de sucursales
+export const branchesService = {
+  list: async (): Promise<ApiResponse<Branch[]>> => {
+    const response = await api.get('/backoffice/branches');
+    return response.data;
+  },
+};
+
 // Tipos de Mercado Pago
 export interface MPOrderResult {
   orderId: string;

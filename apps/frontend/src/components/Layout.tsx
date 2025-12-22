@@ -14,12 +14,14 @@ import {
   ChevronDown,
   Store,
   RefreshCw,
+  Search,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, permissions: [] }, // Todos ven dashboard
   { name: 'Punto de Venta', href: '/pos', icon: ShoppingCart, permissions: ['pos:sell'] },
+  { name: 'Consulta de Productos', href: '/consulta-productos', icon: Search, permissions: ['pos:sell', 'inventory:view', 'inventory:edit'] },
   { name: 'Productos', href: '/productos', icon: Package, permissions: ['admin:products', 'inventory:view', 'inventory:edit'] },
   { name: 'Categorías', href: '/categorias', icon: Tags, permissions: ['admin:products', 'inventory:view', 'inventory:edit'] },
   { name: 'Usuarios', href: '/usuarios', icon: Users, permissions: ['admin:users'] },

@@ -9,6 +9,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import POS from './pages/POS';
+import ProductLookup from './pages/ProductLookup';
 import Products from './pages/Products';
 import Categories from './pages/Categories';
 import Users from './pages/Users';
@@ -55,6 +56,16 @@ export default function App() {
       >
         {/* Dashboard - todos pueden acceder */}
         <Route path="/" element={<Dashboard />} />
+
+        {/* Consulta de Productos - permisos de POS o inventario */}
+        <Route
+          path="/consulta-productos"
+          element={
+            <ProtectedRoute permissions={['pos:sell', 'inventory:view', 'inventory:edit']}>
+              <ProductLookup />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Productos - requiere permisos de inventario */}
         <Route
