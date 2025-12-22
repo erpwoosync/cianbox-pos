@@ -1749,13 +1749,13 @@ router.post(
         }
       }
 
-      // Verificar que no exista otro POS con el mismo código en la misma sucursal
+      // Verificar que no exista otro POS con el mismo código en el TENANT (unicidad global para MP)
       const existing = await prisma.pointOfSale.findFirst({
-        where: { tenantId, branchId, code },
+        where: { tenantId, code }, // Sin branchId para unicidad global
       });
 
       if (existing) {
-        throw ApiError.conflict('Ya existe un punto de venta con ese código en la sucursal');
+        throw ApiError.conflict('Ya existe un punto de venta con ese código');
       }
 
       const pointOfSale = await prisma.pointOfSale.create({

@@ -1221,32 +1221,34 @@ const createPointOfSaleSchema = z.object({
 });
 
 // Función para generar código de POS automático
+// Formato: {BRANCH_CODE}-CAJA-{NUMBER} para unicidad global en Mercado Pago
 async function generatePOSCode(tenantId: string, branchId: string): Promise<string> {
-  // Buscar el último POS de la sucursal para generar el siguiente código
-  const lastPOS = await prisma.pointOfSale.findFirst({
-    where: { tenantId, branchId },
-    orderBy: { createdAt: 'desc' },
+  // Obtener el código de la sucursal
+  const branch = await prisma.branch.findFirst({
+    where: { id: branchId, tenantId },
     select: { code: true },
   });
 
-  // Contar cuántos POS hay en la sucursal
-  const count = await prisma.pointOfSale.count({
+  const branchCode = branch?.code || 'SUC';
+
+  // Contar cuántos POS hay en la sucursal para la numeración local
+  const countInBranch = await prisma.pointOfSale.count({
     where: { tenantId, branchId },
   });
 
-  // Generar código: CAJA-01, CAJA-02, etc.
-  const nextNumber = count + 1;
-  let code = `CAJA-${nextNumber.toString().padStart(2, '0')}`;
+  // Generar código: {BRANCH_CODE}-CAJA-01, {BRANCH_CODE}-CAJA-02, etc.
+  const nextNumber = countInBranch + 1;
+  let code = `${branchCode}-CAJA-${nextNumber.toString().padStart(2, '0')}`;
 
-  // Verificar que no exista (por si hay huecos en la numeración)
+  // Verificar que no exista a nivel TENANT (no solo sucursal) - importante para MP
   let attempts = 0;
   while (attempts < 100) {
     const exists = await prisma.pointOfSale.findFirst({
-      where: { tenantId, branchId, code },
+      where: { tenantId, code }, // Sin branchId para unicidad global
     });
     if (!exists) break;
     attempts++;
-    code = `CAJA-${(nextNumber + attempts).toString().padStart(2, '0')}`;
+    code = `${branchCode}-CAJA-${(nextNumber + attempts).toString().padStart(2, '0')}`;
   }
 
   return code;
@@ -1292,13 +1294,13 @@ router.post(
         }
       }
 
-      // Verificar que no exista otro POS con el mismo código en la misma sucursal
+      // Verificar que no exista otro POS con el mismo código en el TENANT (unicidad global para MP)
       const existing = await prisma.pointOfSale.findFirst({
-        where: { tenantId, branchId, code },
+        where: { tenantId, code }, // Sin branchId para unicidad global
       });
 
       if (existing) {
-        throw new ApiError(409, 'CONFLICT', 'Ya existe un punto de venta con ese código en la sucursal');
+        throw new ApiError(409, 'CONFLICT', 'Ya existe un punto de venta con ese código');
       }
 
       const pointOfSale = await prisma.pointOfSale.create({
