@@ -66,16 +66,16 @@ router.get('/config', async (req: AuthenticatedRequest, res: Response) => {
 const configSchema = z.object({
   cuit: z.string().min(11).max(13),
   businessName: z.string().min(1),
-  tradeName: z.string().optional(),
+  tradeName: z.string().optional().nullable().transform(v => v || undefined),
   taxCategory: z.nativeEnum(AfipTaxCategory),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  activityStartDate: z.string().datetime().optional(),
-  afipAccessToken: z.string().optional(),
-  afipCert: z.string().optional(),
-  afipKey: z.string().optional(),
+  address: z.string().optional().nullable().transform(v => v || undefined),
+  city: z.string().optional().nullable().transform(v => v || undefined),
+  state: z.string().optional().nullable().transform(v => v || undefined),
+  zipCode: z.string().optional().nullable().transform(v => v || undefined),
+  activityStartDate: z.string().optional().nullable().transform(v => v || undefined),
+  afipAccessToken: z.string().optional().nullable().transform(v => v || undefined),
+  afipCert: z.string().optional().nullable().transform(v => v || undefined),
+  afipKey: z.string().optional().nullable().transform(v => v || undefined),
   isProduction: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
@@ -85,16 +85,19 @@ router.post('/config', async (req: AuthenticatedRequest, res: Response) => {
     const tenantId = req.user!.tenantId;
     const data = configSchema.parse(req.body);
 
+    // Parsear fecha si existe
+    const activityStartDate = data.activityStartDate ? new Date(data.activityStartDate) : null;
+
     const config = await prisma.afipConfig.upsert({
       where: { tenantId },
       update: {
         ...data,
-        activityStartDate: data.activityStartDate ? new Date(data.activityStartDate) : undefined,
+        activityStartDate,
       },
       create: {
         tenantId,
         ...data,
-        activityStartDate: data.activityStartDate ? new Date(data.activityStartDate) : undefined,
+        activityStartDate,
       },
     });
 
