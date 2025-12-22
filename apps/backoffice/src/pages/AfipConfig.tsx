@@ -211,15 +211,22 @@ export default function AfipConfigPage() {
         return;
       }
 
-      // Contar bloqueados y dados de baja
-      const blocked = afipPoints.filter(ap => ap.blocked !== 'N');
+      // Filtrar:
+      // - dropped: dados de baja definitivamente (FchBaja)
+      // - usedByOther: bloqueados porque están en uso por otro software
+      // - available: libres para usar (no dados de baja y no bloqueados)
       const dropped = afipPoints.filter(ap => ap.dropDate);
-      const available = afipPoints.filter(ap => ap.blocked === 'N' && !ap.dropDate);
+      const usedByOther = afipPoints.filter(ap => !ap.dropDate && ap.blocked === 'S');
+      const available = afipPoints.filter(ap => !ap.dropDate && ap.blocked !== 'S');
 
-      console.log('Blocked:', blocked.length, 'Dropped:', dropped.length, 'Available:', available.length);
+      console.log('Dropped:', dropped.length, 'Used by other software:', usedByOther.length, 'Available:', available.length);
 
       if (available.length === 0) {
-        showNotification('error', `Encontrados ${afipPoints.length} puntos de venta, pero todos están bloqueados (${blocked.length}) o dados de baja (${dropped.length}).`);
+        let message = `Encontrados ${afipPoints.length} puntos de venta.`;
+        if (usedByOther.length > 0) message += ` ${usedByOther.length} en uso por otro software.`;
+        if (dropped.length > 0) message += ` ${dropped.length} dados de baja.`;
+        message += ' Ninguno disponible para importar.';
+        showNotification('error', message);
         return;
       }
 
@@ -238,7 +245,7 @@ export default function AfipConfigPage() {
         return;
       }
 
-      // Crear los puntos de venta que faltan
+      // Crear los puntos de venta que faltan (solo los libres)
       let created = 0;
       for (const ap of toImport) {
         try {
@@ -399,6 +406,108 @@ export default function AfipConfigPage() {
               <span>Auth Server: {serverStatus.authserver}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Configuration Status Panel */}
+      {configured && (
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="font-semibold mb-3">Estado de Configuración</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Step 1: Token */}
+            <div className={`p-3 rounded-lg border-2 ${config.hasAccessToken ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                {config.hasAccessToken ? (
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                ) : (
+                  <span className="w-5 h-5 rounded-full border-2 border-gray-400 flex items-center justify-center text-xs text-gray-500">1</span>
+                )}
+                <span className="font-medium text-sm">Access Token</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                {config.hasAccessToken ? 'Configurado' : 'Pendiente - Obtené tu token en afipsdk.com'}
+              </p>
+            </div>
+
+            {/* Step 2: Certificate */}
+            <div className={`p-3 rounded-lg border-2 ${config.hasCertificate && config.hasKey ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                {config.hasCertificate && config.hasKey ? (
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                ) : (
+                  <span className="w-5 h-5 rounded-full border-2 border-gray-400 flex items-center justify-center text-xs text-gray-500">2</span>
+                )}
+                <span className="font-medium text-sm">Certificado Digital</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                {config.hasCertificate && config.hasKey
+                  ? 'Generado y guardado'
+                  : 'Pendiente - Usá el botón "Configurar Certificado"'}
+              </p>
+            </div>
+
+            {/* Step 3: Sales Points */}
+            <div className={`p-3 rounded-lg border-2 ${salesPoints.length > 0 ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                {salesPoints.length > 0 ? (
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                ) : (
+                  <span className="w-5 h-5 rounded-full border-2 border-gray-400 flex items-center justify-center text-xs text-gray-500">3</span>
+                )}
+                <span className="font-medium text-sm">Puntos de Venta</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                {salesPoints.length > 0
+                  ? `${salesPoints.length} punto(s) configurado(s)`
+                  : 'Pendiente - Importá desde AFIP'}
+              </p>
+            </div>
+
+            {/* Step 4: Ready */}
+            <div className={`p-3 rounded-lg border-2 ${
+              config.hasAccessToken && config.hasCertificate && config.hasKey && salesPoints.length > 0
+                ? 'border-green-500 bg-green-50'
+                : 'border-gray-300 bg-gray-50'
+            }`}>
+              <div className="flex items-center gap-2 mb-1">
+                {config.hasAccessToken && config.hasCertificate && config.hasKey && salesPoints.length > 0 ? (
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                ) : (
+                  <span className="w-5 h-5 rounded-full border-2 border-gray-400 flex items-center justify-center text-xs text-gray-500">4</span>
+                )}
+                <span className="font-medium text-sm">Listo para Facturar</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                {config.hasAccessToken && config.hasCertificate && config.hasKey && salesPoints.length > 0
+                  ? '¡Podés emitir comprobantes!'
+                  : 'Completá los pasos anteriores'}
+              </p>
+            </div>
+          </div>
+
+          {/* Next Step Guide */}
+          {!(config.hasAccessToken && config.hasCertificate && config.hasKey && salesPoints.length > 0) && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="font-medium text-blue-800 mb-2">📋 Siguiente paso:</p>
+              {!config.hasAccessToken ? (
+                <p className="text-sm text-blue-700">
+                  1. Obtené tu <strong>Access Token</strong> en{' '}
+                  <a href="https://afipsdk.com" target="_blank" rel="noopener noreferrer" className="underline">afipsdk.com</a>{' '}
+                  y pegalo en el campo correspondiente abajo.
+                </p>
+              ) : !config.hasCertificate || !config.hasKey ? (
+                <p className="text-sm text-blue-700">
+                  2. Hacé click en el botón <strong>"Configurar Certificado"</strong> (abajo en la sección Credenciales)
+                  para generar tu certificado digital con tus credenciales de AFIP.
+                </p>
+              ) : salesPoints.length === 0 ? (
+                <p className="text-sm text-blue-700">
+                  3. Andá a la pestaña <strong>"Puntos de Venta"</strong> y hacé click en <strong>"Importar de AFIP"</strong>{' '}
+                  para cargar tus puntos de venta habilitados.
+                </p>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
 

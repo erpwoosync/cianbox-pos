@@ -574,7 +574,15 @@ class AfipService {
       console.log('Consultando puntos de venta en AFIP (producción)...');
       const result = await afipInstance.instance.ElectronicBilling.getSalesPoints();
 
-      console.log('AFIP getSalesPoints raw result:', JSON.stringify(result, null, 2));
+      console.log('AFIP getSalesPoints raw result:');
+      console.log(JSON.stringify(result, null, 2));
+
+      // Loguear cada punto de venta para debug
+      if (Array.isArray(result)) {
+        result.forEach((sp: any, idx: number) => {
+          console.log(`PV ${idx + 1}:`, JSON.stringify(sp));
+        });
+      }
 
       // Normalizar respuesta
       let salesPoints: Array<{ number: number; type: string; blocked: string; dropDate: string | null }> = [];
@@ -583,12 +591,22 @@ class AfipService {
         return { salesPoints: [], isProduction: true };
       }
 
+      // Función helper para normalizar el campo Bloqueado
+      // AFIP puede devolver: 'S', 'N', true, false, 0, 1, null, undefined
+      const normalizeBlocked = (value: any): string => {
+        if (value === 'S' || value === true || value === 1 || value === '1') {
+          return 'S';
+        }
+        // Si es null, undefined, 'N', false, 0, '', u otro valor, NO está bloqueado
+        return 'N';
+      };
+
       // Si es un array, mapearlo
       if (Array.isArray(result)) {
         salesPoints = result.map((sp: any) => ({
           number: sp.Nro || sp.nro || sp.PtoVta || sp.ptoVta,
           type: sp.EmisionTipo || sp.emisionTipo || sp.Tipo || sp.tipo || 'N/A',
-          blocked: sp.Bloqueado || sp.bloqueado || 'N',
+          blocked: normalizeBlocked(sp.Bloqueado ?? sp.bloqueado),
           dropDate: sp.FchBaja || sp.fchBaja || null,
         }));
       }
@@ -597,7 +615,7 @@ class AfipService {
         salesPoints = result.ResultGet.map((sp: any) => ({
           number: sp.Nro || sp.nro || sp.PtoVta || sp.ptoVta,
           type: sp.EmisionTipo || sp.emisionTipo || sp.Tipo || sp.tipo || 'N/A',
-          blocked: sp.Bloqueado || sp.bloqueado || 'N',
+          blocked: normalizeBlocked(sp.Bloqueado ?? sp.bloqueado),
           dropDate: sp.FchBaja || sp.fchBaja || null,
         }));
       }
@@ -606,7 +624,7 @@ class AfipService {
         salesPoints = [{
           number: result.Nro || result.PtoVta,
           type: result.EmisionTipo || 'N/A',
-          blocked: result.Bloqueado || 'N',
+          blocked: normalizeBlocked(result.Bloqueado),
           dropDate: result.FchBaja || null,
         }];
       }
