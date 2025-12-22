@@ -400,6 +400,131 @@ router.post('/invoices/factura-b', async (req: AuthenticatedRequest, res: Respon
 });
 
 /**
+ * POST /afip/invoices/from-sale
+ * Factura una venta existente automáticamente
+ * Busca el punto de venta AFIP vinculado al POS de la venta
+ */
+const fromSaleSchema = z.object({
+  saleId: z.string(),
+  voucherType: z.enum(['FACTURA_B', 'FACTURA_C']).default('FACTURA_B'),
+  receiverDocType: z.number().int().optional(),
+  receiverDocNum: z.string().optional(),
+  receiverName: z.string().optional(),
+});
+
+router.post('/invoices/from-sale', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const data = fromSaleSchema.parse(req.body);
+
+    // Obtener la venta con su POS
+    const sale = await prisma.sale.findFirst({
+      where: { id: data.saleId, tenantId },
+      include: {
+        pointOfSale: true,
+        customer: true,
+        items: true,
+      },
+    });
+
+    if (!sale) {
+      return res.status(404).json({ error: 'Venta no encontrada' });
+    }
+
+    // Verificar si ya tiene factura
+    const existingInvoice = await prisma.afipInvoice.findFirst({
+      where: { saleId: sale.id, status: 'ISSUED' },
+    });
+
+    if (existingInvoice) {
+      return res.status(400).json({
+        error: 'Esta venta ya tiene una factura emitida',
+        invoiceId: existingInvoice.id,
+        cae: existingInvoice.cae,
+      });
+    }
+
+    // Buscar punto de venta AFIP vinculado al POS
+    const afipSalesPoint = await prisma.afipSalesPoint.findFirst({
+      where: {
+        pointOfSaleId: sale.pointOfSaleId,
+        isActive: true,
+      },
+    });
+
+    if (!afipSalesPoint) {
+      return res.status(400).json({
+        error: 'El punto de venta no tiene un punto de venta AFIP vinculado. Configuralo en Backoffice → AFIP → Puntos de Venta.',
+      });
+    }
+
+    // Datos del receptor
+    const receiverName = data.receiverName || sale.customer?.name || 'Consumidor Final';
+    const receiverDocNum = data.receiverDocNum || sale.customer?.taxId || '0';
+    const receiverDocType = data.receiverDocType || (receiverDocNum === '0' ? 99 : 96); // 99=CF, 96=DNI
+
+    // Emitir factura
+    const result = await afipService.createInvoiceB(
+      tenantId,
+      afipSalesPoint.id,
+      Number(sale.total),
+      {
+        receiverDocType,
+        receiverDocNum,
+        receiverName,
+        saleId: sale.id,
+      }
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // Obtener la factura completa para devolver
+    const invoice = await prisma.afipInvoice.findUnique({
+      where: { id: result.invoiceId },
+      include: {
+        salesPoint: true,
+        afipConfig: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      invoice: {
+        id: invoice?.id,
+        voucherType: invoice?.voucherType,
+        number: invoice?.number,
+        cae: result.cae,
+        caeExpiration: result.caeExpiration,
+        salesPointNumber: afipSalesPoint.number,
+        total: sale.total,
+        receiverName,
+        receiverDocNum,
+        issueDate: invoice?.issueDate,
+        // Datos para el PDF
+        cuit: invoice?.afipConfig.cuit,
+        businessName: invoice?.afipConfig.businessName,
+        tradeName: invoice?.afipConfig.tradeName,
+        address: invoice?.afipConfig.address,
+        taxCategory: invoice?.afipConfig.taxCategory,
+      },
+      sale: {
+        id: sale.id,
+        saleNumber: sale.saleNumber,
+        items: sale.items,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error al facturar venta:', error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Datos inválidos', details: error.errors });
+    }
+    res.status(500).json({ error: error.message || 'Error al facturar venta' });
+  }
+});
+
+/**
  * POST /afip/invoices/nota-credito-b
  * Emite una Nota de Crédito B
  */

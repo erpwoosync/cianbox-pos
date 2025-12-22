@@ -37,6 +37,7 @@ import SizeCurveModal from '../components/SizeCurveModal';
 import ProductSearchModal from '../components/ProductSearchModal';
 import TalleSelectorModal from '../components/TalleSelectorModal';
 import CustomerSelectorModal from '../components/CustomerSelectorModal';
+import InvoiceModal from '../components/InvoiceModal';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 import { offlineSyncService } from '../services/offlineSync';
 
@@ -321,6 +322,15 @@ export default function POS() {
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
   const [isCalculatingPromotions, setIsCalculatingPromotions] = useState(false);
   const lastCalculatedCartKeyRef = useRef<string>('');
+
+  // Estado de facturación AFIP
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [completedSaleData, setCompletedSaleData] = useState<{
+    id: string;
+    saleNumber: string;
+    total: number;
+    customerName?: string;
+  } | null>(null);
 
   // Detectar cambios de estado online/offline
   useEffect(() => {
@@ -1283,7 +1293,15 @@ export default function POS() {
         }
         setShowPayment(false);
         setAmountTendered('');
-        alert(`Venta #${response.data.saleNumber} registrada correctamente`);
+
+        // Mostrar modal de facturación con datos de la venta completada
+        setCompletedSaleData({
+          id: response.data.id,
+          saleNumber: response.data.saleNumber,
+          total: total,
+          customerName: selectedCustomer?.name,
+        });
+        setShowInvoiceModal(true);
 
         // Refrescar datos de la sesión de caja
         loadCashSession();
@@ -2163,6 +2181,21 @@ export default function POS() {
           productName={talleParentInfo.name}
           price={talleParentInfo.price}
           variantes={talleVariantes}
+        />
+      )}
+
+      {/* Modal de facturación AFIP */}
+      {completedSaleData && (
+        <InvoiceModal
+          isOpen={showInvoiceModal}
+          onClose={() => {
+            setShowInvoiceModal(false);
+            setCompletedSaleData(null);
+          }}
+          saleId={completedSaleData.id}
+          saleNumber={completedSaleData.saleNumber}
+          total={completedSaleData.total}
+          customerName={completedSaleData.customerName}
         />
       )}
     </div>
