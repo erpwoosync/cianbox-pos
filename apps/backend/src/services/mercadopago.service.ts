@@ -1537,7 +1537,14 @@ class MercadoPagoService {
 
     // Crear orden QR dinámica
     const qrUrl = `${this.baseUrl}/instore/qr/seller/collectors/${config.mpUserId}/pos/${params.externalPosId}/orders`;
-    console.log('[MP QR] Creating order:', { url: qrUrl, externalPosId: params.externalPosId, amount: params.amount, externalReference: params.externalReference });
+    console.log('[MP QR] Creating order:', {
+      url: qrUrl,
+      externalPosId: params.externalPosId,
+      amount: params.amount,
+      externalReference: params.externalReference,
+      itemsCount: items.length,
+      orderData: JSON.stringify(orderData, null, 2)
+    });
 
     // Primero eliminar cualquier orden existente en el QR
     try {
