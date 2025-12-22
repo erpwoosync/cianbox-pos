@@ -146,6 +146,8 @@ interface Ticket {
   createdAt: string;
   customerId?: string;
   customerName?: string;
+  customerTaxId?: string;
+  customerTaxIdType?: string;
 }
 
 interface QuickAccessCategory {
@@ -265,12 +267,19 @@ export default function POS() {
   // Estado de consultor de productos
   const [showProductSearchModal, setShowProductSearchModal] = useState(false);
 
-  // Estado de cliente
+  // Estado de cliente (derivado del ticket actual)
   const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useLocalStorage<Customer | null>(
-    'pos_selected_customer',
-    null
-  );
+
+  // El cliente se almacena en cada ticket, no globalmente
+  const currentTicket = tickets.find((t: Ticket) => t.id === currentTicketId);
+  const selectedCustomer: Customer | null = currentTicket?.customerId
+    ? {
+        id: currentTicket.customerId,
+        name: currentTicket.customerName || 'Cliente',
+        taxId: currentTicket.customerTaxId,
+        taxIdType: currentTicket.customerTaxIdType as Customer['taxIdType'],
+      }
+    : null;
 
   // Estado de selector de talles (escaneo de código padre)
   const [showTalleSelectorModal, setShowTalleSelectorModal] = useState(false);
@@ -562,6 +571,24 @@ export default function POS() {
       prev.map((ticket: Ticket) =>
         ticket.id === currentTicketId
           ? { ...ticket, items: updater(ticket.items) }
+          : ticket
+      )
+    );
+  };
+
+  // Actualizar cliente del ticket actual
+  const updateTicketCustomer = (customer: Customer | null) => {
+    if (!currentTicketId) return;
+    setTickets((prev: Ticket[]) =>
+      prev.map((ticket: Ticket) =>
+        ticket.id === currentTicketId
+          ? {
+              ...ticket,
+              customerId: customer?.id,
+              customerName: customer?.name,
+              customerTaxId: customer?.taxId,
+              customerTaxIdType: customer?.taxIdType,
+            }
           : ticket
       )
     );
@@ -2075,7 +2102,7 @@ export default function POS() {
       <CustomerSelectorModal
         isOpen={showCustomerModal}
         onClose={() => setShowCustomerModal(false)}
-        onSelect={(customer) => setSelectedCustomer(customer)}
+        onSelect={(customer) => updateTicketCustomer(customer)}
         selectedCustomerId={selectedCustomer?.id}
       />
 
