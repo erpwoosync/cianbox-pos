@@ -17,7 +17,6 @@ import {
   ExternalLink,
   Download,
   Key,
-  Shield,
   Loader2
 } from 'lucide-react';
 
@@ -290,24 +289,10 @@ export default function AfipConfigPage() {
     }
   };
 
-  const handleAuthorizeWebService = async () => {
-    try {
-      setCertWizardLoading(true);
-      await afipApi.authorizeWebService({
-        username: certWizardData.username,
-        password: certWizardData.password,
-        wsId: 'wsfe',
-        isProduction: certWizardData.isProduction,
-      });
-      showNotification('success', 'Web service WSFE autorizado exitosamente');
-      setCertWizardStep(3);
-      // Recargar config para actualizar estado
-      await loadInitialData();
-    } catch (error: any) {
-      showNotification('error', error.response?.data?.error || 'Error al autorizar web service');
-    } finally {
-      setCertWizardLoading(false);
-    }
+  const handleSkipToComplete = async () => {
+    // Recargar config para actualizar estado
+    await loadInitialData();
+    setCertWizardStep(3);
   };
 
   const closeCertWizard = () => {
@@ -987,25 +972,47 @@ export default function AfipConfigPage() {
               </div>
             )}
 
-            {/* Step 2: Authorize WebService */}
+            {/* Step 2: Authorize WebService (Manual) */}
             {certWizardStep === 2 && (
               <div className="space-y-4">
                 <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-center gap-2 text-green-800">
                     <CheckCircle className="w-5 h-5" />
-                    <strong>Certificado generado exitosamente</strong>
+                    <strong>Certificado generado y guardado exitosamente</strong>
                   </div>
                 </div>
 
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                  Ahora necesitamos autorizar el <strong>Web Service de Factura Electrónica (WSFE)</strong> para que puedas emitir comprobantes.
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                  <strong>Paso manual requerido:</strong> Ahora necesitás autorizar el Web Service WSFE en la página de AFIP/ARCA.
                 </div>
 
-                <div className="flex items-center gap-3 p-4 border rounded-lg">
-                  <Shield className="w-8 h-8 text-blue-600" />
-                  <div>
-                    <p className="font-medium">Web Service WSFE</p>
-                    <p className="text-sm text-gray-500">Facturación Electrónica</p>
+                <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-3">
+                  <p className="font-semibold">Instrucciones:</p>
+                  <ol className="list-decimal list-inside space-y-2 text-gray-700">
+                    <li>
+                      Ingresá a{' '}
+                      <a
+                        href={certWizardData.isProduction
+                          ? "https://auth.afip.gob.ar/contribuyente_/"
+                          : "https://wsaahomo.afip.gov.ar/wsfed/"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline"
+                      >
+                        AFIP con clave fiscal
+                      </a>
+                    </li>
+                    <li>Buscá el servicio <strong>"Administrador de Relaciones de Clave Fiscal"</strong></li>
+                    <li>Seleccioná <strong>"Adherir Servicio"</strong> o <strong>"Nueva Relación"</strong></li>
+                    <li>Buscá y seleccioná: <strong>"WSFE - Factura Electrónica"</strong> (o "Web Services - Facturación Electrónica")</li>
+                    <li>Confirmá la adhesión</li>
+                  </ol>
+
+                  <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200">
+                    <p className="text-blue-800">
+                      <strong>Tip:</strong> Si ya tenés el WSFE autorizado (porque facturás desde otro sistema),
+                      podés saltear este paso directamente.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1067,21 +1074,11 @@ export default function AfipConfigPage() {
 
               {certWizardStep === 2 && (
                 <button
-                  onClick={handleAuthorizeWebService}
-                  disabled={certWizardLoading}
-                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  onClick={handleSkipToComplete}
+                  className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
-                  {certWizardLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Autorizando...
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="w-4 h-4" />
-                      Autorizar WSFE
-                    </>
-                  )}
+                  <CheckCircle className="w-4 h-4" />
+                  Ya autoricé el WSFE, continuar
                 </button>
               )}
 
