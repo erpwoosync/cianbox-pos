@@ -1612,6 +1612,7 @@ enum AfipTaxCategory {
 // Puntos de Venta AFIP (talonarios)
 model AfipSalesPoint {
   id              String            @id @default(cuid())
+  tenantId        String            // Multi-tenant
   afipConfigId    String
 
   // Número de punto de venta en AFIP (1-99999)
@@ -1642,13 +1643,15 @@ model AfipSalesPoint {
   invoices        AfipInvoice[]
   voucherPrintConfigs AfipVoucherPrintConfig[]
 
-  @@unique([afipConfigId, number])
+  @@unique([tenantId, number])           // Un número de PV único por tenant
+  @@index([tenantId])
   @@map("afip_sales_points")
 }
 
 // Comprobantes emitidos (facturas, NC, ND)
 model AfipInvoice {
   id              String            @id @default(cuid())
+  tenantId        String            // Multi-tenant
   afipConfigId    String
   salesPointId    String
 
@@ -1706,8 +1709,8 @@ model AfipInvoice {
   sale            Sale?             @relation(fields: [saleId], references: [id])
 
   @@unique([salesPointId, voucherType, number])
-  @@index([afipConfigId, issueDate])
-  @@index([saleId])
+  @@index([tenantId, issueDate])
+  @@index([tenantId, saleId])
   @@index([cae])
   @@map("afip_invoices")
 }

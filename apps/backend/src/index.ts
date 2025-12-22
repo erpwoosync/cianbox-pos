@@ -27,6 +27,7 @@ import cashRoutes from './routes/cash.js';
 import cianboxWebhookRoutes from './routes/webhooks.js';
 import terminalsRoutes from './routes/terminals.js';
 import customersRoutes from './routes/customers.js';
+import afipRoutes from './routes/afip.js';
 
 // Importar servicios
 import CianboxService from './services/cianbox.service.js';
@@ -134,6 +135,7 @@ app.use('/api/backoffice/terminals', terminalsRoutes); // Alias para backoffice
 app.use('/api/webhooks', mpWebhookRouter); // Webhooks Mercado Pago (público, sin auth)
 app.use('/api/cianboxwebhooks', cianboxWebhookRoutes); // Webhooks Cianbox (público, sin auth)
 app.use('/api/customers', customersRoutes); // Gestión de clientes
+app.use('/api/afip', afipRoutes); // Facturación electrónica AFIP
 
 // Ruta 404
 app.use((_req, res) => {
