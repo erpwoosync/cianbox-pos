@@ -788,8 +788,16 @@ router.post('/qr/orders', authenticate, async (req: AuthenticatedRequest, res: R
       });
     }
 
-    // Usar el código del POS como external_id (alfanumérico, sin guiones)
-    const externalPosId = pointOfSale.code.replace(/[^a-zA-Z0-9]/g, '');
+    // Verificar que el POS tiene una caja QR vinculada
+    if (!pointOfSale.mpQrExternalId) {
+      return res.status(400).json({
+        success: false,
+        error: 'El punto de venta no tiene una caja QR vinculada. Configure la caja QR desde Integraciones.',
+      });
+    }
+
+    // Usar el external_id de la caja QR vinculada
+    const externalPosId = pointOfSale.mpQrExternalId;
 
     const result = await mercadoPagoService.createQROrder({
       tenantId,
