@@ -579,21 +579,21 @@ export default function ProductLookup() {
                   <div>
                     {/* Matriz */}
                     <div className="overflow-x-auto">
-                      <table className="w-full border-collapse min-w-[500px]">
+                      <table className="w-full border-collapse text-xs">
                         <thead>
                           <tr>
-                            <th className="px-4 py-3 bg-gray-100 text-left text-sm font-medium text-gray-600 uppercase border">
-                              Talle / Color
+                            <th className="px-2 py-1.5 bg-gray-100 text-left font-medium text-gray-600 uppercase border">
+                              Talle
                             </th>
                             {sizeCurve.colors.map((color) => (
                               <th
                                 key={color}
-                                className="px-4 py-3 bg-gray-100 text-center text-sm font-medium text-gray-600 uppercase border min-w-[100px]"
+                                className="px-2 py-1.5 bg-gray-100 text-center font-medium text-gray-600 uppercase border min-w-[50px]"
                               >
                                 {color}
                               </th>
                             ))}
-                            <th className="px-4 py-3 bg-gray-200 text-center text-sm font-bold text-gray-700 uppercase border min-w-[80px]">
+                            <th className="px-2 py-1.5 bg-gray-200 text-center font-bold text-gray-700 uppercase border min-w-[45px]">
                               Total
                             </th>
                           </tr>
@@ -601,7 +601,7 @@ export default function ProductLookup() {
                         <tbody>
                           {sizeCurve.sizes.map((size) => (
                             <tr key={size}>
-                              <td className="px-4 py-3 bg-gray-50 font-medium text-gray-900 border">{size}</td>
+                              <td className="px-2 py-1.5 bg-gray-50 font-medium text-gray-900 border">{size}</td>
                               {sizeCurve.colors.map((color) => {
                                 const key = `${size}-${color}`;
                                 const cell = sizeCurve.matrix[key];
@@ -610,7 +610,7 @@ export default function ProductLookup() {
                                 return (
                                   <td
                                     key={key}
-                                    className={`px-4 py-4 text-center border font-medium ${
+                                    className={`px-2 py-1.5 text-center border font-semibold ${
                                       stock <= 0
                                         ? 'bg-red-50 text-red-400'
                                         : stock < 5
@@ -618,14 +618,11 @@ export default function ProductLookup() {
                                         : 'bg-green-50 text-green-600'
                                     }`}
                                   >
-                                    <div className="text-lg font-bold">{stock}</div>
-                                    {cell && (
-                                      <div className="text-xs text-gray-400 mt-1">{cell.sku || '-'}</div>
-                                    )}
+                                    {stock}
                                   </td>
                                 );
                               })}
-                              <td className="px-4 py-3 bg-gray-100 text-center font-bold text-gray-900 border">
+                              <td className="px-2 py-1.5 bg-gray-100 text-center font-bold text-gray-900 border">
                                 {sizeCurve.totals.bySize[size] || 0}
                               </td>
                             </tr>
@@ -633,13 +630,13 @@ export default function ProductLookup() {
                         </tbody>
                         <tfoot>
                           <tr>
-                            <td className="px-4 py-3 bg-gray-200 font-bold text-gray-900 border">Total</td>
+                            <td className="px-2 py-1.5 bg-gray-200 font-bold text-gray-900 border">Total</td>
                             {sizeCurve.colors.map((color) => (
-                              <td key={color} className="px-4 py-3 bg-gray-100 text-center font-bold text-gray-900 border">
+                              <td key={color} className="px-2 py-1.5 bg-gray-100 text-center font-bold text-gray-900 border">
                                 {sizeCurve.totals.byColor[color] || 0}
                               </td>
                             ))}
-                            <td className="px-4 py-3 bg-purple-100 text-center font-bold text-purple-700 border text-lg">
+                            <td className="px-2 py-1.5 bg-purple-100 text-center font-bold text-purple-700 border">
                               {sizeCurve.totals.total}
                             </td>
                           </tr>
