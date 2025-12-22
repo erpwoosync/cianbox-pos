@@ -2968,38 +2968,71 @@ router.post(
 
       console.log(`[MP Sync] Encontrados ${posPayments.length} pagos con patrón POS-`);
 
-      // Obtener IDs de pagos que ya existen en nuestra DB
-      const existingPaymentIds = await prisma.mercadoPagoOrder.findMany({
+      // Obtener órdenes existentes en nuestra DB
+      const existingOrders = await prisma.mercadoPagoOrder.findMany({
         where: { tenantId },
-        select: { paymentId: true, externalReference: true },
+        select: { id: true, paymentId: true, externalReference: true, status: true },
       });
 
-      const existingIds = new Set(existingPaymentIds.map(o => o.paymentId));
-      const existingRefs = new Set(existingPaymentIds.map(o => o.externalReference));
+      const existingByPaymentId = new Map(existingOrders.filter(o => o.paymentId).map(o => [o.paymentId, o]));
+      const existingByRef = new Map(existingOrders.map(o => [o.externalReference, o]));
 
-      // Filtrar los que no existen
-      const newPayments = posPayments.filter(
-        (p: MPPaymentResult) =>
-          !existingIds.has(p.id.toString()) &&
-          !existingRefs.has(p.external_reference || '')
-      );
+      const imported: Array<{ paymentId: string; externalReference: string; amount: number; action: string }> = [];
+      let updated = 0;
+      let created = 0;
 
-      console.log(`[MP Sync] ${newPayments.length} pagos nuevos para importar`);
-
-      // Insertar los nuevos pagos
-      const imported: Array<{ paymentId: string; externalReference: string; amount: number }> = [];
-
-      for (const payment of newPayments) {
+      for (const payment of posPayments) {
         try {
+          const paymentIdStr = payment.id.toString();
+          const extRef = payment.external_reference || '';
+
+          // Ya existe con este paymentId? (ya procesado completamente)
+          if (existingByPaymentId.has(paymentIdStr)) {
+            continue;
+          }
+
+          // Existe por externalReference pero sin paymentId? (orden QR pendiente)
+          const existingByRefOrder = existingByRef.get(extRef);
+          if (existingByRefOrder && !existingByRefOrder.paymentId) {
+            // Actualizar el registro existente con los datos del pago
+            await prisma.mercadoPagoOrder.update({
+              where: { id: existingByRefOrder.id },
+              data: {
+                status: 'PROCESSED',
+                paymentId: paymentIdStr,
+                paymentMethod: payment.payment_method_id,
+                cardBrand: payment.payment_method?.id,
+                cardLastFour: payment.card?.last_four_digits,
+                installments: payment.installments,
+                processedAt: payment.date_approved ? new Date(payment.date_approved) : new Date(),
+              },
+            });
+
+            imported.push({
+              paymentId: paymentIdStr,
+              externalReference: extRef,
+              amount: payment.transaction_amount,
+              action: 'updated',
+            });
+            updated++;
+            continue;
+          }
+
+          // Ya existe completamente por externalReference (ya procesado)
+          if (existingByRefOrder) {
+            continue;
+          }
+
+          // Crear nuevo registro
           await prisma.mercadoPagoOrder.create({
             data: {
               tenantId,
-              orderId: payment.id.toString(),
-              externalReference: payment.external_reference || `SYNC-${payment.id}`,
+              orderId: paymentIdStr,
+              externalReference: extRef || `SYNC-${payment.id}`,
               deviceId: 'MP-SYNC',
               amount: payment.transaction_amount,
               status: 'PROCESSED',
-              paymentId: payment.id.toString(),
+              paymentId: paymentIdStr,
               paymentMethod: payment.payment_method_id,
               cardBrand: payment.payment_method?.id,
               cardLastFour: payment.card?.last_four_digits,
@@ -3009,22 +3042,28 @@ router.post(
           });
 
           imported.push({
-            paymentId: payment.id.toString(),
-            externalReference: payment.external_reference || '',
+            paymentId: paymentIdStr,
+            externalReference: extRef,
             amount: payment.transaction_amount,
+            action: 'created',
           });
+          created++;
         } catch (err) {
-          console.error(`[MP Sync] Error importando pago ${payment.id}:`, err);
+          console.error(`[MP Sync] Error procesando pago ${payment.id}:`, err);
         }
       }
 
+      console.log(`[MP Sync] Resultado: ${created} creados, ${updated} actualizados`);
+
       res.json({
         success: true,
-        message: `Sincronización completada: ${imported.length} pagos importados`,
+        message: `Sincronización completada: ${created} creados, ${updated} actualizados`,
         data: {
           totalFound: posPayments.length,
-          alreadyExists: posPayments.length - newPayments.length,
+          alreadyExists: posPayments.length - imported.length,
           imported: imported.length,
+          created,
+          updated,
           payments: imported,
         },
       });
