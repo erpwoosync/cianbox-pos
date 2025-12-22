@@ -82,11 +82,16 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response, next: 
         where: {
           tenantId,
           isActive: true,
-          startDate: { lte: new Date() },
           OR: [
-            { endDate: { gte: new Date() } },
-            { endDate: null }
-          ]
+            { startDate: null },
+            { startDate: { lte: new Date() } }
+          ],
+          AND: {
+            OR: [
+              { endDate: null },
+              { endDate: { gte: new Date() } }
+            ]
+          }
         }
       }),
       prisma.user.count({ where: { tenantId } }),
