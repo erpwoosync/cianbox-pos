@@ -78,7 +78,17 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response, next: 
       prisma.pointOfSale.count({ where: { tenantId } }),
       prisma.customer.count({ where: { tenantId } }),
       prisma.customer.count({ where: { tenantId, isActive: true } }),
-      prisma.promotion.count({ where: { tenantId, isActive: true, startDate: { lte: new Date() }, endDate: { gte: new Date() } } }),
+      prisma.promotion.count({
+        where: {
+          tenantId,
+          isActive: true,
+          startDate: { lte: new Date() },
+          OR: [
+            { endDate: { gte: new Date() } },
+            { endDate: null }
+          ]
+        }
+      }),
       prisma.user.count({ where: { tenantId } }),
       // Ventas counts
       prisma.sale.count({ where: { tenantId } }),
