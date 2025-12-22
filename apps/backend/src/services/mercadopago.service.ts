@@ -1539,6 +1539,19 @@ class MercadoPagoService {
     const qrUrl = `${this.baseUrl}/instore/qr/seller/collectors/${config.mpUserId}/pos/${params.externalPosId}/orders`;
     console.log('[MP QR] Creating order:', { url: qrUrl, externalPosId: params.externalPosId, amount: params.amount, externalReference: params.externalReference });
 
+    // Primero eliminar cualquier orden existente en el QR
+    try {
+      const deleteResponse = await fetch(qrUrl, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+      console.log('[MP QR] Delete existing order response:', deleteResponse.status);
+    } catch (deleteError) {
+      console.log('[MP QR] No existing order to delete or error:', deleteError);
+    }
+
     const response = await fetch(
       qrUrl,
       {
