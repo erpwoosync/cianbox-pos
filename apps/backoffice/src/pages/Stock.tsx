@@ -74,17 +74,17 @@ export default function Stock() {
 
   const getTotalStock = (product: Product): number => {
     if (!product.stock || product.stock.length === 0) return 0;
-    return product.stock.reduce((sum, s) => sum + s.available, 0);
+    return product.stock.reduce((sum, s) => sum + Number(s.available || 0), 0);
   };
 
   const getStockByBranch = (stockArray: Array<{ branchId: string; available: number }> | undefined, branchId: string): number => {
     const stock = stockArray?.find((s) => s.branchId === branchId);
-    return stock?.available ?? 0;
+    return Number(stock?.available ?? 0);
   };
 
   const getVariantTotalStock = (variant: VariantWithStock): number => {
     if (!variant.stock || variant.stock.length === 0) return 0;
-    return variant.stock.reduce((sum, s) => sum + s.available, 0);
+    return variant.stock.reduce((sum, s) => sum + Number(s.available || 0), 0);
   };
 
   const filteredProducts = products.filter((product) => {

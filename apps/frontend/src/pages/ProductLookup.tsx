@@ -556,7 +556,7 @@ export default function ProductLookup() {
                   <div className="mt-4 pt-4 border-t flex items-center justify-between">
                     <span className="text-gray-500">Stock total disponible:</span>
                     <span className="text-2xl font-bold text-green-600">
-                      {productDetail.stock.reduce((sum, s) => sum + (s.available || 0), 0)} unidades
+                      {productDetail.stock.reduce((sum, s) => sum + Number(s.available || 0), 0)} unidades
                     </span>
                   </div>
                 </div>
