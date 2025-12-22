@@ -161,13 +161,8 @@ router.post(
   authorize('pos:sell'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      // DEBUG: Log para diagnosticar campos null
-      console.log('[Sales] Request body items[0]:', JSON.stringify(req.body.items?.[0], null, 2));
-      console.log('[Sales] Request body payments[0]:', JSON.stringify(req.body.payments?.[0], null, 2));
-
       const validation = saleCreateSchema.safeParse(req.body);
       if (!validation.success) {
-        console.log('[Sales] Validation errors:', JSON.stringify(validation.error.errors, null, 2));
         throw new ValidationError('Datos inválidos', validation.error.errors);
       }
 
