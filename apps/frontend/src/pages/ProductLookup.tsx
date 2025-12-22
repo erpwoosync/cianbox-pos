@@ -199,7 +199,7 @@ export default function ProductLookup() {
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-[calc(100vh-8rem)] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
