@@ -8,6 +8,7 @@ interface CartItem {
   };
   quantity: number;
   unitPrice: number;
+  subtotal: number;
 }
 
 interface MPQRPaymentModalProps {
@@ -73,10 +74,11 @@ export default function MPQRPaymentModal({
     setTimeLeft(300);
 
     try {
+      // Usar subtotal/quantity para obtener precio con descuento aplicado
       const mpItems = items.map((item) => ({
         title: item.product.name.substring(0, 50),
         quantity: item.quantity,
-        unit_price: item.unitPrice,
+        unit_price: item.subtotal / item.quantity, // Precio con descuento
       }));
 
       const response = await mercadoPagoService.createQROrder({
