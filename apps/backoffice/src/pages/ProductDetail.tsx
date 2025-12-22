@@ -271,64 +271,76 @@ export default function ProductDetail() {
                   }
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Sucursal
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                          Cantidad
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                          Reservado
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                          Disponible
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {stock.map((s) => (
-                        <tr key={s.id}>
-                          <td className="px-4 py-3 text-gray-900">
-                            {s.branch?.name || 'Sucursal ' + s.branchId}
-                          </td>
-                          <td className="px-4 py-3 text-right text-gray-900">{s.quantity}</td>
-                          <td className="px-4 py-3 text-right text-gray-500">{s.reserved}</td>
-                          <td className="px-4 py-3 text-right font-medium">
-                            <span
-                              className={
-                                s.available <= 0
-                                  ? 'text-red-600'
-                                  : s.available < 10
-                                  ? 'text-amber-600'
-                                  : 'text-green-600'
-                              }
-                            >
-                              {s.available}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50">
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">Total</td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">
-                          {stock.reduce((sum, s) => sum + Number(s.quantity), 0)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-500">
-                          {stock.reduce((sum, s) => sum + Number(s.reserved), 0)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">
-                          {stock.reduce((sum, s) => sum + Number(s.available), 0)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                <>
+                  {/* Resumen total */}
+                  <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Warehouse className="w-8 h-8 text-blue-600" />
+                        <div>
+                          <p className="text-sm text-gray-500">Stock Total Disponible</p>
+                          <p className="text-3xl font-bold text-green-600">
+                            {stock.reduce((sum, s) => sum + Number(s.available || 0), 0)} unidades
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right text-sm text-gray-500">
+                        <p>Total: {stock.reduce((sum, s) => sum + Number(s.quantity || 0), 0)}</p>
+                        <p>Reservado: {stock.reduce((sum, s) => sum + Number(s.reserved || 0), 0)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tarjetas por sucursal */}
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-blue-600" />
+                    Stock por Sucursal
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {stock.map((s) => {
+                      const available = Number(s.available || 0);
+                      const quantity = Number(s.quantity || 0);
+                      const reserved = Number(s.reserved || 0);
+                      return (
+                        <div
+                          key={s.id}
+                          className={`p-4 rounded-xl border-2 ${
+                            available <= 0
+                              ? 'border-red-200 bg-red-50'
+                              : available < 10
+                              ? 'border-amber-200 bg-amber-50'
+                              : 'border-green-200 bg-green-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className={`w-3 h-3 rounded-full ${
+                              available <= 0 ? 'bg-red-500' : available < 10 ? 'bg-amber-500' : 'bg-green-500'
+                            }`} />
+                            <h4 className="font-semibold text-gray-900">
+                              {s.branch?.name || 'Sucursal ' + s.branchId}
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="bg-white/60 rounded-lg p-2">
+                              <p className="text-xs text-gray-500">Total</p>
+                              <p className="text-lg font-bold text-gray-900">{quantity}</p>
+                            </div>
+                            <div className="bg-white/60 rounded-lg p-2">
+                              <p className="text-xs text-gray-500">Reservado</p>
+                              <p className="text-lg font-bold text-amber-600">{reserved}</p>
+                            </div>
+                            <div className="bg-white/60 rounded-lg p-2">
+                              <p className="text-xs text-gray-500">Disponible</p>
+                              <p className={`text-lg font-bold ${
+                                available <= 0 ? 'text-red-600' : available < 10 ? 'text-amber-600' : 'text-green-600'
+                              }`}>{available}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           )}
