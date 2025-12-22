@@ -125,6 +125,8 @@ model Tenant {
   mercadoPagoConfigs MercadoPagoConfig[]  // Plural: puede tener config para Point y QR
   mercadoPagoOrders MercadoPagoOrder[]
   posTerminals      PosTerminal[]
+  afipConfig        AfipConfig?          // Configuración AFIP (1:1)
+  printTemplates    PrintTemplate[]      // Plantillas de impresión
 
   @@map("tenants")
 }
@@ -338,6 +340,7 @@ model PointOfSale {
   cashSessions  CashSession[]
   sessions      UserSession[]
   terminals     PosTerminal[]
+  afipSalesPoints AfipSalesPoint[]     // Puntos de venta AFIP vinculados
 
   @@unique([tenantId, branchId, code])
   @@map("points_of_sale")
@@ -832,6 +835,7 @@ model Sale {
   items            SaleItem[]
   payments         Payment[]
   mercadoPagoOrder MercadoPagoOrder?
+  afipInvoices     AfipInvoice[]        // Comprobantes fiscales asociados
 
   @@unique([tenantId, saleNumber])
   @@index([tenantId, saleDate])
@@ -1316,6 +1320,7 @@ model Printer {
   // Relaciones
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   printPoints PrintPointPrinter[]
+  voucherPrintConfigs AfipVoucherPrintConfig[]  // Configs de impresión AFIP
 
   @@unique([tenantId, name])
   @@map("printers")
@@ -1548,4 +1553,312 @@ enum PosTerminalStatus {
   ACTIVE      // Activo, puede operar
   DISABLED    // Desactivado por admin
   BLOCKED     // Bloqueado (seguridad)
+}
+
+// ==============================================
+// FACTURACIÓN ELECTRÓNICA AFIP
+// ==============================================
+
+// Configuración de la empresa facturante por Tenant
+model AfipConfig {
+  id              String            @id @default(cuid())
+  tenantId        String            @unique
+
+  // Datos fiscales de la empresa
+  cuit            String            // CUIT facturante (20123456789)
+  businessName    String            // Razón Social
+  tradeName       String?           // Nombre de fantasía
+  taxCategory     AfipTaxCategory   // Condición frente al IVA
+
+  // Domicilio fiscal
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
+
+  // Inicio de actividades
+  activityStartDate DateTime?
+
+  // Configuración AfipSDK
+  afipAccessToken String?           // Token de app.afipsdk.com
+  afipCert        String?           @db.Text // Certificado .crt
+  afipKey         String?           @db.Text // Clave privada .key
+
+  // Ambiente
+  isProduction    Boolean           @default(false)
+
+  // Estado
+  isActive        Boolean           @default(true)
+  lastSync        DateTime?
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relaciones
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  salesPoints     AfipSalesPoint[]
+  invoices        AfipInvoice[]
+
+  @@map("afip_configs")
+}
+
+enum AfipTaxCategory {
+  RESPONSABLE_INSCRIPTO     // IVA Responsable Inscripto
+  MONOTRIBUTISTA            // Monotributo
+  EXENTO                    // IVA Exento
+  NO_RESPONSABLE            // No Responsable
+}
+
+// Puntos de Venta AFIP (talonarios)
+model AfipSalesPoint {
+  id              String            @id @default(cuid())
+  afipConfigId    String
+
+  // Número de punto de venta en AFIP (1-99999)
+  number          Int
+  name            String?           // "Punto Venta Principal"
+
+  // Secuencias por tipo de comprobante (último número emitido)
+  lastInvoiceA    Int               @default(0)
+  lastInvoiceB    Int               @default(0)
+  lastInvoiceC    Int               @default(0)
+  lastCreditNoteA Int               @default(0)
+  lastCreditNoteB Int               @default(0)
+  lastCreditNoteC Int               @default(0)
+  lastDebitNoteA  Int               @default(0)
+  lastDebitNoteB  Int               @default(0)
+  lastDebitNoteC  Int               @default(0)
+
+  // Vinculación con PointOfSale del POS (opcional)
+  pointOfSaleId   String?
+
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relaciones
+  afipConfig      AfipConfig        @relation(fields: [afipConfigId], references: [id], onDelete: Cascade)
+  pointOfSale     PointOfSale?      @relation(fields: [pointOfSaleId], references: [id])
+  invoices        AfipInvoice[]
+  voucherPrintConfigs AfipVoucherPrintConfig[]
+
+  @@unique([afipConfigId, number])
+  @@map("afip_sales_points")
+}
+
+// Comprobantes emitidos (facturas, NC, ND)
+model AfipInvoice {
+  id              String            @id @default(cuid())
+  afipConfigId    String
+  salesPointId    String
+
+  // Tipo y número
+  voucherType     AfipVoucherType
+  number          Int               // Número de comprobante
+
+  // CAE
+  cae             String            // Código de Autorización Electrónica
+  caeExpiration   DateTime          // Fecha de vencimiento del CAE
+
+  // Datos del comprobante
+  issueDate       DateTime          // Fecha de emisión
+
+  // Receptor
+  receiverDocType String            // 80=CUIT, 96=DNI, 99=CF
+  receiverDocNum  String            // Número de documento
+  receiverName    String?           // Nombre/Razón Social
+  receiverTaxCategory String?       // Condición IVA del receptor
+
+  // Montos
+  netAmount       Decimal           @db.Decimal(12, 2) // Neto gravado
+  exemptAmount    Decimal           @default(0) @db.Decimal(12, 2) // Exento
+  taxAmount       Decimal           @db.Decimal(12, 2) // IVA
+  otherTaxes      Decimal           @default(0) @db.Decimal(12, 2) // Otros tributos
+  totalAmount     Decimal           @db.Decimal(12, 2) // Total
+
+  // Concepto
+  concept         Int               // 1=Productos, 2=Servicios, 3=Ambos
+
+  // Para NC/ND: referencia al comprobante original
+  relatedVoucherType   AfipVoucherType?
+  relatedVoucherPtoVta Int?
+  relatedVoucherNumber Int?
+  relatedInvoiceId     String?      // FK a la factura original
+
+  // Vínculo con venta del POS
+  saleId          String?           // Link a Sale
+
+  // Datos raw de AFIP
+  afipResponse    Json?             // Respuesta completa de AFIP
+
+  // Estado
+  status          AfipInvoiceStatus @default(ISSUED)
+  voidedAt        DateTime?
+  voidReason      String?
+
+  createdAt       DateTime          @default(now())
+
+  // Relaciones
+  afipConfig      AfipConfig        @relation(fields: [afipConfigId], references: [id])
+  salesPoint      AfipSalesPoint    @relation(fields: [salesPointId], references: [id])
+  relatedInvoice  AfipInvoice?      @relation("InvoiceRelation", fields: [relatedInvoiceId], references: [id])
+  creditDebitNotes AfipInvoice[]    @relation("InvoiceRelation")
+  sale            Sale?             @relation(fields: [saleId], references: [id])
+
+  @@unique([salesPointId, voucherType, number])
+  @@index([afipConfigId, issueDate])
+  @@index([saleId])
+  @@index([cae])
+  @@map("afip_invoices")
+}
+
+enum AfipVoucherType {
+  FACTURA_A         // CbteTipo = 1
+  NOTA_DEBITO_A     // CbteTipo = 2
+  NOTA_CREDITO_A    // CbteTipo = 3
+  FACTURA_B         // CbteTipo = 6
+  NOTA_DEBITO_B     // CbteTipo = 7
+  NOTA_CREDITO_B    // CbteTipo = 8
+  FACTURA_C         // CbteTipo = 11
+  NOTA_DEBITO_C     // CbteTipo = 12
+  NOTA_CREDITO_C    // CbteTipo = 13
+}
+
+enum AfipInvoiceStatus {
+  ISSUED            // Emitida correctamente
+  VOIDED            // Anulada (solo tracking interno)
+  ERROR             // Error al emitir
+}
+
+// ==============================================
+// PLANTILLAS DE IMPRESIÓN
+// ==============================================
+
+// Plantillas de diseño de impresión
+model PrintTemplate {
+  id              String            @id @default(cuid())
+  tenantId        String
+
+  // Identificación
+  name            String            // "Factura A4 con logo", "Ticket 80mm"
+  description     String?
+
+  // Tipo de papel/formato
+  paperSize       PaperSize
+
+  // Dimensiones personalizadas (mm) - solo si paperSize = CUSTOM
+  customWidth     Int?
+  customHeight    Int?
+
+  // Orientación (para A4/A5)
+  orientation     PaperOrientation  @default(PORTRAIT)
+
+  // Contenido del template
+  templateType    TemplateType      @default(HTML)
+  content         String            @db.Text // HTML template o ESC/POS commands
+  styles          String?           @db.Text // CSS adicional
+
+  // Márgenes en mm
+  marginTop       Int               @default(10)
+  marginBottom    Int               @default(10)
+  marginLeft      Int               @default(10)
+  marginRight     Int               @default(10)
+
+  // Assets
+  logoUrl         String?           // Logo para incluir
+  headerImageUrl  String?           // Imagen de cabecera
+  footerImageUrl  String?           // Imagen de pie
+
+  // Configuración específica para tickets térmicos
+  fontSize        Int?              @default(12)
+  lineSpacing     Int?              @default(1)
+  charPerLine     Int?              @default(48) // Caracteres por línea (48 para 80mm)
+
+  // QR/Código de barras AFIP
+  showAfipQr      Boolean           @default(true)
+  qrSize          Int?              @default(150)
+  qrPosition      QrPosition        @default(BOTTOM)
+
+  // Secciones opcionales
+  showHeader      Boolean           @default(true)
+  showFooter      Boolean           @default(true)
+  showLogo        Boolean           @default(true)
+  showBarcode     Boolean           @default(false) // Código de barras del CAE
+
+  // Textos personalizados
+  headerText      String?           // Texto adicional en cabecera
+  footerText      String?           // Texto adicional en pie
+
+  // Estado
+  isDefault       Boolean           @default(false)
+  isActive        Boolean           @default(true)
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relaciones
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voucherConfigs  AfipVoucherPrintConfig[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, paperSize, isActive])
+  @@map("print_templates")
+}
+
+enum PaperSize {
+  A4              // 210 x 297 mm
+  A5              // 148 x 210 mm
+  TICKET_80       // 80mm térmico
+  TICKET_58       // 58mm térmico
+  CUSTOM          // Tamaño personalizado
+}
+
+enum PaperOrientation {
+  PORTRAIT        // Vertical
+  LANDSCAPE       // Horizontal
+}
+
+enum TemplateType {
+  HTML            // Template HTML con placeholders
+  ESC_POS         // Comandos ESC/POS para térmicas
+  JSON            // Configuración JSON estructurada
+}
+
+enum QrPosition {
+  TOP
+  BOTTOM
+  RIGHT
+  LEFT
+}
+
+// Configuración de impresión por tipo de comprobante
+model AfipVoucherPrintConfig {
+  id              String            @id @default(cuid())
+  salesPointId    String
+
+  // Tipo de comprobante
+  voucherType     AfipVoucherType
+
+  // Plantilla asignada
+  printTemplateId String
+
+  // Cantidad de copias
+  copies          Int               @default(1)
+
+  // Auto-imprimir al emitir
+  autoPrint       Boolean           @default(true)
+
+  // Impresora específica (opcional)
+  printerId       String?
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relaciones
+  salesPoint      AfipSalesPoint    @relation(fields: [salesPointId], references: [id], onDelete: Cascade)
+  printTemplate   PrintTemplate     @relation(fields: [printTemplateId], references: [id])
+  printer         Printer?          @relation(fields: [printerId], references: [id])
+
+  @@unique([salesPointId, voucherType])
+  @@map("afip_voucher_print_configs")
 }
