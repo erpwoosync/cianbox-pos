@@ -548,19 +548,60 @@ class AfipService {
       throw new Error('Configuración AFIP no encontrada');
     }
 
-    const result = await afipInstance.instance.ElectronicBilling.getSalesPoints();
+    try {
+      const result = await afipInstance.instance.ElectronicBilling.getSalesPoints();
 
-    // Normalizar respuesta
-    if (!result || !Array.isArray(result)) {
+      console.log('AFIP getSalesPoints raw result:', JSON.stringify(result, null, 2));
+
+      // Normalizar respuesta
+      if (!result) {
+        return [];
+      }
+
+      // Si es un array, mapearlo
+      if (Array.isArray(result)) {
+        return result.map((sp: any) => ({
+          number: sp.Nro || sp.nro || sp.PtoVta || sp.ptoVta,
+          type: sp.EmisionTipo || sp.emisionTipo || sp.Tipo || sp.tipo || 'N/A',
+          blocked: sp.Bloqueado || sp.bloqueado || 'N',
+          dropDate: sp.FchBaja || sp.fchBaja || null,
+        }));
+      }
+
+      // Si es un objeto con ResultGet, extraer de ahí
+      if (result.ResultGet && Array.isArray(result.ResultGet)) {
+        return result.ResultGet.map((sp: any) => ({
+          number: sp.Nro || sp.nro || sp.PtoVta || sp.ptoVta,
+          type: sp.EmisionTipo || sp.emisionTipo || sp.Tipo || sp.tipo || 'N/A',
+          blocked: sp.Bloqueado || sp.bloqueado || 'N',
+          dropDate: sp.FchBaja || sp.fchBaja || null,
+        }));
+      }
+
+      // Si es un objeto con PtoVta (un solo punto de venta)
+      if (result.PtoVta || result.Nro) {
+        return [{
+          number: result.Nro || result.PtoVta,
+          type: result.EmisionTipo || 'N/A',
+          blocked: result.Bloqueado || 'N',
+          dropDate: result.FchBaja || null,
+        }];
+      }
+
       return [];
-    }
+    } catch (error: any) {
+      console.error('Error en getSalesPointsFromAfip:', error.message);
+      console.error('Error stack:', error.stack);
 
-    return result.map((sp: any) => ({
-      number: sp.Nro || sp.nro,
-      type: sp.EmisionTipo || sp.emisionTipo || 'N/A',
-      blocked: sp.Bloqueado || sp.bloqueado || 'N',
-      dropDate: sp.FchBaja || sp.fchBaja || null,
-    }));
+      // Si el error indica que no hay puntos de venta, devolver array vacío
+      if (error.message?.includes('602') || // Error AFIP: no hay puntos de venta
+          error.message?.includes('no posee') ||
+          error.message?.includes('No sales points')) {
+        return [];
+      }
+
+      throw error;
+    }
   }
 
   /**
