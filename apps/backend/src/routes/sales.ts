@@ -113,30 +113,43 @@ const saleQuerySchema = z.object({
 
 /**
  * Genera número de venta secuencial
- * Formato: T-XXXXXXXX (secuencial global por tenant)
+ * Formato: SUC-CODE-POS-CODE-YYYYMMDD-NNNN
  */
 async function generateSaleNumber(
   tenantId: string,
-  _branchId: string,
-  _pointOfSaleId: string
+  branchId: string,
+  pointOfSaleId: string
 ): Promise<string> {
-  // Obtener última venta del tenant para continuar la secuencia
-  const lastSale = await prisma.sale.findFirst({
-    where: { tenantId },
-    orderBy: { createdAt: 'desc' },
-    select: { saleNumber: true },
+  // Obtener punto de venta y sucursal para el prefijo
+  const pos = await prisma.pointOfSale.findUnique({
+    where: { id: pointOfSaleId },
+    include: { branch: true },
   });
 
-  let nextNumber = 1;
-  if (lastSale?.saleNumber) {
-    // Extraer número de cualquier formato (T-00000001 o SUC-X-CAJA-XX-YYYYMMDD-NNNN)
-    const match = lastSale.saleNumber.match(/(\d+)$/);
-    if (match) {
-      nextNumber = parseInt(match[1], 10) + 1;
-    }
+  if (!pos) {
+    throw new NotFoundError('Punto de venta');
   }
 
-  return `T-${String(nextNumber).padStart(8, '0')}`;
+  // Fecha actual en formato YYYYMMDD
+  const today = new Date();
+  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+
+  // Contar ventas del día en este POS para la secuencia diaria
+  const startOfDay = new Date(today);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const count = await prisma.sale.count({
+    where: {
+      tenantId,
+      pointOfSaleId,
+      createdAt: { gte: startOfDay },
+    },
+  });
+
+  const sequence = String(count + 1).padStart(4, '0');
+
+  // Formato: SUC-1-CAJA-01-20251222-0001
+  return `${pos.branch.code}-${pos.code}-${dateStr}-${sequence}`;
 }
 
 /**

@@ -1031,9 +1031,10 @@ router.post('/orphan-payments/:orderId/apply', authenticate, async (req: Authent
       });
     }
 
-    // Verificar que el POS existe
+    // Verificar que el POS existe y obtener datos de sucursal
     const pointOfSale = await prisma.pointOfSale.findFirst({
       where: { id: pointOfSaleId, tenantId },
+      include: { branch: true },
     });
 
     if (!pointOfSale) {
@@ -1051,21 +1052,22 @@ router.post('/orphan-payments/:orderId/apply', authenticate, async (req: Authent
     });
     const productMap = new Map(products.map(p => [p.id, p.name]));
 
-    // Obtener siguiente número de venta
-    const lastSale = await prisma.sale.findFirst({
-      where: { tenantId },
-      orderBy: { createdAt: 'desc' },
-      select: { saleNumber: true },
+    // Generar número de venta: SUC-CODE-POS-CODE-YYYYMMDD-NNNN
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const salesCount = await prisma.sale.count({
+      where: {
+        tenantId,
+        pointOfSaleId,
+        createdAt: { gte: startOfDay },
+      },
     });
 
-    let nextNumber = 1;
-    if (lastSale?.saleNumber) {
-      const match = lastSale.saleNumber.match(/(\d+)$/);
-      if (match) {
-        nextNumber = parseInt(match[1]) + 1;
-      }
-    }
-    const nextSaleNumber = `T-${String(nextNumber).padStart(8, '0')}`;
+    const sequence = String(salesCount + 1).padStart(4, '0');
+    const nextSaleNumber = `${pointOfSale.branch.code}-${pointOfSale.code}-${dateStr}-${sequence}`;
 
     // Calcular totales
     const subtotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
