@@ -1490,7 +1490,7 @@ class MercadoPagoService {
     externalReference: string;
     description?: string;
     items?: Array<{ title: string; quantity: number; unit_price: number }>;
-  }): Promise<{ orderId: string; qrData: string; inStoreOrderId: string }> {
+  }): Promise<{ orderId: string; qrData: string; inStoreOrderId: string; externalReference: string }> {
     const accessToken = await this.getValidAccessToken(params.tenantId, 'QR');
 
     // Obtener el user_id de la config
@@ -1601,6 +1601,7 @@ class MercadoPagoService {
       orderId: data.in_store_order_id || params.externalReference,
       qrData: data.qr_data || '',
       inStoreOrderId: data.in_store_order_id || '',
+      externalReference: params.externalReference,
     };
   }
 
