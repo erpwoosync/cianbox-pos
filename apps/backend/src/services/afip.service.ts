@@ -548,7 +548,14 @@ class AfipService {
       throw new Error('Configuración AFIP no encontrada');
     }
 
-    return afipInstance.instance.ElectronicBilling.getServerStatus();
+    const status = await afipInstance.instance.ElectronicBilling.getServerStatus();
+
+    // AfipSDK devuelve con mayúsculas, normalizamos
+    return {
+      appserver: status.AppServer || status.appserver || 'N/A',
+      dbserver: status.DbServer || status.dbserver || 'N/A',
+      authserver: status.AuthServer || status.authserver || 'N/A',
+    };
   }
 
   // Métodos auxiliares privados
