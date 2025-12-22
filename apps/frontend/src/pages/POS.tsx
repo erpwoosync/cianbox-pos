@@ -24,6 +24,8 @@ import {
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useIndexedDB } from '../hooks/useIndexedDB';
+import { STORES } from '../services/indexedDB';
 import MPPointPaymentModal from '../components/MPPointPaymentModal';
 import MPQRPaymentModal from '../components/MPQRPaymentModal';
 import CashPanel from '../components/CashPanel';
@@ -205,14 +207,11 @@ interface PendingSale {
   attempts: number;
 }
 
-const STORAGE_KEY = 'pos_tickets';
-const PENDING_SALES_KEY = 'pos_pending_sales';
-
 export default function POS() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  // Estado de tickets (múltiples ventas en paralelo) - persistido en localStorage
+  // Estado de tickets (múltiples ventas en paralelo) - persistido en IndexedDB
   const initialTicket: Ticket = {
     id: generateId(),
     number: 1,
@@ -221,10 +220,10 @@ export default function POS() {
     createdAt: new Date().toISOString(),
   };
 
-  const [tickets, setTickets] = useLocalStorage<Ticket[]>(STORAGE_KEY, [initialTicket]);
+  const [tickets, setTickets] = useIndexedDB<Ticket>(STORES.TICKETS, [initialTicket]);
   const [currentTicketId, setCurrentTicketId] = useLocalStorage<string | null>(
     'pos_current_ticket',
-    tickets.length > 0 ? tickets[tickets.length - 1].id : initialTicket.id
+    initialTicket.id
   );
 
   const [showTicketList, setShowTicketList] = useState(false);
@@ -289,7 +288,7 @@ export default function POS() {
 
   // Estado offline/online
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
+  const [pendingSales, setPendingSales] = useIndexedDB<PendingSale>(STORES.PENDING_SALES, []);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Estado de caja
@@ -305,19 +304,6 @@ export default function POS() {
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
   const [isCalculatingPromotions, setIsCalculatingPromotions] = useState(false);
   const lastCalculatedCartKeyRef = useRef<string>('');
-
-  // Cargar ventas pendientes desde localStorage al montar
-  useEffect(() => {
-    const savedPendingSales = localStorage.getItem(PENDING_SALES_KEY);
-    if (savedPendingSales) {
-      try {
-        const parsed: PendingSale[] = JSON.parse(savedPendingSales);
-        setPendingSales(parsed);
-      } catch (error) {
-        console.error('Error loading pending sales from localStorage:', error);
-      }
-    }
-  }, []);
 
   // Detectar cambios de estado online/offline
   useEffect(() => {
@@ -977,9 +963,8 @@ export default function POS() {
       }
     }
 
-    // Actualizar lista de pendientes
+    // Actualizar lista de pendientes (IndexedDB se actualiza automáticamente)
     setPendingSales(remaining);
-    localStorage.setItem(PENDING_SALES_KEY, JSON.stringify(remaining));
     setIsSyncing(false);
 
     if (remaining.length === 0) {
@@ -1240,7 +1225,6 @@ export default function POS() {
 
         const updatedPending = [...pendingSales, pendingSale];
         setPendingSales(updatedPending);
-        localStorage.setItem(PENDING_SALES_KEY, JSON.stringify(updatedPending));
 
         // Eliminar ticket completado y mostrar confirmación
         if (currentTicketId) {

@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'cianbox-pos';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 // Stores disponibles
 export const STORES = {
@@ -14,6 +14,8 @@ export const STORES = {
   BRANDS: 'brands',
   PROMOTIONS: 'promotions',
   QUICK_ACCESS: 'quick_access',
+  TICKETS: 'tickets',
+  PENDING_SALES: 'pending_sales',
   PENDING_SYNC: 'pending_sync',
 } as const;
 
@@ -100,6 +102,21 @@ export const initDB = (): Promise<IDBDatabase> => {
         quickAccessStore.createIndex('name', 'name', { unique: false });
         quickAccessStore.createIndex('order', 'quickAccessOrder', { unique: false });
         quickAccessStore.createIndex('syncedAt', 'syncedAt', { unique: false });
+      }
+
+      // Store de tickets/carritos
+      if (!db.objectStoreNames.contains(STORES.TICKETS)) {
+        const ticketsStore = db.createObjectStore(STORES.TICKETS, { keyPath: 'id' });
+        ticketsStore.createIndex('number', 'number', { unique: false });
+        ticketsStore.createIndex('createdAt', 'createdAt', { unique: false });
+        ticketsStore.createIndex('customerId', 'customerId', { unique: false });
+      }
+
+      // Store de ventas pendientes (modo offline)
+      if (!db.objectStoreNames.contains(STORES.PENDING_SALES)) {
+        const pendingSalesStore = db.createObjectStore(STORES.PENDING_SALES, { keyPath: 'id' });
+        pendingSalesStore.createIndex('createdAt', 'createdAt', { unique: false });
+        pendingSalesStore.createIndex('status', 'status', { unique: false });
       }
 
       // Store para operaciones pendientes de sincronización
