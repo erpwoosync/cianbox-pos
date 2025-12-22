@@ -1536,8 +1536,11 @@ class MercadoPagoService {
     };
 
     // Crear orden QR dinámica
+    const qrUrl = `${this.baseUrl}/instore/qr/seller/collectors/${config.mpUserId}/pos/${params.externalPosId}/orders`;
+    console.log('[MP QR] Creating order:', { url: qrUrl, externalPosId: params.externalPosId, amount: params.amount, externalReference: params.externalReference });
+
     const response = await fetch(
-      `${this.baseUrl}/instore/qr/seller/collectors/${config.mpUserId}/pos/${params.externalPosId}/orders`,
+      qrUrl,
       {
         method: 'PUT',
         headers: {
@@ -1549,14 +1552,17 @@ class MercadoPagoService {
       }
     );
 
+    console.log('[MP QR] Response status:', response.status, response.statusText);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({})) as { message?: string };
-      console.error('Error creando orden QR:', errorData);
+      console.error('[MP QR] Error creando orden:', errorData);
       throw new Error(errorData.message || 'Error al crear orden QR');
     }
 
     // MP puede devolver 200/201 con body vacío o con datos
     const responseText = await response.text();
+    console.log('[MP QR] Response body:', responseText);
     const data = responseText ? JSON.parse(responseText) as { in_store_order_id?: string; qr_data?: string } : {};
 
     // Guardar la orden en BD
