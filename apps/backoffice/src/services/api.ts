@@ -1374,6 +1374,27 @@ export const afipApi = {
     const response = await api.get('/afip/constants');
     return response.data as AfipConstants;
   },
+
+  // Wizard de certificados
+  generateCertificate: async (data: {
+    username: string;
+    password: string;
+    alias: string;
+    isProduction: boolean;
+  }) => {
+    const response = await api.post('/afip/generate-certificate', data);
+    return response.data as { success: boolean; message: string; hasCertificate: boolean; hasKey: boolean };
+  },
+
+  authorizeWebService: async (data: {
+    username: string;
+    password: string;
+    wsId?: string;
+    isProduction: boolean;
+  }) => {
+    const response = await api.post('/afip/authorize-webservice', data);
+    return response.data as { success: boolean; message: string };
+  },
 };
 
 export default api;

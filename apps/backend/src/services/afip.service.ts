@@ -680,6 +680,141 @@ class AfipService {
       data: { [field]: lastNumber },
     });
   }
+
+  /**
+   * Genera un certificado digital usando la automatización de AfipSDK
+   * IMPORTANTE: La contraseña de AFIP NO se guarda, solo se usa para la llamada
+   */
+  async generateCertificate(
+    tenantId: string,
+    data: {
+      username: string;      // Usuario ARCA (generalmente CUIT)
+      password: string;      // Contraseña ARCA (NO se guarda)
+      alias: string;         // Nombre del certificado
+      isProduction: boolean; // true = producción, false = testing
+    }
+  ): Promise<{ success: boolean; cert?: string; key?: string; error?: string }> {
+    // Obtener configuración para el access_token
+    const config = await prisma.afipConfig.findUnique({
+      where: { tenantId },
+    });
+
+    if (!config || !config.afipAccessToken) {
+      return { success: false, error: 'Access Token de AfipSDK no configurado' };
+    }
+
+    try {
+      // Crear instancia temporal solo para generar certificado
+      const afip = new Afip({
+        CUIT: config.cuit.replace(/\D/g, ''),
+        access_token: config.afipAccessToken,
+        production: data.isProduction,
+      });
+
+      // Llamar a la automatización de AfipSDK
+      const automationType = data.isProduction ? 'create-cert-prod' : 'create-cert-dev';
+
+      console.log(`Generando certificado ${automationType} para CUIT ${config.cuit}...`);
+
+      const response = await afip.CreateAutomation(automationType, {
+        cuit: config.cuit.replace(/\D/g, ''),
+        username: data.username,
+        password: data.password,
+        alias: data.alias,
+      }, true) as any; // true = esperar resultado
+
+      // La respuesta puede tener cert/key directamente o en data
+      const cert = response?.cert || response?.data?.cert;
+      const key = response?.key || response?.data?.key;
+
+      if (!cert || !key) {
+        console.error('CreateAutomation response:', JSON.stringify(response, null, 2));
+        return { success: false, error: 'AfipSDK no devolvió certificado' };
+      }
+
+      // Guardar certificado y key en la configuración
+      await prisma.afipConfig.update({
+        where: { tenantId },
+        data: {
+          afipCert: cert,
+          afipKey: key,
+        },
+      });
+
+      // Invalidar cache de instancia
+      this.invalidateInstance(tenantId);
+
+      console.log('Certificado generado y guardado exitosamente');
+
+      return {
+        success: true,
+        cert,
+        key,
+      };
+    } catch (error: any) {
+      console.error('Error al generar certificado:', error);
+
+      // Parsear errores comunes de AFIP
+      let errorMessage = error.message || 'Error al generar certificado';
+
+      if (errorMessage.includes('password') || errorMessage.includes('credentials')) {
+        errorMessage = 'Credenciales de ARCA incorrectas. Verificá tu usuario y contraseña.';
+      } else if (errorMessage.includes('CUIT')) {
+        errorMessage = 'El CUIT no coincide con las credenciales de ARCA.';
+      } else if (errorMessage.includes('alias')) {
+        errorMessage = 'Ya existe un certificado con ese alias. Usá otro nombre.';
+      }
+
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Autoriza un web service en AFIP usando la automatización de AfipSDK
+   */
+  async authorizeWebService(
+    tenantId: string,
+    data: {
+      username: string;
+      password: string;
+      wsId: string;          // 'wsfe' para factura electrónica
+      isProduction: boolean;
+    }
+  ): Promise<{ success: boolean; error?: string }> {
+    const config = await prisma.afipConfig.findUnique({
+      where: { tenantId },
+    });
+
+    if (!config || !config.afipAccessToken) {
+      return { success: false, error: 'Access Token de AfipSDK no configurado' };
+    }
+
+    try {
+      const afip = new Afip({
+        CUIT: config.cuit.replace(/\D/g, ''),
+        access_token: config.afipAccessToken,
+        production: data.isProduction,
+      });
+
+      const automationType = data.isProduction ? 'authorize-ws-prod' : 'authorize-ws-dev';
+
+      console.log(`Autorizando web service ${data.wsId}...`);
+
+      await afip.CreateAutomation(automationType, {
+        cuit: config.cuit.replace(/\D/g, ''),
+        username: data.username,
+        password: data.password,
+        wsId: data.wsId,
+      }, true);
+
+      console.log('Web service autorizado exitosamente');
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error al autorizar web service:', error);
+      return { success: false, error: error.message || 'Error al autorizar web service' };
+    }
+  }
 }
 
 // Singleton

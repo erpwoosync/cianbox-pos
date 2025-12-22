@@ -655,4 +655,82 @@ router.get('/constants', (_req: AuthenticatedRequest, res: Response) => {
   });
 });
 
+// ==============================================
+// WIZARD DE CERTIFICADOS
+// ==============================================
+
+/**
+ * POST /afip/generate-certificate
+ * Genera un certificado digital usando la automatización de AfipSDK
+ * IMPORTANTE: La contraseña NO se guarda, solo se usa para la llamada
+ */
+const generateCertSchema = z.object({
+  username: z.string().min(1, 'Usuario requerido'),
+  password: z.string().min(1, 'Contraseña requerida'),
+  alias: z.string().min(1, 'Alias requerido').max(50),
+  isProduction: z.boolean().default(false),
+});
+
+router.post('/generate-certificate', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const data = generateCertSchema.parse(req.body);
+
+    const result = await afipService.generateCertificate(tenantId, data);
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // No devolver el cert y key completos por seguridad, solo confirmar
+    res.json({
+      success: true,
+      message: 'Certificado generado y guardado exitosamente',
+      hasCertificate: true,
+      hasKey: true,
+    });
+  } catch (error: any) {
+    console.error('Error al generar certificado:', error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Datos inválidos', details: error.errors });
+    }
+    res.status(500).json({ error: error.message || 'Error al generar certificado' });
+  }
+});
+
+/**
+ * POST /afip/authorize-webservice
+ * Autoriza el web service WSFE en AFIP
+ */
+const authorizeWsSchema = z.object({
+  username: z.string().min(1, 'Usuario requerido'),
+  password: z.string().min(1, 'Contraseña requerida'),
+  wsId: z.string().default('wsfe'),
+  isProduction: z.boolean().default(false),
+});
+
+router.post('/authorize-webservice', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const data = authorizeWsSchema.parse(req.body);
+
+    const result = await afipService.authorizeWebService(tenantId, data);
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    res.json({
+      success: true,
+      message: 'Web service autorizado exitosamente',
+    });
+  } catch (error: any) {
+    console.error('Error al autorizar web service:', error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Datos inválidos', details: error.errors });
+    }
+    res.status(500).json({ error: error.message || 'Error al autorizar web service' });
+  }
+});
+
 export default router;

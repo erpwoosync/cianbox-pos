@@ -15,7 +15,10 @@ import {
   Receipt,
   QrCode,
   ExternalLink,
-  Download
+  Download,
+  Key,
+  Shield,
+  Loader2
 } from 'lucide-react';
 
 type Tab = 'config' | 'salesPoints' | 'invoices';
@@ -71,6 +74,17 @@ export default function AfipConfigPage() {
   // Server status
   const [serverStatus, setServerStatus] = useState<{ appserver: string; dbserver: string; authserver: string } | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+
+  // Certificate wizard state
+  const [showCertWizard, setShowCertWizard] = useState(false);
+  const [certWizardStep, setCertWizardStep] = useState<1 | 2 | 3>(1);
+  const [certWizardData, setCertWizardData] = useState({
+    username: '',
+    password: '',
+    alias: 'afipsdk',
+    isProduction: false,
+  });
+  const [certWizardLoading, setCertWizardLoading] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -249,6 +263,56 @@ export default function AfipConfigPage() {
     } catch (error) {
       setInvoiceQrUrl(null);
     }
+  };
+
+  // Certificate Wizard handlers
+  const openCertWizard = () => {
+    setCertWizardStep(1);
+    setCertWizardData({
+      username: config.cuit?.replace(/\D/g, '') || '',
+      password: '',
+      alias: 'afipsdk',
+      isProduction: config.isProduction || false,
+    });
+    setShowCertWizard(true);
+  };
+
+  const handleGenerateCertificate = async () => {
+    try {
+      setCertWizardLoading(true);
+      await afipApi.generateCertificate(certWizardData);
+      showNotification('success', 'Certificado generado y guardado exitosamente');
+      setCertWizardStep(2);
+    } catch (error: any) {
+      showNotification('error', error.response?.data?.error || 'Error al generar certificado');
+    } finally {
+      setCertWizardLoading(false);
+    }
+  };
+
+  const handleAuthorizeWebService = async () => {
+    try {
+      setCertWizardLoading(true);
+      await afipApi.authorizeWebService({
+        username: certWizardData.username,
+        password: certWizardData.password,
+        wsId: 'wsfe',
+        isProduction: certWizardData.isProduction,
+      });
+      showNotification('success', 'Web service WSFE autorizado exitosamente');
+      setCertWizardStep(3);
+      // Recargar config para actualizar estado
+      await loadInitialData();
+    } catch (error: any) {
+      showNotification('error', error.response?.data?.error || 'Error al autorizar web service');
+    } finally {
+      setCertWizardLoading(false);
+    }
+  };
+
+  const closeCertWizard = () => {
+    setShowCertWizard(false);
+    setCertWizardData({ ...certWizardData, password: '' }); // Limpiar contraseña
   };
 
   const getVoucherTypeLabel = (type: string) => {
@@ -473,7 +537,18 @@ export default function AfipConfigPage() {
 
           <hr className="my-6" />
 
-          <h2 className="text-lg font-semibold mb-4">Credenciales AfipSDK</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Credenciales AfipSDK</h2>
+            <button
+              onClick={openCertWizard}
+              disabled={!config.cuit || !config.hasAccessToken}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!config.hasAccessToken ? 'Primero configura el Access Token' : 'Configurar certificado digital'}
+            >
+              <Key className="w-4 h-4" />
+              Configurar Certificado
+            </button>
+          </div>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Access Token *</label>
@@ -829,6 +904,198 @@ export default function AfipConfigPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Certificate Wizard Modal */}
+      {showCertWizard && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                <Key className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Configurar Certificado Digital</h3>
+                <p className="text-sm text-gray-500">Paso {certWizardStep} de 3</p>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="flex gap-2 mb-6">
+              {[1, 2, 3].map(step => (
+                <div
+                  key={step}
+                  className={`flex-1 h-2 rounded-full ${
+                    step <= certWizardStep ? 'bg-purple-600' : 'bg-gray-200'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Step 1: Credentials */}
+            {certWizardStep === 1 && (
+              <div className="space-y-4">
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                  <strong>Importante:</strong> Necesitás tus credenciales de ARCA/AFIP (clave fiscal).
+                  Tu contraseña NO se guarda, solo se usa para generar el certificado.
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario ARCA (CUIT sin guiones)</label>
+                  <input
+                    type="text"
+                    value={certWizardData.username}
+                    onChange={e => setCertWizardData({ ...certWizardData, username: e.target.value })}
+                    placeholder="20123456789"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña ARCA (Clave Fiscal)</label>
+                  <input
+                    type="password"
+                    value={certWizardData.password}
+                    onChange={e => setCertWizardData({ ...certWizardData, password: e.target.value })}
+                    placeholder="Tu contraseña de AFIP"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Alias del certificado</label>
+                  <input
+                    type="text"
+                    value={certWizardData.alias}
+                    onChange={e => setCertWizardData({ ...certWizardData, alias: e.target.value })}
+                    placeholder="afipsdk"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Nombre identificador del certificado en AFIP</p>
+                </div>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={certWizardData.isProduction}
+                    onChange={e => setCertWizardData({ ...certWizardData, isProduction: e.target.checked })}
+                    className="rounded border-gray-300 text-purple-600"
+                  />
+                  <span className="text-sm text-gray-700">Certificado de Producción</span>
+                </label>
+              </div>
+            )}
+
+            {/* Step 2: Authorize WebService */}
+            {certWizardStep === 2 && (
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-green-800">
+                    <CheckCircle className="w-5 h-5" />
+                    <strong>Certificado generado exitosamente</strong>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                  Ahora necesitamos autorizar el <strong>Web Service de Factura Electrónica (WSFE)</strong> para que puedas emitir comprobantes.
+                </div>
+
+                <div className="flex items-center gap-3 p-4 border rounded-lg">
+                  <Shield className="w-8 h-8 text-blue-600" />
+                  <div>
+                    <p className="font-medium">Web Service WSFE</p>
+                    <p className="text-sm text-gray-500">Facturación Electrónica</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Complete */}
+            {certWizardStep === 3 && (
+              <div className="space-y-4 text-center">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+
+                <h4 className="text-xl font-semibold text-gray-800">¡Configuración Completa!</h4>
+
+                <p className="text-gray-600">
+                  Tu certificado digital está configurado y el web service WSFE autorizado.
+                  Ya podés emitir comprobantes electrónicos.
+                </p>
+
+                <div className="p-4 bg-gray-50 rounded-lg text-left text-sm">
+                  <p className="font-medium mb-2">Siguiente paso:</p>
+                  <p className="text-gray-600">
+                    1. Ve a la pestaña "Puntos de Venta"<br />
+                    2. Hacé click en "Importar de AFIP"<br />
+                    3. Tus puntos de venta se cargarán automáticamente
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-between mt-6 pt-4 border-t">
+              <button
+                onClick={closeCertWizard}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                {certWizardStep === 3 ? 'Cerrar' : 'Cancelar'}
+              </button>
+
+              {certWizardStep === 1 && (
+                <button
+                  onClick={handleGenerateCertificate}
+                  disabled={certWizardLoading || !certWizardData.username || !certWizardData.password}
+                  className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {certWizardLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <Key className="w-4 h-4" />
+                      Generar Certificado
+                    </>
+                  )}
+                </button>
+              )}
+
+              {certWizardStep === 2 && (
+                <button
+                  onClick={handleAuthorizeWebService}
+                  disabled={certWizardLoading}
+                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {certWizardLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Autorizando...
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="w-4 h-4" />
+                      Autorizar WSFE
+                    </>
+                  )}
+                </button>
+              )}
+
+              {certWizardStep === 3 && (
+                <button
+                  onClick={() => { closeCertWizard(); setActiveTab('salesPoints'); }}
+                  className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Ir a Puntos de Venta
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
