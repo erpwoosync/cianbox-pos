@@ -89,6 +89,19 @@ export default function ProductLookup() {
   const [sizeCurve, setSizeCurve] = useState<SizeCurveData | null>(null);
   const [loadingSizeCurve, setLoadingSizeCurve] = useState(false);
   const [expandedStockSection, setExpandedStockSection] = useState(true);
+  const [copiedBarcode, setCopiedBarcode] = useState<string | null>(null);
+
+  // Copiar barcode al portapapeles
+  const copyBarcodeToClipboard = async (barcode: string | null, cellKey: string) => {
+    if (!barcode) return;
+    try {
+      await navigator.clipboard.writeText(barcode);
+      setCopiedBarcode(cellKey);
+      setTimeout(() => setCopiedBarcode(null), 1500);
+    } catch (err) {
+      console.error('Error copying to clipboard:', err);
+    }
+  };
 
   // Cargar sucursales al montar
   useEffect(() => {
@@ -606,19 +619,27 @@ export default function ProductLookup() {
                                 const key = `${size}-${color}`;
                                 const cell = sizeCurve.matrix[key];
                                 const stock = cell?.available ?? 0;
+                                const hasBarcode = !!cell?.barcode;
+                                const isCopied = copiedBarcode === key;
 
                                 return (
                                   <td
                                     key={key}
-                                    className={`px-2 py-1.5 text-center border font-semibold ${
-                                      stock <= 0
+                                    onClick={() => hasBarcode && copyBarcodeToClipboard(cell?.barcode, key)}
+                                    title={hasBarcode ? `Click para copiar: ${cell?.barcode}` : 'Sin código de barras'}
+                                    className={`px-2 py-1.5 text-center border font-semibold transition-all ${
+                                      hasBarcode ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 hover:ring-inset' : ''
+                                    } ${
+                                      isCopied
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : stock <= 0
                                         ? 'bg-red-50 text-red-400'
                                         : stock < 5
                                         ? 'bg-amber-50 text-amber-600'
                                         : 'bg-green-50 text-green-600'
                                     }`}
                                   >
-                                    {stock}
+                                    {isCopied ? '✓' : stock}
                                   </td>
                                 );
                               })}
