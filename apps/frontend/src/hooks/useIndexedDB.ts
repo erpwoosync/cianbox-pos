@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import db, { STORES } from '../services/indexedDB';
 
 type StoreName = typeof STORES[keyof typeof STORES];
@@ -13,14 +13,23 @@ export function useIndexedDB<T extends { id: string }>(
 ): [T[], (value: T[] | ((prev: T[]) => T[])) => void, boolean] {
   const [storedValue, setStoredValue] = useState<T[]>(initialValue);
   const [isLoading, setIsLoading] = useState(true);
+  const initialValueRef = useRef(initialValue);
+  const hasInitialized = useRef(false);
 
   // Cargar datos al montar
   useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
     const loadData = async () => {
       try {
         const data = await db.getAll<T>(storeName);
         if (data.length > 0) {
           setStoredValue(data);
+        } else if (initialValueRef.current.length > 0) {
+          // Si no hay datos en IndexedDB, guardar el valor inicial
+          await db.putMany(storeName, initialValueRef.current);
+          setStoredValue(initialValueRef.current);
         }
       } catch (error) {
         console.error(`Error loading from IndexedDB (${storeName}):`, error);
