@@ -1597,6 +1597,36 @@ class MercadoPagoService {
     };
   }
 
+  /**
+   * Elimina/cancela una orden QR pendiente
+   */
+  async deleteQROrder(tenantId: string, externalPosId: string): Promise<void> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'QR');
+    const config = await this.getConfig(tenantId, 'QR');
+
+    if (!config?.mpUserId) {
+      throw new Error('Configuración de MP QR no encontrada');
+    }
+
+    const qrUrl = `${this.baseUrl}/instore/qr/seller/collectors/${config.mpUserId}/pos/${externalPosId}/orders`;
+    console.log('[MP QR] Deleting order:', { url: qrUrl, externalPosId });
+
+    const response = await fetch(qrUrl, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    console.log('[MP QR] Delete response:', response.status);
+
+    // 204 = success, 400 = no order to delete (also ok)
+    if (!response.ok && response.status !== 400) {
+      const errorData = await response.json().catch(() => ({})) as { message?: string };
+      throw new Error(errorData.message || 'Error al cancelar orden QR');
+    }
+  }
+
   // ============================================
   // CRON: RENOVACIÓN AUTOMÁTICA DE TOKENS
   // ============================================

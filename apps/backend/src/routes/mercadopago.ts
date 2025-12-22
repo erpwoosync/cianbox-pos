@@ -830,6 +830,52 @@ router.post('/qr/orders', authenticate, async (req: AuthenticatedRequest, res: R
   }
 });
 
+/**
+ * DELETE /api/mercadopago/qr/orders/:pointOfSaleId
+ * Cancela/elimina una orden QR pendiente
+ */
+router.delete('/qr/orders/:pointOfSaleId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { pointOfSaleId } = req.params;
+
+    // Verificar que el POS existe y tiene QR configurado
+    const pointOfSale = await prisma.pointOfSale.findFirst({
+      where: {
+        id: pointOfSaleId,
+        tenantId,
+      },
+    });
+
+    if (!pointOfSale) {
+      return res.status(404).json({
+        success: false,
+        error: 'Punto de venta no encontrado',
+      });
+    }
+
+    if (!pointOfSale.mpQrExternalId) {
+      return res.status(400).json({
+        success: false,
+        error: 'El punto de venta no tiene una caja QR vinculada',
+      });
+    }
+
+    await mercadoPagoService.deleteQROrder(tenantId, pointOfSale.mpQrExternalId);
+
+    res.json({
+      success: true,
+      message: 'Orden QR cancelada exitosamente',
+    });
+  } catch (error) {
+    console.error('Error cancelando orden QR:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
 // ============================================
 // SINCRONIZACIÓN DE PAGOS EXISTENTES
 // ============================================

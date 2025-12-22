@@ -162,8 +162,14 @@ export default function MPQRPaymentModal({
     }, 2000);
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     cleanup();
+    // Cancelar la orden QR en MP
+    try {
+      await mercadoPagoService.cancelQROrder(pointOfSaleId);
+    } catch (err) {
+      console.error('Error canceling QR order:', err);
+    }
     resetAndClose();
   };
 

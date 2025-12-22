@@ -448,6 +448,11 @@ export const mercadoPagoService = {
     }>;
   }): Promise<ApiResponse<MPQRData>> => {
     const response = await api.post('/mercadopago/qr/orders', data);
+    return response.data;  },
+
+  // Cancelar orden QR pendiente
+  cancelQROrder: async (pointOfSaleId: string): Promise<ApiResponse<void>> => {
+    const response = await api.delete(`/mercadopago/qr/orders/${pointOfSaleId}`);
     return response.data;
   },
 
