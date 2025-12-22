@@ -179,9 +179,9 @@ interface SaleData {
   pointOfSaleId: string;
   items: Array<{
     productId: string;
-    productCode: string;
+    productCode?: string;
     productName: string;
-    productBarcode: string;
+    productBarcode?: string;
     quantity: number;
     unitPrice: number;
     unitPriceNet: number;
@@ -189,7 +189,7 @@ interface SaleData {
     taxRate: number;
     promotionId?: string;
     promotionName?: string;
-    priceListId: string | null;
+    priceListId?: string;
     branchId: string;
   }>;
   payments: Array<{
@@ -1156,17 +1156,17 @@ export default function POS() {
         customerName: selectedCustomer?.name,
         items: cart.map((item: CartItem) => ({
           productId: item.product.id,
-          productCode: item.product.sku,
+          productCode: item.product.sku || undefined,
           productName: item.product.name,
-          productBarcode: item.product.barcode,
+          productBarcode: item.product.barcode || undefined,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
           unitPriceNet: Number(item.unitPriceNet),
           discount: Number(item.discount || 0),
           taxRate: Number(item.product.taxRate || 21),
-          promotionId: item.promotionId,
-          promotionName: item.promotionName,
-          priceListId: selectedPOS.priceList?.id || null,
+          promotionId: item.promotionId || undefined,
+          promotionName: item.promotionName || undefined,
+          priceListId: selectedPOS.priceList?.id || undefined,
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         })),
         payments: [paymentData],
@@ -1227,18 +1227,17 @@ export default function POS() {
         customerName: selectedCustomer?.name,
         items: cart.map((item: CartItem) => ({
           productId: item.product.id,
-          productCode: item.product.sku,
+          productCode: item.product.sku || undefined,
           productName: item.product.name,
-          productBarcode: item.product.barcode,
+          productBarcode: item.product.barcode || undefined,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
           unitPriceNet: Number(item.unitPriceNet),
           discount: Number(item.discount || 0),
           taxRate: Number(item.product.taxRate || 21),
-          promotionId: item.promotionId,
-          promotionName: item.promotionName,
-          // IDs para sincronización con Cianbox
-          priceListId: selectedPOS.priceList?.id || null,
+          promotionId: item.promotionId || undefined,
+          promotionName: item.promotionName || undefined,
+          priceListId: selectedPOS.priceList?.id || undefined,
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         })),
         payments: [
