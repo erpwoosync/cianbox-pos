@@ -877,6 +877,279 @@ router.delete('/qr/orders/:pointOfSaleId', authenticate, async (req: Authenticat
 });
 
 // ============================================
+// PAGOS HUÉRFANOS PARA POS
+// ============================================
+
+/**
+ * GET /api/mercadopago/orphan-payments
+ * Lista pagos huérfanos disponibles para el POS actual
+ * Filtra por sucursal/POS basándose en el externalReference
+ */
+router.get('/orphan-payments', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const branchId = req.user!.branchId;
+    const { pointOfSaleId } = req.query;
+
+    // Obtener info de la sucursal y POS para filtrar
+    let branchCode: string | null = null;
+    let posCode: string | null = null;
+
+    if (branchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: branchId, tenantId },
+        select: { code: true },
+      });
+      branchCode = branch?.code || null;
+    }
+
+    if (pointOfSaleId) {
+      const pos = await prisma.pointOfSale.findFirst({
+        where: { id: pointOfSaleId as string, tenantId },
+        select: { code: true },
+      });
+      posCode = pos?.code || null;
+    }
+
+    // Buscar pagos huérfanos (PROCESSED sin saleId)
+    const orphanOrders = await prisma.mercadoPagoOrder.findMany({
+      where: {
+        tenantId,
+        status: { in: ['PROCESSED', 'COMPLETED', 'APPROVED'] },
+        saleId: null,
+      },
+      orderBy: { processedAt: 'desc' },
+      take: 20,
+    });
+
+    // Filtrar por externalReference que coincida con el patrón de la sucursal/POS
+    // Formato: POS-{BRANCH_CODE}-CAJA-{NUMBER}-{TIMESTAMP}
+    const filteredOrders = orphanOrders.filter((order) => {
+      const ref = order.externalReference;
+      if (!ref.startsWith('POS-')) return false;
+
+      // Si tenemos código de sucursal, verificar que coincida
+      if (branchCode) {
+        // El patrón puede ser POS-SUC-1-CAJA-01 o similar
+        // Extraer la parte de sucursal del externalReference
+        const parts = ref.split('-');
+        // Buscar si el código de sucursal está en el ref
+        if (!ref.includes(branchCode)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Verificar que no tengan Payment vinculado por transactionId
+    const trueOrphans = [];
+    for (const order of filteredOrders) {
+      if (order.paymentId) {
+        const existingPayment = await prisma.payment.findFirst({
+          where: {
+            transactionId: order.paymentId,
+            sale: { tenantId },
+          },
+        });
+        if (existingPayment) continue;
+      }
+      trueOrphans.push(order);
+    }
+
+    res.json({
+      success: true,
+      data: trueOrphans,
+      count: trueOrphans.length,
+    });
+  } catch (error) {
+    console.error('Error listando pagos huérfanos:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * POST /api/mercadopago/orphan-payments/:orderId/apply
+ * Aplica un pago huérfano a una venta nueva
+ * Body: { items, customerId?, notes? }
+ */
+const applyOrphanPaymentSchema = z.object({
+  pointOfSaleId: z.string().min(1, 'El punto de venta es requerido'),
+  items: z.array(z.object({
+    productId: z.string().min(1),
+    productName: z.string().optional(),
+    quantity: z.number().positive(),
+    unitPrice: z.number().positive(),
+    discount: z.number().min(0).optional().default(0),
+    promotionId: z.string().optional(),
+    promotionName: z.string().optional(),
+  })).min(1, 'Debe incluir al menos un producto'),
+  customerId: z.string().optional(),
+  notes: z.string().optional(),
+  ticketNumber: z.number().optional(),
+});
+
+router.post('/orphan-payments/:orderId/apply', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const userId = req.user!.userId;
+    const branchId = req.user!.branchId;
+    const { orderId } = req.params;
+
+    const validation = applyOrphanPaymentSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(422).json({
+        success: false,
+        error: 'Datos inválidos',
+        details: validation.error.errors,
+      });
+    }
+
+    const { pointOfSaleId, items, customerId, notes, ticketNumber } = validation.data;
+
+    // Buscar la orden huérfana
+    const mpOrder = await prisma.mercadoPagoOrder.findFirst({
+      where: {
+        orderId,
+        tenantId,
+        status: { in: ['PROCESSED', 'COMPLETED', 'APPROVED'] },
+        saleId: null,
+      },
+    });
+
+    if (!mpOrder) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pago huérfano no encontrado o ya tiene venta asociada',
+      });
+    }
+
+    // Verificar que el POS existe
+    const pointOfSale = await prisma.pointOfSale.findFirst({
+      where: { id: pointOfSaleId, tenantId },
+    });
+
+    if (!pointOfSale) {
+      return res.status(400).json({
+        success: false,
+        error: 'Punto de venta no encontrado',
+      });
+    }
+
+    // Obtener nombres de productos si no vienen
+    const productIds = items.map(i => i.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, tenantId },
+      select: { id: true, name: true },
+    });
+    const productMap = new Map(products.map(p => [p.id, p.name]));
+
+    // Obtener siguiente número de venta
+    const lastSale = await prisma.sale.findFirst({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+      select: { saleNumber: true },
+    });
+
+    let nextNumber = 1;
+    if (lastSale?.saleNumber) {
+      const match = lastSale.saleNumber.match(/(\d+)$/);
+      if (match) {
+        nextNumber = parseInt(match[1]) + 1;
+      }
+    }
+    const nextSaleNumber = `T-${String(nextNumber).padStart(8, '0')}`;
+
+    // Calcular totales
+    const subtotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+    const totalDiscount = items.reduce((sum, item) => sum + (item.discount || 0), 0);
+    const total = subtotal - totalDiscount;
+
+    // Determinar método de pago
+    let paymentMethod: 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'TRANSFER' = 'QR';
+    if (mpOrder.paymentMethod === 'credit_card') {
+      paymentMethod = 'CREDIT_CARD';
+    } else if (mpOrder.paymentMethod === 'debit_card') {
+      paymentMethod = 'DEBIT_CARD';
+    } else if (mpOrder.paymentMethod === 'bank_transfer' || mpOrder.paymentMethod === 'interop_transfer') {
+      paymentMethod = 'TRANSFER';
+    }
+
+    // Crear venta con transacción
+    const sale = await prisma.$transaction(async (tx) => {
+      const newSale = await tx.sale.create({
+        data: {
+          tenantId,
+          branchId: branchId!,
+          pointOfSaleId,
+          userId,
+          saleNumber: nextSaleNumber,
+          status: 'COMPLETED',
+          subtotal,
+          discount: totalDiscount,
+          tax: 0,
+          total,
+          customerId: customerId || null,
+          notes: notes
+            ? `${notes} | Pago huérfano: ${mpOrder.orderId}${ticketNumber ? ` | Ticket: ${ticketNumber}` : ''}`
+            : `Pago huérfano: ${mpOrder.orderId}${ticketNumber ? ` | Ticket: ${ticketNumber}` : ''}`,
+          items: {
+            create: items.map((item) => ({
+              productId: item.productId,
+              productName: item.productName || productMap.get(item.productId) || 'Producto',
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount || 0,
+              subtotal: item.unitPrice * item.quantity - (item.discount || 0),
+              promotionId: item.promotionId || null,
+              promotionName: item.promotionName || null,
+            })),
+          },
+          payments: {
+            create: {
+              method: paymentMethod,
+              amount: mpOrder.amount.toNumber(),
+              transactionId: mpOrder.paymentId || mpOrder.orderId,
+              cardBrand: mpOrder.cardBrand || undefined,
+              cardLastFour: mpOrder.cardLastFour || undefined,
+              installments: mpOrder.installments || undefined,
+            },
+          },
+        },
+        include: {
+          items: { include: { product: true } },
+          payments: true,
+          customer: true,
+        },
+      });
+
+      // Vincular la orden MP a la venta
+      await tx.mercadoPagoOrder.update({
+        where: { id: mpOrder.id },
+        data: { saleId: newSale.id },
+      });
+
+      return newSale;
+    });
+
+    res.status(201).json({
+      success: true,
+      data: sale,
+      message: 'Venta creada exitosamente desde pago huérfano',
+    });
+  } catch (error) {
+    console.error('Error aplicando pago huérfano:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+// ============================================
 // SINCRONIZACIÓN DE PAGOS EXISTENTES
 // ============================================
 

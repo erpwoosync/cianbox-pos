@@ -28,6 +28,7 @@ import { useIndexedDB } from '../hooks/useIndexedDB';
 import { STORES } from '../services/indexedDB';
 import MPPointPaymentModal from '../components/MPPointPaymentModal';
 import MPQRPaymentModal from '../components/MPQRPaymentModal';
+import OrphanPaymentModal from '../components/OrphanPaymentModal';
 import CashPanel from '../components/CashPanel';
 import CashOpenModal from '../components/CashOpenModal';
 import CashMovementModal from '../components/CashMovementModal';
@@ -263,6 +264,7 @@ export default function POS() {
   // Estado de Mercado Pago
   const [showMPPointModal, setShowMPPointModal] = useState(false);
   const [showMPQRModal, setShowMPQRModal] = useState(false);
+  const [showOrphanPaymentModal, setShowOrphanPaymentModal] = useState(false);
   const [mpPointAvailable, setMpPointAvailable] = useState(false);
   const [mpQRAvailable, setMpQRAvailable] = useState(false);
 
@@ -1952,7 +1954,7 @@ export default function POS() {
               {(mpPointAvailable || mpQRAvailable) && (
                 <div className="space-y-2">
                   <p className="text-xs text-gray-500 font-medium">Mercado Pago</p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {mpPointAvailable && (
                       <button
                         onClick={() => setSelectedPaymentMethod('MP_POINT')}
@@ -1979,6 +1981,14 @@ export default function POS() {
                         <span className="text-xs">QR MP</span>
                       </button>
                     )}
+                    {/* Botón de pagos huérfanos */}
+                    <button
+                      onClick={() => setShowOrphanPaymentModal(true)}
+                      className="p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-colors border-amber-300 hover:border-amber-500 bg-amber-50"
+                    >
+                      <CreditCard className="w-5 h-5 text-amber-600" />
+                      <span className="text-xs text-amber-700">Pago Previo</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -2054,6 +2064,32 @@ export default function POS() {
         amount={total}
         externalReference={generateExternalReference()}
         items={cart}
+      />
+
+      {/* Modal de pagos huérfanos */}
+      <OrphanPaymentModal
+        isOpen={showOrphanPaymentModal}
+        onClose={() => setShowOrphanPaymentModal(false)}
+        onSuccess={(sale) => {
+          setShowOrphanPaymentModal(false);
+          setShowPayment(false);
+          if (currentTicketId) {
+            deleteTicket(currentTicketId);
+          }
+          // Mostrar notificación de éxito
+          const saleData = sale as { saleNumber?: string };
+          alert(`Venta #${saleData.saleNumber || ''} creada exitosamente con pago previo`);
+          // Refrescar datos de la sesión de caja
+          loadCashSession();
+        }}
+        onError={(error) => {
+          console.error('Error applying orphan payment:', error);
+        }}
+        pointOfSaleId={selectedPOS?.id || ''}
+        items={cart}
+        total={total}
+        customerId={selectedCustomer?.id !== CONSUMIDOR_FINAL.id ? selectedCustomer?.id : undefined}
+        ticketNumber={currentTicket?.number}
       />
 
       {/* Modal de apertura de caja */}

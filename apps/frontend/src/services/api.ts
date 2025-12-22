@@ -390,6 +390,21 @@ export interface MPQRData {
   externalReference: string;
 }
 
+export interface OrphanPayment {
+  id: string;
+  orderId: string;
+  externalReference: string;
+  amount: number;
+  status: string;
+  paymentId?: string;
+  paymentMethod?: string;
+  cardBrand?: string;
+  cardLastFour?: string;
+  installments?: number;
+  createdAt: string;
+  processedAt?: string;
+}
+
 // Servicios de Mercado Pago
 export const mercadoPagoService = {
   // Verificar si MP Point está configurado para el POS
@@ -465,6 +480,33 @@ export const mercadoPagoService = {
   // Obtener detalles completos de un pago de MP
   getPaymentDetails: async (paymentId: string, appType: 'POINT' | 'QR' = 'POINT'): Promise<ApiResponse<MPPaymentDetails>> => {
     const response = await api.get(`/mercadopago/payments/${paymentId}/details?appType=${appType}`);
+    return response.data;
+  },
+
+  // Obtener pagos huérfanos disponibles para el POS
+  getOrphanPayments: async (pointOfSaleId?: string): Promise<ApiResponse<OrphanPayment[]>> => {
+    const params = pointOfSaleId ? `?pointOfSaleId=${pointOfSaleId}` : '';
+    const response = await api.get(`/mercadopago/orphan-payments${params}`);
+    return response.data;
+  },
+
+  // Aplicar pago huérfano a una venta
+  applyOrphanPayment: async (orderId: string, data: {
+    pointOfSaleId: string;
+    items: Array<{
+      productId: string;
+      productName?: string;
+      quantity: number;
+      unitPrice: number;
+      discount?: number;
+      promotionId?: string;
+      promotionName?: string;
+    }>;
+    customerId?: string;
+    notes?: string;
+    ticketNumber?: number;
+  }): Promise<ApiResponse<unknown>> => {
+    const response = await api.post(`/mercadopago/orphan-payments/${orderId}/apply`, data);
     return response.data;
   },
 };
