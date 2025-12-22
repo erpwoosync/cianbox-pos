@@ -2,7 +2,7 @@ name: Deploy Agency Backoffice
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/afip-facturacion-electronica]
     paths:
       - 'apps/agency/**'
       - '.github/workflows/deploy-agency.yml'
