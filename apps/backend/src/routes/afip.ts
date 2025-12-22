@@ -588,18 +588,19 @@ router.get('/afip-sales-points', async (req: AuthenticatedRequest, res: Response
   try {
     const tenantId = req.user!.tenantId;
 
-    const salesPoints = await afipService.getSalesPointsFromAfip(tenantId);
-    res.json(salesPoints);
+    const result = await afipService.getSalesPointsFromAfip(tenantId);
+
+    // Devolver objeto con información de producción/testing
+    res.json({
+      salesPoints: result.salesPoints,
+      isProduction: result.isProduction,
+      message: result.isProduction
+        ? (result.salesPoints.length === 0 ? 'No se encontraron puntos de venta en AFIP' : null)
+        : 'En modo testing no hay puntos de venta reales. Activa modo producción para importar tus puntos de venta.',
+    });
   } catch (error: any) {
     console.error('Error al obtener puntos de venta de AFIP:', error);
     console.error('Error details:', JSON.stringify(error.response?.data || error, null, 2));
-
-    // Si no tiene puntos de venta, devolver array vacío
-    if (error.message?.includes('no tiene puntos de venta') ||
-        error.message?.includes('No sales points') ||
-        error.response?.status === 400) {
-      return res.json([]);
-    }
 
     res.status(500).json({
       error: 'Error al obtener puntos de venta',

@@ -541,46 +541,69 @@ class AfipService {
 
   /**
    * Obtiene los puntos de venta habilitados en AFIP
+   * NOTA: En modo testing, AFIP no devuelve puntos de venta (solo existe el 1)
    */
-  async getSalesPointsFromAfip(tenantId: string): Promise<Array<{ number: number; type: string; blocked: string; dropDate: string | null }>> {
-    const afipInstance = await this.getAfipInstance(tenantId);
-    if (!afipInstance) {
+  async getSalesPointsFromAfip(tenantId: string): Promise<{
+    salesPoints: Array<{ number: number; type: string; blocked: string; dropDate: string | null }>;
+    isProduction: boolean;
+  }> {
+    // Obtener configuración para saber si es producción
+    const config = await prisma.afipConfig.findUnique({
+      where: { tenantId },
+    });
+
+    if (!config || !config.isActive) {
       throw new Error('Configuración AFIP no encontrada');
     }
 
+    const afipInstance = await this.getAfipInstance(tenantId);
+    if (!afipInstance) {
+      throw new Error('No se pudo crear instancia AFIP');
+    }
+
+    // En modo testing, AFIP no retorna puntos de venta reales
+    if (!config.isProduction) {
+      console.log('AFIP en modo testing - no hay puntos de venta reales disponibles');
+      return {
+        salesPoints: [],
+        isProduction: false,
+      };
+    }
+
     try {
+      console.log('Consultando puntos de venta en AFIP (producción)...');
       const result = await afipInstance.instance.ElectronicBilling.getSalesPoints();
 
       console.log('AFIP getSalesPoints raw result:', JSON.stringify(result, null, 2));
 
       // Normalizar respuesta
+      let salesPoints: Array<{ number: number; type: string; blocked: string; dropDate: string | null }> = [];
+
       if (!result) {
-        return [];
+        return { salesPoints: [], isProduction: true };
       }
 
       // Si es un array, mapearlo
       if (Array.isArray(result)) {
-        return result.map((sp: any) => ({
+        salesPoints = result.map((sp: any) => ({
           number: sp.Nro || sp.nro || sp.PtoVta || sp.ptoVta,
           type: sp.EmisionTipo || sp.emisionTipo || sp.Tipo || sp.tipo || 'N/A',
           blocked: sp.Bloqueado || sp.bloqueado || 'N',
           dropDate: sp.FchBaja || sp.fchBaja || null,
         }));
       }
-
       // Si es un objeto con ResultGet, extraer de ahí
-      if (result.ResultGet && Array.isArray(result.ResultGet)) {
-        return result.ResultGet.map((sp: any) => ({
+      else if (result.ResultGet && Array.isArray(result.ResultGet)) {
+        salesPoints = result.ResultGet.map((sp: any) => ({
           number: sp.Nro || sp.nro || sp.PtoVta || sp.ptoVta,
           type: sp.EmisionTipo || sp.emisionTipo || sp.Tipo || sp.tipo || 'N/A',
           blocked: sp.Bloqueado || sp.bloqueado || 'N',
           dropDate: sp.FchBaja || sp.fchBaja || null,
         }));
       }
-
       // Si es un objeto con PtoVta (un solo punto de venta)
-      if (result.PtoVta || result.Nro) {
-        return [{
+      else if (result.PtoVta || result.Nro) {
+        salesPoints = [{
           number: result.Nro || result.PtoVta,
           type: result.EmisionTipo || 'N/A',
           blocked: result.Bloqueado || 'N',
@@ -588,16 +611,17 @@ class AfipService {
         }];
       }
 
-      return [];
+      return { salesPoints, isProduction: true };
     } catch (error: any) {
       console.error('Error en getSalesPointsFromAfip:', error.message);
-      console.error('Error stack:', error.stack);
+      console.error('Error details:', JSON.stringify(error.response?.data || error, null, 2));
 
       // Si el error indica que no hay puntos de venta, devolver array vacío
       if (error.message?.includes('602') || // Error AFIP: no hay puntos de venta
           error.message?.includes('no posee') ||
-          error.message?.includes('No sales points')) {
-        return [];
+          error.message?.includes('No sales points') ||
+          error.message?.includes('400')) {
+        return { salesPoints: [], isProduction: true };
       }
 
       throw error;

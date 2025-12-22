@@ -180,7 +180,15 @@ export default function AfipConfigPage() {
   const handleImportFromAfip = async () => {
     try {
       setImportingFromAfip(true);
-      const afipPoints = await afipApi.getAfipSalesPoints();
+      const result = await afipApi.getAfipSalesPoints();
+
+      // Verificar si estamos en modo testing
+      if (!result.isProduction) {
+        showNotification('error', result.message || 'En modo testing no hay puntos de venta reales. Activa modo producción para importar.');
+        return;
+      }
+
+      const afipPoints = result.salesPoints;
 
       // Filtrar los que no están bloqueados y no existen aún
       const existingNumbers = salesPoints.map(sp => sp.number);
@@ -190,7 +198,7 @@ export default function AfipConfigPage() {
 
       if (toImport.length === 0) {
         if (afipPoints.length === 0) {
-          showNotification('error', 'No se encontraron puntos de venta en AFIP');
+          showNotification('error', result.message || 'No se encontraron puntos de venta en AFIP');
         } else {
           showNotification('success', `Encontrados ${afipPoints.length} puntos de venta. Todos ya están configurados.`);
         }
