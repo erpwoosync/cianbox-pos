@@ -1124,29 +1124,30 @@ export default function POS() {
       };
 
       // Agregar campos de MP si tenemos detalles
+      // Convertir null a undefined para que Zod no falle en campos opcionales
       if (paymentDetails) {
-        paymentData.mpPaymentId = paymentDetails.mpPaymentId;
-        paymentData.mpOrderId = paymentDetails.mpOrderId;
-        paymentData.mpOperationType = paymentDetails.mpOperationType;
-        paymentData.mpPointType = paymentDetails.mpPointType;
-        paymentData.cardFirstSix = paymentDetails.cardFirstSix;
-        paymentData.cardExpirationMonth = paymentDetails.cardExpirationMonth;
-        paymentData.cardExpirationYear = paymentDetails.cardExpirationYear;
-        paymentData.cardholderName = paymentDetails.cardholderName;
-        paymentData.cardType = paymentDetails.cardType;
-        paymentData.payerEmail = paymentDetails.payerEmail;
-        paymentData.payerIdType = paymentDetails.payerIdType;
-        paymentData.payerIdNumber = paymentDetails.payerIdNumber;
-        paymentData.authorizationCode = paymentDetails.authorizationCode;
-        paymentData.mpFeeAmount = paymentDetails.mpFeeAmount;
-        paymentData.mpFeeRate = paymentDetails.mpFeeRate;
-        paymentData.netReceivedAmount = paymentDetails.netReceivedAmount;
-        paymentData.bankOriginId = paymentDetails.bankOriginId;
-        paymentData.bankOriginName = paymentDetails.bankOriginName;
-        paymentData.bankTransferId = paymentDetails.bankTransferId;
-        paymentData.mpDeviceId = paymentDetails.mpDeviceId;
-        paymentData.mpPosId = paymentDetails.mpPosId;
-        paymentData.mpStoreId = paymentDetails.mpStoreId;
+        paymentData.mpPaymentId = paymentDetails.mpPaymentId || undefined;
+        paymentData.mpOrderId = paymentDetails.mpOrderId || undefined;
+        paymentData.mpOperationType = paymentDetails.mpOperationType || undefined;
+        paymentData.mpPointType = paymentDetails.mpPointType || undefined;
+        paymentData.cardFirstSix = paymentDetails.cardFirstSix || undefined;
+        paymentData.cardExpirationMonth = paymentDetails.cardExpirationMonth || undefined;
+        paymentData.cardExpirationYear = paymentDetails.cardExpirationYear || undefined;
+        paymentData.cardholderName = paymentDetails.cardholderName || undefined;
+        paymentData.cardType = paymentDetails.cardType || undefined;
+        paymentData.payerEmail = paymentDetails.payerEmail || undefined;
+        paymentData.payerIdType = paymentDetails.payerIdType || undefined;
+        paymentData.payerIdNumber = paymentDetails.payerIdNumber || undefined;
+        paymentData.authorizationCode = paymentDetails.authorizationCode || undefined;
+        paymentData.mpFeeAmount = paymentDetails.mpFeeAmount || undefined;
+        paymentData.mpFeeRate = paymentDetails.mpFeeRate || undefined;
+        paymentData.netReceivedAmount = paymentDetails.netReceivedAmount || undefined;
+        paymentData.bankOriginId = paymentDetails.bankOriginId || undefined;
+        paymentData.bankOriginName = paymentDetails.bankOriginName || undefined;
+        paymentData.bankTransferId = paymentDetails.bankTransferId || undefined;
+        paymentData.mpDeviceId = paymentDetails.mpDeviceId || undefined;
+        paymentData.mpPosId = paymentDetails.mpPosId || undefined;
+        paymentData.mpStoreId = paymentDetails.mpStoreId || undefined;
       }
 
       const saleData = {
