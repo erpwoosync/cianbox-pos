@@ -1289,6 +1289,8 @@ export default function Integrations() {
                     .filter(store => !selectedStoreId || store.id === selectedStoreId)
                     .map(store => {
                       const storeCashiers = qrCashiers.filter(c => c.store_id === store.id);
+                      // Buscar sucursal del sistema vinculada a este store
+                      const linkedBranch = branchesWithMPStatus.find(b => b.mpStoreId === store.id);
 
                       return (
                         <div key={store.id} className="border rounded-lg overflow-hidden">
@@ -1297,6 +1299,14 @@ export default function Integrations() {
                             <div className="flex items-center gap-3">
                               <MapPin size={18} className="text-gray-500" />
                               <span className="font-medium text-gray-900">{store.name}</span>
+                              {linkedBranch ? (
+                                <span className="text-xs text-green-600 flex items-center gap-1">
+                                  <Building2 size={12} />
+                                  {linkedBranch.name} ({linkedBranch.code})
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">Sin sucursal vinculada</span>
+                              )}
                               <span className="text-xs text-gray-500">({storeCashiers.length} cajas)</span>
                             </div>
                             <button
