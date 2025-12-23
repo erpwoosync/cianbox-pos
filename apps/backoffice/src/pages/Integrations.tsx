@@ -133,14 +133,16 @@ export default function Integrations() {
 
       // Load devices if Point is connected
       if (result.isPointConnected) {
-        loadDevices();
+        await loadDevices();
       }
 
-      // Load QR data if QR is connected
+      // Load QR data if QR is connected - await all to prevent race condition
       if (result.isQrConnected) {
-        loadQRData();
-        loadSystemPOS();
-        loadSystemBranches();
+        await Promise.all([
+          loadQRData(),
+          loadSystemPOS(),
+          loadSystemBranches(),
+        ]);
       }
     } catch (error) {
       console.error('Error loading MP config:', error);
