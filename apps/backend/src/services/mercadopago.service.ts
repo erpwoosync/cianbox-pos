@@ -2139,20 +2139,23 @@ class MercadoPagoService {
    */
   async saveLocalStore(tenantId: string, storeData: {
     mpStoreId: string;
-    externalId: string;
+    externalId?: string;
     name: string;
     streetName?: string;
     streetNumber?: string;
     cityName?: string;
     stateName?: string;
   }): Promise<{ id: string; mpStoreId: string }> {
+    // Usar mpStoreId como fallback si externalId no está definido
+    const externalId = storeData.externalId || `STORE${storeData.mpStoreId}`;
+
     const store = await prisma.mercadoPagoStore.upsert({
       where: {
         tenantId_mpStoreId: { tenantId, mpStoreId: storeData.mpStoreId },
       },
       update: {
         name: storeData.name,
-        externalId: storeData.externalId,
+        externalId,
         streetName: storeData.streetName,
         streetNumber: storeData.streetNumber,
         cityName: storeData.cityName,
@@ -2162,7 +2165,7 @@ class MercadoPagoService {
       create: {
         tenantId,
         mpStoreId: storeData.mpStoreId,
-        externalId: storeData.externalId,
+        externalId,
         name: storeData.name,
         streetName: storeData.streetName,
         streetNumber: storeData.streetNumber,
@@ -2179,7 +2182,7 @@ class MercadoPagoService {
    */
   async saveLocalCashier(tenantId: string, cashierData: {
     mpCashierId: number;
-    externalId: string;
+    externalId?: string;
     name: string;
     mpStoreId: string;
     qrImage?: string;
@@ -2194,13 +2197,16 @@ class MercadoPagoService {
       throw new Error(`Store con mpStoreId ${cashierData.mpStoreId} no encontrado en DB local`);
     }
 
+    // Usar mpCashierId como fallback si externalId no está definido
+    const externalId = cashierData.externalId || `CAJA${cashierData.mpCashierId}`;
+
     const cashier = await prisma.mercadoPagoCashier.upsert({
       where: {
         tenantId_mpCashierId: { tenantId, mpCashierId: cashierData.mpCashierId },
       },
       update: {
         name: cashierData.name,
-        externalId: cashierData.externalId,
+        externalId,
         qrImage: cashierData.qrImage,
         qrTemplate: cashierData.qrTemplate,
         lastSyncedAt: new Date(),
@@ -2209,7 +2215,7 @@ class MercadoPagoService {
         tenantId,
         storeId: store.id,
         mpCashierId: cashierData.mpCashierId,
-        externalId: cashierData.externalId,
+        externalId,
         name: cashierData.name,
         qrImage: cashierData.qrImage,
         qrTemplate: cashierData.qrTemplate,

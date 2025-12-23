@@ -178,11 +178,34 @@ export default function Integrations() {
     }
   };
 
-  const loadQRData = async () => {
+  const loadQRData = async (autoSync = true) => {
     setLoadingQrData(true);
     try {
       // Cargar desde cache local (DB) en lugar de MP API
       const stores = await mercadoPagoApi.getLocalStores();
+
+      // Si el cache está vacío y autoSync está habilitado, sincronizar automáticamente
+      if (stores.length === 0 && autoSync) {
+        console.log('Cache vacío, sincronizando desde MP...');
+        try {
+          await mercadoPagoApi.syncQRData();
+          // Recargar después de sincronizar (sin autoSync para evitar loop)
+          return await loadQRData(false);
+        } catch (syncError) {
+          console.error('Error en sync automático:', syncError);
+          // Si falla el sync, intentar cargar directo de MP como fallback
+          try {
+            const mpStores = await mercadoPagoApi.listQRStores();
+            setQrStores(mpStores);
+            const mpCashiers = await mercadoPagoApi.listQRCashiers();
+            setQrCashiers(mpCashiers);
+            return;
+          } catch (mpError) {
+            console.error('Error cargando de MP:', mpError);
+          }
+        }
+      }
+
       // Convertir al formato esperado
       const formattedStores: QRStore[] = stores.map(s => ({
         id: s.mpStoreId,
