@@ -1812,6 +1812,57 @@ class MercadoPagoService {
    * Crea un Store en MP usando los datos de una Branch del sistema
    * Vincula automáticamente el Store creado con la Branch
    */
+  // Mapeo de nombres de provincias a valores válidos de MP
+  private normalizeStateName(state: string | null): string {
+    if (!state) return 'Buenos Aires';
+
+    const stateMap: Record<string, string> = {
+      // Variaciones comunes
+      'bsas': 'Buenos Aires',
+      'bs as': 'Buenos Aires',
+      'bs. as.': 'Buenos Aires',
+      'buenos aires': 'Buenos Aires',
+      'pcia buenos aires': 'Buenos Aires',
+      'provincia de buenos aires': 'Buenos Aires',
+      'caba': 'Capital Federal',
+      'capital': 'Capital Federal',
+      'capital federal': 'Capital Federal',
+      'ciudad de buenos aires': 'Capital Federal',
+      'ciudad autonoma de buenos aires': 'Capital Federal',
+      'cordoba': 'Córdoba',
+      'córdoba': 'Córdoba',
+      'cba': 'Córdoba',
+      'entre rios': 'Entre Ríos',
+      'entreríos': 'Entre Ríos',
+      'neuquen': 'Neuquén',
+      'neuquén': 'Neuquén',
+      'rio negro': 'Río Negro',
+      'río negro': 'Río Negro',
+      'tucuman': 'Tucumán',
+      'tucumán': 'Tucumán',
+      'catamarca': 'Catamarca',
+      'chaco': 'Chaco',
+      'chubut': 'Chubut',
+      'corrientes': 'Corrientes',
+      'formosa': 'Formosa',
+      'jujuy': 'Jujuy',
+      'la pampa': 'La Pampa',
+      'la rioja': 'La Rioja',
+      'mendoza': 'Mendoza',
+      'misiones': 'Misiones',
+      'salta': 'Salta',
+      'san juan': 'San Juan',
+      'san luis': 'San Luis',
+      'santa cruz': 'Santa Cruz',
+      'santa fe': 'Santa Fe',
+      'santiago del estero': 'Santiago del Estero',
+      'tierra del fuego': 'Tierra del Fuego',
+    };
+
+    const normalized = state.toLowerCase().trim();
+    return stateMap[normalized] || state;
+  }
+
   async createStoreFromBranch(tenantId: string, branchId: string): Promise<{
     branch: { id: string; name: string; code: string; mpStoreId: string | null; mpExternalId: string | null };
     store: { id: string; name: string; external_id: string };
@@ -1840,7 +1891,7 @@ class MercadoPagoService {
         street_name: branch.address || 'Sin dirección',
         street_number: '0',
         city_name: branch.city || 'Ciudad',
-        state_name: branch.state || 'Provincia',
+        state_name: this.normalizeStateName(branch.state),
       },
     };
 
