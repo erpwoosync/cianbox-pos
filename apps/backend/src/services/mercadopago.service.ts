@@ -1863,6 +1863,37 @@ class MercadoPagoService {
     return stateMap[normalized] || state;
   }
 
+  // Ciudad por defecto según la provincia (MP requiere ciudades específicas)
+  private getDefaultCityForState(state: string): string {
+    const cityByState: Record<string, string> = {
+      'Buenos Aires': 'La Plata',
+      'Capital Federal': 'Capital Federal',
+      'Catamarca': 'Catamarca',
+      'Chaco': 'Resistencia',
+      'Chubut': 'Rawson',
+      'Corrientes': 'Corrientes',
+      'Córdoba': 'Córdoba',
+      'Entre Ríos': 'Paraná',
+      'Formosa': 'Formosa',
+      'Jujuy': 'San Salvador de Jujuy',
+      'La Pampa': 'Santa Rosa',
+      'La Rioja': 'La Rioja',
+      'Mendoza': 'Mendoza',
+      'Misiones': 'Posadas',
+      'Neuquén': 'Neuquén',
+      'Río Negro': 'Viedma',
+      'Salta': 'Salta',
+      'San Juan': 'San Juan',
+      'San Luis': 'San Luis',
+      'Santa Cruz': 'Río Gallegos',
+      'Santa Fe': 'Santa Fe',
+      'Santiago del Estero': 'Santiago del Estero',
+      'Tierra del Fuego': 'Ushuaia',
+      'Tucumán': 'San Miguel de Tucumán',
+    };
+    return cityByState[state] || 'Capital Federal';
+  }
+
   async createStoreFromBranch(tenantId: string, branchId: string): Promise<{
     branch: { id: string; name: string; code: string; mpStoreId: string | null; mpExternalId: string | null };
     store: { id: string; name: string; external_id: string };
@@ -1883,6 +1914,11 @@ class MercadoPagoService {
     // Generar external_id limpiando caracteres especiales del code
     const externalId = branch.code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
+    // Normalizar provincia y obtener ciudad válida
+    const stateName = this.normalizeStateName(branch.state);
+    // MP tiene una lista limitada de ciudades por provincia, usamos la capital como fallback seguro
+    const cityName = this.getDefaultCityForState(stateName);
+
     // Preparar datos para crear Store
     const storeData = {
       name: branch.name,
@@ -1890,8 +1926,8 @@ class MercadoPagoService {
       location: {
         street_name: branch.address || 'Sin dirección',
         street_number: '0',
-        city_name: branch.city || 'Ciudad',
-        state_name: this.normalizeStateName(branch.state),
+        city_name: cityName,
+        state_name: stateName,
       },
     };
 
