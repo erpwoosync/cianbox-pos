@@ -1047,6 +1047,116 @@ class MercadoPagoService {
     return device;
   }
 
+  /**
+   * Asocia un dispositivo Point a un POS específico
+   * Esto permite tener múltiples dispositivos en modo PDV, cada uno en un POS diferente
+   * @param tenantId - ID del tenant
+   * @param deviceId - ID del dispositivo Point
+   * @param externalPosId - ID externo del POS (debe existir en MP)
+   * @returns Dispositivo actualizado
+   */
+  async associateDeviceToPOS(
+    tenantId: string,
+    deviceId: string,
+    externalPosId: string
+  ): Promise<MPDevice> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
+
+    console.log(`[MP Point] Asociando dispositivo ${deviceId} a POS ${externalPosId}`);
+
+    const response = await fetch(`${this.baseUrl}/point/integration-api/devices/${deviceId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ external_pos_id: externalPosId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as { message?: string; error?: string };
+      console.error('Error asociando dispositivo a POS:', errorData);
+      throw new Error(errorData.message || errorData.error || `Error al asociar dispositivo: ${response.status}`);
+    }
+
+    const device = (await response.json()) as MPDevice;
+    console.log(`[MP Point] Dispositivo ${deviceId} asociado a POS ${externalPosId}:`, device);
+    return device;
+  }
+
+  /**
+   * Lista stores para Point (usa la misma estructura que QR)
+   */
+  async listPointStores(tenantId: string): Promise<Array<{ id: string; name: string; external_id: string }>> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
+
+    const config = await this.getConfig(tenantId, 'POINT');
+    if (!config?.mpUserId) {
+      throw new Error('No se encontró el user_id de Mercado Pago');
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/users/${config.mpUserId}/stores/search`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      console.error('Error listando stores MP Point:', error);
+      throw new Error('Error al obtener sucursales de Mercado Pago');
+    }
+
+    const data = await response.json() as { results?: Array<{ id: string; name: string; external_id: string }> };
+    return data.results || [];
+  }
+
+  /**
+   * Lista POS para Point (usa la misma estructura que QR)
+   */
+  async listPointPOS(tenantId: string, storeId?: string): Promise<Array<{
+    id: number;
+    name: string;
+    external_id: string;
+    store_id: string;
+  }>> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
+
+    let url = `${this.baseUrl}/pos?`;
+    if (storeId) {
+      url += `store_id=${storeId}&`;
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Error listando POS MP Point:', errorData);
+      throw new Error('Error al obtener POS de Mercado Pago');
+    }
+
+    interface MPPosResult {
+      id: number;
+      name: string;
+      external_id: string;
+      store_id: string;
+    }
+
+    const data = await response.json() as { results?: MPPosResult[] };
+    return data.results || [];
+  }
+
   // ============================================
   // WEBHOOKS
   // ============================================
