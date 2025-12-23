@@ -90,30 +90,152 @@ export default function InvoiceModal({
           <head>
             <title>Factura ${invoice?.voucherType} ${String(invoice?.salesPointNumber).padStart(4, '0')}-${String(invoice?.number).padStart(8, '0')}</title>
             <style>
-              @page { size: 80mm auto; margin: 2mm; }
-              body {
-                font-family: 'Courier New', monospace;
-                font-size: 12px;
-                width: 76mm;
-                margin: 0 auto;
-                padding: 2mm;
+              /* Configuración para papel de rollo 80mm */
+              @page {
+                size: 80mm auto;
+                margin: 0;
               }
-              .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
-              .header h1 { font-size: 14px; margin: 0; }
-              .header p { margin: 2px 0; font-size: 10px; }
-              .voucher-type { font-size: 18px; font-weight: bold; text-align: center; margin: 10px 0; }
-              .voucher-number { text-align: center; font-size: 14px; margin-bottom: 10px; }
-              .section { margin: 8px 0; }
-              .section-title { font-weight: bold; border-bottom: 1px solid #000; margin-bottom: 5px; }
-              .row { display: flex; justify-content: space-between; }
-              .items { width: 100%; border-collapse: collapse; margin: 5px 0; }
-              .items th, .items td { text-align: left; padding: 2px 0; font-size: 10px; }
-              .items th:last-child, .items td:last-child { text-align: right; }
-              .total { font-size: 16px; font-weight: bold; text-align: right; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
-              .cae { margin-top: 10px; padding-top: 5px; border-top: 1px dashed #000; font-size: 10px; }
-              .qr { text-align: center; margin-top: 10px; }
-              .qr img { max-width: 100px; }
-              .footer { text-align: center; font-size: 8px; margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px; }
+              @media print {
+                html, body {
+                  width: 80mm;
+                  margin: 0;
+                  padding: 0;
+                }
+              }
+              * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+              }
+              body {
+                font-family: 'Courier New', 'Lucida Console', monospace;
+                font-size: 11px;
+                line-height: 1.3;
+                width: 72mm;
+                max-width: 72mm;
+                margin: 0 auto;
+                padding: 3mm;
+                background: white;
+                color: #000;
+              }
+              .header {
+                text-align: center;
+                padding-bottom: 8px;
+                margin-bottom: 8px;
+                border-bottom: 1px dashed #000;
+              }
+              .header h1 {
+                font-size: 13px;
+                font-weight: bold;
+                margin-bottom: 2px;
+                word-wrap: break-word;
+              }
+              .header p {
+                font-size: 9px;
+                margin: 1px 0;
+              }
+              .voucher-type {
+                text-align: center;
+                font-size: 20px;
+                font-weight: bold;
+                margin: 10px 0 5px 0;
+                padding: 5px;
+                border: 2px solid #000;
+                display: inline-block;
+                width: 100%;
+              }
+              .voucher-number {
+                text-align: center;
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 8px;
+              }
+              .section {
+                margin: 6px 0;
+                font-size: 10px;
+              }
+              .section-title {
+                font-weight: bold;
+                font-size: 11px;
+                border-bottom: 1px solid #000;
+                margin-bottom: 4px;
+                padding-bottom: 2px;
+              }
+              .row {
+                display: flex;
+                justify-content: space-between;
+                margin: 2px 0;
+              }
+              .row span:first-child {
+                font-weight: bold;
+              }
+              .items {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 4px 0;
+                font-size: 9px;
+              }
+              .items th {
+                text-align: left;
+                font-weight: bold;
+                padding: 2px 1px;
+                border-bottom: 1px solid #000;
+              }
+              .items th:nth-child(2),
+              .items td:nth-child(2) {
+                text-align: center;
+                width: 30px;
+              }
+              .items th:last-child,
+              .items td:last-child {
+                text-align: right;
+                width: 55px;
+              }
+              .items td {
+                padding: 3px 1px;
+                vertical-align: top;
+                word-wrap: break-word;
+              }
+              .items td:first-child {
+                max-width: 120px;
+                overflow: hidden;
+              }
+              .separator {
+                border-top: 1px dashed #000;
+                margin: 6px 0;
+              }
+              .total {
+                font-size: 14px;
+                font-weight: bold;
+                text-align: right;
+                padding: 6px 0;
+                border-top: 1px dashed #000;
+                border-bottom: 1px dashed #000;
+                margin: 6px 0;
+              }
+              .cae {
+                font-size: 9px;
+                margin: 8px 0;
+                padding: 4px 0;
+              }
+              .cae div {
+                margin: 2px 0;
+              }
+              .qr {
+                text-align: center;
+                margin: 8px 0;
+              }
+              .qr img {
+                width: 90px;
+                height: 90px;
+              }
+              .footer {
+                text-align: center;
+                font-size: 8px;
+                margin-top: 8px;
+                padding-top: 6px;
+                border-top: 1px dashed #000;
+              }
             </style>
           </head>
           <body>
@@ -122,13 +244,34 @@ export default function InvoiceModal({
           </html>
         `);
         printWindow.document.close();
-        printWindow.print();
+        // Esperar a que cargue la imagen del QR antes de imprimir
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
       }
     }
   };
 
   const formatDate = (dateStr: string) => {
+    // AFIP devuelve fechas en formato YYYYMMDD o ISO
+    if (/^\d{8}$/.test(dateStr)) {
+      // Formato YYYYMMDD de AFIP
+      const year = dateStr.substring(0, 4);
+      const month = dateStr.substring(4, 6);
+      const day = dateStr.substring(6, 8);
+      return `${day}/${month}/${year}`;
+    }
     return new Date(dateStr).toLocaleDateString('es-AR');
+  };
+
+  const formatTaxCategory = (category: string) => {
+    const categories: Record<string, string> = {
+      'RESPONSABLE_INSCRIPTO': 'IVA Responsable Inscripto',
+      'MONOTRIBUTO': 'Monotributista',
+      'EXENTO': 'IVA Exento',
+      'CONSUMIDOR_FINAL': 'Consumidor Final',
+    };
+    return categories[category] || category;
   };
 
   const getVoucherTypeLetter = (type: string) => {
@@ -230,14 +373,14 @@ export default function InvoiceModal({
                 <span className="text-green-700 font-medium">Factura emitida correctamente</span>
               </div>
 
-              {/* Vista previa de impresión */}
+              {/* Vista previa de impresión - Formato ticket 80mm */}
               <div ref={printRef} className="bg-white border rounded-lg p-4 mb-4 text-sm font-mono">
                 <div className="header">
                   <h1>{invoice.tradeName || invoice.businessName}</h1>
-                  <p>{invoice.businessName}</p>
+                  {invoice.tradeName && <p>{invoice.businessName}</p>}
                   <p>{invoice.address}</p>
                   <p>CUIT: {invoice.cuit}</p>
-                  <p>{invoice.taxCategory}</p>
+                  <p>{formatTaxCategory(invoice.taxCategory)}</p>
                 </div>
 
                 <div className="voucher-type">
@@ -245,7 +388,7 @@ export default function InvoiceModal({
                 </div>
 
                 <div className="voucher-number">
-                  {String(invoice.salesPointNumber).padStart(4, '0')}-{String(invoice.number).padStart(8, '0')}
+                  Nro: {String(invoice.salesPointNumber).padStart(4, '0')}-{String(invoice.number).padStart(8, '0')}
                 </div>
 
                 <div className="section">
@@ -270,9 +413,9 @@ export default function InvoiceModal({
                   <table className="items">
                     <thead>
                       <tr>
-                        <th>Producto</th>
+                        <th>Descripción</th>
                         <th>Cant</th>
-                        <th>Subtotal</th>
+                        <th>Importe</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -292,8 +435,8 @@ export default function InvoiceModal({
                 </div>
 
                 <div className="cae">
-                  <div>CAE: {invoice.cae}</div>
-                  <div>Vto CAE: {formatDate(invoice.caeExpiration)}</div>
+                  <div><strong>CAE:</strong> {invoice.cae}</div>
+                  <div><strong>Vto CAE:</strong> {formatDate(invoice.caeExpiration)}</div>
                 </div>
 
                 <div className="qr">
@@ -301,7 +444,7 @@ export default function InvoiceModal({
                 </div>
 
                 <div className="footer">
-                  Comprobante autorizado por AFIP
+                  Comprobante Autorizado - AFIP
                 </div>
               </div>
 
