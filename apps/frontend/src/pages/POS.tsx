@@ -20,6 +20,7 @@ import {
   Smartphone,
   Layers,
   User,
+  Receipt,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
@@ -38,6 +39,7 @@ import ProductSearchModal from '../components/ProductSearchModal';
 import TalleSelectorModal from '../components/TalleSelectorModal';
 import CustomerSelectorModal from '../components/CustomerSelectorModal';
 import InvoiceModal from '../components/InvoiceModal';
+import SalesHistoryModal from '../components/SalesHistoryModal';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 import { offlineSyncService } from '../services/offlineSync';
 
@@ -275,6 +277,9 @@ export default function POS() {
 
   // Estado de consultor de productos
   const [showProductSearchModal, setShowProductSearchModal] = useState(false);
+
+  // Estado de historial de ventas
+  const [showSalesHistoryModal, setShowSalesHistoryModal] = useState(false);
 
   // Estado de cliente (derivado del ticket actual)
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -1468,6 +1473,16 @@ export default function POS() {
             <span className="hidden sm:inline">Consultar</span>
           </button>
 
+          {/* Boton historial de ventas */}
+          <button
+            onClick={() => setShowSalesHistoryModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+            title="Historial de ventas y reimpresión"
+          >
+            <Receipt className="w-5 h-5" />
+            <span className="hidden sm:inline">Ventas</span>
+          </button>
+
           <div className="text-right flex items-center gap-4">
             {/* Indicador de conexión y sincronización */}
             {!isOnline ? (
@@ -2198,6 +2213,13 @@ export default function POS() {
           customerName={completedSaleData.customerName}
         />
       )}
+
+      {/* Modal historial de ventas */}
+      <SalesHistoryModal
+        isOpen={showSalesHistoryModal}
+        onClose={() => setShowSalesHistoryModal(false)}
+        pointOfSaleId={selectedPOS?.id}
+      />
     </div>
   );
 }

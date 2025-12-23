@@ -494,6 +494,14 @@ router.get(
             branch: { select: { id: true, code: true, name: true } },
             pointOfSale: { select: { id: true, code: true, name: true } },
             user: { select: { id: true, name: true } },
+            afipInvoices: {
+              select: {
+                id: true,
+                voucherType: true,
+                number: true,
+                salesPoint: { select: { number: true } }
+              }
+            },
             _count: { select: { items: true, payments: true } },
           },
           skip,
@@ -546,6 +554,7 @@ router.get(
           branch: true,
           pointOfSale: true,
           user: { select: { id: true, name: true, email: true } },
+          afipInvoices: true,
         },
       });
 
