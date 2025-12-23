@@ -886,6 +886,22 @@ export const mercadoPagoApi = {
     const response = await api.post('/mercadopago/qr/sync-stores');
     return response.data.data;
   },
+
+  // Obtener Stores de MP que no están vinculados a ninguna Branch
+  getUnlinkedStores: async (): Promise<Array<{ id: string; name: string; external_id: string }>> => {
+    const response = await api.get('/mercadopago/qr/unlinked-stores');
+    return response.data.data;
+  },
+
+  // Vincular manualmente un Store existente a una Branch
+  linkStoreToBranch: async (branchId: string, storeId: string, externalId: string): Promise<void> => {
+    await api.put(`/mercadopago/qr/branches/${branchId}/link-store`, { storeId, externalId });
+  },
+
+  // Desvincular un Store de una Branch
+  unlinkStoreFromBranch: async (branchId: string): Promise<void> => {
+    await api.delete(`/mercadopago/qr/branches/${branchId}/unlink-store`);
+  },
 };
 
 // ============ CAJA / TURNOS ============

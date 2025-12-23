@@ -797,6 +797,86 @@ router.post('/qr/sync-stores', authenticate, async (req: AuthenticatedRequest, r
   }
 });
 
+/**
+ * GET /api/mercadopago/qr/unlinked-stores
+ * Lista Stores de MP que no están vinculados a ninguna Branch
+ */
+router.get('/qr/unlinked-stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const stores = await mercadoPagoService.getUnlinkedStores(tenantId);
+
+    res.json({
+      success: true,
+      data: stores,
+    });
+  } catch (error) {
+    console.error('Error obteniendo stores no vinculados:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * PUT /api/mercadopago/qr/branches/:branchId/link-store
+ * Vincula manualmente un Store existente de MP a una Branch
+ */
+router.put('/qr/branches/:branchId/link-store', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { branchId } = req.params;
+    const { storeId, externalId } = req.body;
+
+    if (!storeId || !externalId) {
+      return res.status(400).json({
+        success: false,
+        error: 'storeId y externalId son requeridos',
+      });
+    }
+
+    const result = await mercadoPagoService.linkStoreToBranch(tenantId, branchId, storeId, externalId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Local vinculado exitosamente a la sucursal',
+    });
+  } catch (error) {
+    console.error('Error vinculando store a branch:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * DELETE /api/mercadopago/qr/branches/:branchId/unlink-store
+ * Desvincula un Store de MP de una Branch
+ */
+router.delete('/qr/branches/:branchId/unlink-store', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { branchId } = req.params;
+
+    const result = await mercadoPagoService.unlinkStoreFromBranch(tenantId, branchId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Local desvinculado de la sucursal',
+    });
+  } catch (error) {
+    console.error('Error desvinculando store de branch:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
 const createQRCashierSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   external_id: z.string().min(1, 'El ID externo es requerido'),

@@ -1927,6 +1927,110 @@ class MercadoPagoService {
       hasStore: !!branch.mpStoreId,
     }));
   }
+
+  /**
+   * Vincula manualmente un Store existente de MP a una Branch del sistema
+   */
+  async linkStoreToBranch(tenantId: string, branchId: string, storeId: string, externalId: string): Promise<{
+    id: string;
+    name: string;
+    code: string;
+    mpStoreId: string | null;
+    mpExternalId: string | null;
+  }> {
+    // Verificar que la Branch existe y pertenece al tenant
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, tenantId },
+    });
+
+    if (!branch) {
+      throw new Error('Sucursal no encontrada');
+    }
+
+    // Verificar que el Store no está vinculado a otra Branch
+    const existingLink = await prisma.branch.findFirst({
+      where: { tenantId, mpStoreId: storeId, id: { not: branchId } },
+    });
+
+    if (existingLink) {
+      throw new Error(`Este local ya está vinculado a la sucursal "${existingLink.name}"`);
+    }
+
+    // Vincular Store a Branch
+    const updatedBranch = await prisma.branch.update({
+      where: { id: branchId },
+      data: {
+        mpStoreId: storeId,
+        mpExternalId: externalId,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        mpStoreId: true,
+        mpExternalId: true,
+      },
+    });
+
+    return updatedBranch;
+  }
+
+  /**
+   * Desvincula un Store de MP de una Branch
+   */
+  async unlinkStoreFromBranch(tenantId: string, branchId: string): Promise<{
+    id: string;
+    name: string;
+    code: string;
+    mpStoreId: string | null;
+    mpExternalId: string | null;
+  }> {
+    // Verificar que la Branch existe y pertenece al tenant
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, tenantId },
+    });
+
+    if (!branch) {
+      throw new Error('Sucursal no encontrada');
+    }
+
+    // Desvincular
+    const updatedBranch = await prisma.branch.update({
+      where: { id: branchId },
+      data: {
+        mpStoreId: null,
+        mpExternalId: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        mpStoreId: true,
+        mpExternalId: true,
+      },
+    });
+
+    return updatedBranch;
+  }
+
+  /**
+   * Lista Stores de MP que no están vinculados a ninguna Branch
+   */
+  async getUnlinkedStores(tenantId: string): Promise<Array<{ id: string; name: string; external_id: string }>> {
+    // Obtener stores de MP
+    const allStores = await this.listQRStores(tenantId);
+
+    // Obtener IDs de stores ya vinculados
+    const linkedBranches = await prisma.branch.findMany({
+      where: { tenantId, mpStoreId: { not: null } },
+      select: { mpStoreId: true },
+    });
+
+    const linkedStoreIds = new Set(linkedBranches.map(b => b.mpStoreId));
+
+    // Filtrar stores no vinculados
+    return allStores.filter(store => !linkedStoreIds.has(store.id));
+  }
 }
 
 export const mercadoPagoService = new MercadoPagoService();

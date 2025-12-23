@@ -92,6 +92,9 @@ export default function Integrations() {
   const [creatingStoreFromBranch, setCreatingStoreFromBranch] = useState<string | null>(null);
   const [syncingStores, setSyncingStores] = useState(false);
   const [expandedBranchId, setExpandedBranchId] = useState<string | null>(null);
+  const [unlinkedStores, setUnlinkedStores] = useState<Array<{ id: string; name: string; external_id: string }>>([]);
+  const [linkingBranchId, setLinkingBranchId] = useState<string | null>(null);
+  const [unlinkingBranchId, setUnlinkingBranchId] = useState<string | null>(null);
 
   // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
   // Se configura desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
@@ -208,12 +211,16 @@ export default function Integrations() {
     }
   };
 
-  // Cargar sucursales con estado de MP
+  // Cargar sucursales con estado de MP y stores no vinculados
   const loadBranchesWithMPStatus = async () => {
     setLoadingBranchesStatus(true);
     try {
-      const branches = await mercadoPagoApi.getBranchesWithMPStatus();
+      const [branches, stores] = await Promise.all([
+        mercadoPagoApi.getBranchesWithMPStatus(),
+        mercadoPagoApi.getUnlinkedStores(),
+      ]);
       setBranchesWithMPStatus(branches);
+      setUnlinkedStores(stores);
     } catch (error) {
       console.error('Error loading branches MP status:', error);
     } finally {
@@ -256,6 +263,39 @@ export default function Integrations() {
       setNotification({ type: 'error', message: err.response?.data?.error || err.message || 'Error al sincronizar' });
     } finally {
       setSyncingStores(false);
+    }
+  };
+
+  // Vincular Store existente a Branch
+  const handleLinkStoreToBranch = async (branchId: string, storeId: string, externalId: string) => {
+    setLinkingBranchId(branchId);
+    try {
+      await mercadoPagoApi.linkStoreToBranch(branchId, storeId, externalId);
+      setNotification({ type: 'success', message: 'Local vinculado exitosamente' });
+      await Promise.all([loadBranchesWithMPStatus(), loadQRData()]);
+    } catch (error: unknown) {
+      console.error('Error linking store to branch:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({ type: 'error', message: err.response?.data?.error || err.message || 'Error al vincular local' });
+    } finally {
+      setLinkingBranchId(null);
+    }
+  };
+
+  // Desvincular Store de Branch
+  const handleUnlinkStoreFromBranch = async (branchId: string) => {
+    if (!confirm('¿Desvincular este local de la sucursal? Las cajas seguirán existiendo en MP.')) return;
+    setUnlinkingBranchId(branchId);
+    try {
+      await mercadoPagoApi.unlinkStoreFromBranch(branchId);
+      setNotification({ type: 'success', message: 'Local desvinculado' });
+      await loadBranchesWithMPStatus();
+    } catch (error: unknown) {
+      console.error('Error unlinking store:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({ type: 'error', message: err.response?.data?.error || err.message || 'Error al desvincular' });
+    } finally {
+      setUnlinkingBranchId(null);
     }
   };
 
@@ -977,20 +1017,59 @@ export default function Integrations() {
                                 {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                 Ver cajas
                               </button>
+                              <button
+                                onClick={() => handleUnlinkStoreFromBranch(branch.id)}
+                                disabled={unlinkingBranchId === branch.id}
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                title="Desvincular local"
+                              >
+                                {unlinkingBranchId === branch.id ? (
+                                  <RefreshCw size={14} className="animate-spin" />
+                                ) : (
+                                  <Unlink size={14} />
+                                )}
+                              </button>
                             </>
                           ) : (
-                            <button
-                              onClick={() => handleCreateStoreFromBranch(branch.id)}
-                              disabled={isCreating}
-                              className="flex items-center gap-2 px-3 py-1.5 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                            >
-                              {isCreating ? (
-                                <RefreshCw size={14} className="animate-spin" />
-                              ) : (
-                                <Plus size={14} />
+                            <div className="flex items-center gap-2">
+                              {/* Selector de stores existentes */}
+                              {unlinkedStores.length > 0 && (
+                                <select
+                                  disabled={linkingBranchId === branch.id}
+                                  onChange={(e) => {
+                                    const store = unlinkedStores.find(s => s.id === e.target.value);
+                                    if (store) {
+                                      handleLinkStoreToBranch(branch.id, store.id, store.external_id);
+                                    }
+                                  }}
+                                  className="px-2 py-1.5 text-sm border rounded-lg"
+                                  defaultValue=""
+                                >
+                                  <option value="">Vincular a local existente...</option>
+                                  {unlinkedStores.map(store => (
+                                    <option key={store.id} value={store.id}>
+                                      {store.name} ({store.external_id})
+                                    </option>
+                                  ))}
+                                </select>
                               )}
-                              Crear Local MP
-                            </button>
+                              {linkingBranchId === branch.id && (
+                                <RefreshCw size={14} className="animate-spin text-indigo-600" />
+                              )}
+                              <span className="text-gray-300">|</span>
+                              <button
+                                onClick={() => handleCreateStoreFromBranch(branch.id)}
+                                disabled={isCreating}
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 disabled:opacity-50"
+                              >
+                                {isCreating ? (
+                                  <RefreshCw size={14} className="animate-spin" />
+                                ) : (
+                                  <Plus size={14} />
+                                )}
+                                Crear nuevo
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
