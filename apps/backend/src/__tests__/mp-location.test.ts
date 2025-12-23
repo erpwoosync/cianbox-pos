@@ -1,4 +1,4 @@
-import { normalizeStateName, getDefaultCityForState, validStates } from '../utils/mp-location';
+import { normalizeStateName, getDefaultCityForState, getBestCityForState, normalizeLocation, validStates } from '../utils/mp-location';
 
 describe('MP Location Utils', () => {
   describe('normalizeStateName', () => {
@@ -142,6 +142,75 @@ describe('MP Location Utils', () => {
       expect(validStates).toContain('Neuquén');
       expect(validStates).toContain('Río Negro');
       expect(validStates).toContain('Tucumán');
+    });
+  });
+
+  describe('getBestCityForState', () => {
+    it('should return the city if it exists in the province', () => {
+      expect(getBestCityForState('Villa del Rosario', 'Córdoba')).toBe('Villa del Rosario');
+    });
+
+    it('should return the city case-normalized', () => {
+      expect(getBestCityForState('villa del rosario', 'Córdoba')).toBe('Villa del rosario');
+    });
+
+    it('should return Mar del Plata for Buenos Aires', () => {
+      expect(getBestCityForState('Mar del Plata', 'Buenos Aires')).toBe('Mar del Plata');
+    });
+
+    it('should return capital if city is null', () => {
+      expect(getBestCityForState(null, 'Córdoba')).toBe('Córdoba');
+    });
+
+    it('should return capital if city is not in province', () => {
+      // Mar del Plata is in Buenos Aires, not Córdoba
+      expect(getBestCityForState('Mar del Plata', 'Córdoba')).toBe('Córdoba');
+    });
+
+    it('should return capital for unknown city', () => {
+      expect(getBestCityForState('Ciudad Inexistente', 'Mendoza')).toBe('Mendoza');
+    });
+
+    it('should handle Villa Carlos Paz in Córdoba', () => {
+      expect(getBestCityForState('Villa Carlos Paz', 'Córdoba')).toBe('Villa Carlos Paz');
+    });
+  });
+
+  describe('normalizeLocation', () => {
+    it('should normalize Villa del Rosario, Córdoba correctly', () => {
+      const result = normalizeLocation('Villa del Rosario', 'Córdoba');
+      expect(result.state).toBe('Córdoba');
+      expect(result.city).toBe('Villa del Rosario');
+    });
+
+    it('should normalize with lowercase inputs', () => {
+      const result = normalizeLocation('villa del rosario', 'cordoba');
+      expect(result.state).toBe('Córdoba');
+      expect(result.city).toBe('Villa del rosario');
+    });
+
+    it('should use capital for null city', () => {
+      const result = normalizeLocation(null, 'Córdoba');
+      expect(result.state).toBe('Córdoba');
+      expect(result.city).toBe('Córdoba');
+    });
+
+    it('should normalize CABA correctly', () => {
+      const result = normalizeLocation('Palermo', 'CABA');
+      expect(result.state).toBe('Capital Federal');
+      expect(result.city).toBe('Palermo');
+    });
+
+    it('should handle unknown city with fallback to capital', () => {
+      const result = normalizeLocation('Ciudad Desconocida', 'Mendoza');
+      expect(result.state).toBe('Mendoza');
+      expect(result.city).toBe('Mendoza');
+    });
+
+    it('should normalize Buenos Aires abbreviations', () => {
+      const result = normalizeLocation('La Plata', 'bsas');
+      expect(result.state).toBe('Buenos Aires');
+      expect(result.city).toBe('La Plata');
     });
   });
 });

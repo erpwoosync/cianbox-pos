@@ -2,6 +2,8 @@
  * Utilidades para normalización de ubicaciones para la API de Mercado Pago
  */
 
+import { isCityInProvince, findProvinceByCity, getProvinceCapital } from './argentina-locations';
+
 // Mapeo de nombres de provincias a valores válidos de MP
 const stateMap: Record<string, string> = {
   // Variaciones comunes
@@ -89,6 +91,49 @@ export function normalizeStateName(state: string | null): string {
  */
 export function getDefaultCityForState(state: string): string {
   return cityByState[state] || 'Capital Federal';
+}
+
+/**
+ * Obtiene la mejor ciudad para una provincia, validando contra la lista de ciudades conocidas
+ * Si la ciudad proporcionada es válida para la provincia, la retorna
+ * Si no, retorna la capital de la provincia
+ */
+export function getBestCityForState(city: string | null, state: string): string {
+  // Si no hay ciudad, usar la capital
+  if (!city) {
+    return getDefaultCityForState(state);
+  }
+
+  // Verificar si la ciudad existe en la provincia
+  if (isCityInProvince(city, state)) {
+    // Capitalizar correctamente la ciudad
+    const normalizedCity = city.trim();
+    return normalizedCity.charAt(0).toUpperCase() + normalizedCity.slice(1);
+  }
+
+  // Intentar detectar la provincia por la ciudad
+  const detectedProvince = findProvinceByCity(city);
+  if (detectedProvince) {
+    // La ciudad existe pero en otra provincia, usar la capital de la provincia indicada
+    return getDefaultCityForState(state);
+  }
+
+  // Ciudad desconocida, usar la capital
+  return getDefaultCityForState(state);
+}
+
+/**
+ * Valida y obtiene tanto la provincia como la ciudad correctas
+ * Retorna provincia normalizada y ciudad válida
+ */
+export function normalizeLocation(city: string | null, state: string | null): { city: string; state: string } {
+  const normalizedState = normalizeStateName(state);
+  const bestCity = getBestCityForState(city, normalizedState);
+
+  return {
+    state: normalizedState,
+    city: bestCity,
+  };
 }
 
 /**

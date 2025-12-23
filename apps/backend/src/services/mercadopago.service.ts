@@ -1,5 +1,6 @@
 import { PrismaClient, MercadoPagoAppType } from '@prisma/client';
 import { randomUUID, createHmac } from 'crypto';
+import { normalizeLocation } from '../utils/mp-location';
 
 const prisma = new PrismaClient();
 
@@ -1812,88 +1813,6 @@ class MercadoPagoService {
    * Crea un Store en MP usando los datos de una Branch del sistema
    * Vincula automáticamente el Store creado con la Branch
    */
-  // Mapeo de nombres de provincias a valores válidos de MP
-  private normalizeStateName(state: string | null): string {
-    if (!state) return 'Buenos Aires';
-
-    const stateMap: Record<string, string> = {
-      // Variaciones comunes
-      'bsas': 'Buenos Aires',
-      'bs as': 'Buenos Aires',
-      'bs. as.': 'Buenos Aires',
-      'buenos aires': 'Buenos Aires',
-      'pcia buenos aires': 'Buenos Aires',
-      'provincia de buenos aires': 'Buenos Aires',
-      'caba': 'Capital Federal',
-      'capital': 'Capital Federal',
-      'capital federal': 'Capital Federal',
-      'ciudad de buenos aires': 'Capital Federal',
-      'ciudad autonoma de buenos aires': 'Capital Federal',
-      'cordoba': 'Córdoba',
-      'córdoba': 'Córdoba',
-      'cba': 'Córdoba',
-      'entre rios': 'Entre Ríos',
-      'entreríos': 'Entre Ríos',
-      'neuquen': 'Neuquén',
-      'neuquén': 'Neuquén',
-      'rio negro': 'Río Negro',
-      'río negro': 'Río Negro',
-      'tucuman': 'Tucumán',
-      'tucumán': 'Tucumán',
-      'catamarca': 'Catamarca',
-      'chaco': 'Chaco',
-      'chubut': 'Chubut',
-      'corrientes': 'Corrientes',
-      'formosa': 'Formosa',
-      'jujuy': 'Jujuy',
-      'la pampa': 'La Pampa',
-      'la rioja': 'La Rioja',
-      'mendoza': 'Mendoza',
-      'misiones': 'Misiones',
-      'salta': 'Salta',
-      'san juan': 'San Juan',
-      'san luis': 'San Luis',
-      'santa cruz': 'Santa Cruz',
-      'santa fe': 'Santa Fe',
-      'santiago del estero': 'Santiago del Estero',
-      'tierra del fuego': 'Tierra del Fuego',
-    };
-
-    const normalized = state.toLowerCase().trim();
-    return stateMap[normalized] || state;
-  }
-
-  // Ciudad por defecto según la provincia (MP requiere ciudades específicas)
-  private getDefaultCityForState(state: string): string {
-    const cityByState: Record<string, string> = {
-      'Buenos Aires': 'La Plata',
-      'Capital Federal': 'Capital Federal',
-      'Catamarca': 'Catamarca',
-      'Chaco': 'Resistencia',
-      'Chubut': 'Rawson',
-      'Corrientes': 'Corrientes',
-      'Córdoba': 'Córdoba',
-      'Entre Ríos': 'Paraná',
-      'Formosa': 'Formosa',
-      'Jujuy': 'San Salvador de Jujuy',
-      'La Pampa': 'Santa Rosa',
-      'La Rioja': 'La Rioja',
-      'Mendoza': 'Mendoza',
-      'Misiones': 'Posadas',
-      'Neuquén': 'Neuquén',
-      'Río Negro': 'Viedma',
-      'Salta': 'Salta',
-      'San Juan': 'San Juan',
-      'San Luis': 'San Luis',
-      'Santa Cruz': 'Río Gallegos',
-      'Santa Fe': 'Santa Fe',
-      'Santiago del Estero': 'Santiago del Estero',
-      'Tierra del Fuego': 'Ushuaia',
-      'Tucumán': 'San Miguel de Tucumán',
-    };
-    return cityByState[state] || 'Capital Federal';
-  }
-
   async createStoreFromBranch(tenantId: string, branchId: string): Promise<{
     branch: { id: string; name: string; code: string; mpStoreId: string | null; mpExternalId: string | null };
     store: { id: string; name: string; external_id: string };
@@ -1914,10 +1833,10 @@ class MercadoPagoService {
     // Generar external_id limpiando caracteres especiales del code
     const externalId = branch.code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
-    // Normalizar provincia y obtener ciudad válida
-    const stateName = this.normalizeStateName(branch.state);
-    // MP tiene una lista limitada de ciudades por provincia, usamos la capital como fallback seguro
-    const cityName = this.getDefaultCityForState(stateName);
+    // Normalizar provincia y ciudad - usa la ciudad de la sucursal si es válida, sino la capital
+    const location = normalizeLocation(branch.city, branch.state);
+    const stateName = location.state;
+    const cityName = location.city;
 
     // Preparar datos para crear Store
     const storeData = {
