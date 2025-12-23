@@ -902,6 +902,50 @@ export const mercadoPagoApi = {
   unlinkStoreFromBranch: async (branchId: string): Promise<void> => {
     await api.delete(`/mercadopago/qr/branches/${branchId}/unlink-store`);
   },
+
+  // ============ CACHE LOCAL DE STORES Y CASHIERS ============
+
+  // Obtener stores desde cache local (DB)
+  getLocalStores: async (): Promise<Array<{
+    id: string;
+    mpStoreId: string;
+    name: string;
+    externalId: string;
+    streetName: string | null;
+    streetNumber: string | null;
+    cityName: string | null;
+    stateName: string | null;
+    cashierCount: number;
+  }>> => {
+    const response = await api.get('/mercadopago/qr/local/stores');
+    return response.data.data;
+  },
+
+  // Obtener cashiers desde cache local (DB)
+  getLocalCashiers: async (storeId?: string): Promise<Array<{
+    id: string;
+    mpCashierId: number;
+    name: string;
+    externalId: string;
+    mpStoreId: string;
+    qrImage: string | null;
+    qrTemplate: string | null;
+  }>> => {
+    const params = storeId ? `?storeId=${storeId}` : '';
+    const response = await api.get(`/mercadopago/qr/local/cashiers${params}`);
+    return response.data.data;
+  },
+
+  // Sincronizar stores y cashiers desde MP a cache local
+  syncQRData: async (): Promise<{
+    storesAdded: number;
+    storesUpdated: number;
+    cashiersAdded: number;
+    cashiersUpdated: number;
+  }> => {
+    const response = await api.post('/mercadopago/qr/sync-data');
+    return response.data.data;
+  },
 };
 
 // ============ CAJA / TURNOS ============

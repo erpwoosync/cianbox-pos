@@ -877,6 +877,78 @@ router.delete('/qr/branches/:branchId/unlink-store', authenticate, async (req: A
   }
 });
 
+// ============================================
+// CACHE LOCAL DE STORES Y CASHIERS
+// ============================================
+
+/**
+ * GET /api/mercadopago/qr/local/stores
+ * Lista stores desde la DB local (cache)
+ */
+router.get('/qr/local/stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const stores = await mercadoPagoService.getLocalStores(tenantId);
+
+    res.json({
+      success: true,
+      data: stores,
+    });
+  } catch (error) {
+    console.error('Error listando stores locales:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * GET /api/mercadopago/qr/local/cashiers
+ * Lista cashiers desde la DB local (cache)
+ */
+router.get('/qr/local/cashiers', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { storeId } = req.query;
+    const cashiers = await mercadoPagoService.getLocalCashiers(tenantId, storeId as string | undefined);
+
+    res.json({
+      success: true,
+      data: cashiers,
+    });
+  } catch (error) {
+    console.error('Error listando cashiers locales:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * POST /api/mercadopago/qr/sync-data
+ * Sincroniza stores y cashiers desde MP a la DB local
+ */
+router.post('/qr/sync-data', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const result = await mercadoPagoService.syncQRDataFromMP(tenantId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Sincronización completada: ${result.storesAdded} stores nuevos, ${result.cashiersAdded} cajas nuevas`,
+    });
+  } catch (error) {
+    console.error('Error sincronizando datos QR:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
 const createQRCashierSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   external_id: z.string().min(1, 'El ID externo es requerido'),

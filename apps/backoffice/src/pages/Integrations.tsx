@@ -95,6 +95,7 @@ export default function Integrations() {
   const [unlinkedStores, setUnlinkedStores] = useState<Array<{ id: string; name: string; external_id: string }>>([]);
   const [linkingBranchId, setLinkingBranchId] = useState<string | null>(null);
   const [unlinkingBranchId, setUnlinkingBranchId] = useState<string | null>(null);
+  const [syncingQRData, setSyncingQRData] = useState(false);
 
   // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
   // Se configura desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
@@ -180,16 +181,67 @@ export default function Integrations() {
   const loadQRData = async () => {
     setLoadingQrData(true);
     try {
-      const stores = await mercadoPagoApi.listQRStores();
-      setQrStores(stores);
+      // Cargar desde cache local (DB) en lugar de MP API
+      const stores = await mercadoPagoApi.getLocalStores();
+      // Convertir al formato esperado
+      const formattedStores: QRStore[] = stores.map(s => ({
+        id: s.mpStoreId,
+        name: s.name,
+        external_id: s.externalId,
+      }));
+      setQrStores(formattedStores);
 
-      // Load all cashiers
-      const cashiers = await mercadoPagoApi.listQRCashiers();
-      setQrCashiers(cashiers);
+      // Load all cashiers desde cache local
+      const cashiers = await mercadoPagoApi.getLocalCashiers();
+      // Convertir al formato esperado
+      const formattedCashiers: QRCashier[] = cashiers.map(c => ({
+        id: c.mpCashierId,
+        name: c.name,
+        external_id: c.externalId,
+        store_id: c.mpStoreId,
+        qr: c.qrImage ? {
+          image: c.qrImage,
+          template_document: c.qrTemplate || '',
+          template_image: '',
+        } : undefined,
+      }));
+      setQrCashiers(formattedCashiers);
     } catch (error) {
       console.error('Error loading QR data:', error);
     } finally {
       setLoadingQrData(false);
+    }
+  };
+
+  // Sincronizar datos QR desde MP a cache local
+  const handleSyncQRData = async () => {
+    setSyncingQRData(true);
+    try {
+      const result = await mercadoPagoApi.syncQRData();
+      const added = result.storesAdded + result.cashiersAdded;
+      const updated = result.storesUpdated + result.cashiersUpdated;
+
+      if (added > 0 || updated > 0) {
+        setNotification({
+          type: 'success',
+          message: `Sincronización completada: ${added} nuevos, ${updated} actualizados`,
+        });
+      } else {
+        setNotification({ type: 'success', message: 'Todo está sincronizado' });
+      }
+
+      // Recargar datos locales
+      await loadQRData();
+      await loadBranchesWithMPStatus();
+    } catch (error: unknown) {
+      console.error('Error syncing QR data:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({
+        type: 'error',
+        message: err.response?.data?.error || err.message || 'Error al sincronizar',
+      });
+    } finally {
+      setSyncingQRData(false);
     }
   };
 
@@ -1158,12 +1210,13 @@ export default function Integrations() {
                 Crear Local
               </button>
               <button
-                onClick={loadQRData}
-                disabled={loadingQrData}
-                className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border rounded-lg hover:bg-gray-50"
+                onClick={handleSyncQRData}
+                disabled={syncingQRData}
+                className="flex items-center gap-2 px-4 py-2 text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50"
+                title="Sincronizar datos desde Mercado Pago"
               >
-                <RefreshCw size={18} className={loadingQrData ? 'animate-spin' : ''} />
-                Actualizar
+                <RefreshCw size={18} className={syncingQRData ? 'animate-spin' : ''} />
+                Sincronizar con MP
               </button>
             </div>
           </div>

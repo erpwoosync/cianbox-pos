@@ -1434,6 +1434,18 @@ class MercadoPagoService {
     }
 
     const store = await response.json() as { id: string; name: string; external_id: string };
+
+    // Guardar en DB local
+    await this.saveLocalStore(tenantId, {
+      mpStoreId: store.id,
+      externalId: store.external_id,
+      name: store.name,
+      streetName: data.location.street_name,
+      streetNumber: data.location.street_number,
+      cityName: data.location.city_name,
+      stateName: data.location.state_name,
+    });
+
     return store;
   }
 
@@ -1489,6 +1501,17 @@ class MercadoPagoService {
         template_image: string;
       };
     };
+
+    // Guardar en DB local
+    await this.saveLocalCashier(tenantId, {
+      mpCashierId: pos.id,
+      externalId: pos.external_id,
+      name: pos.name,
+      mpStoreId: pos.store_id,
+      qrImage: pos.qr?.image,
+      qrTemplate: pos.qr?.template_document,
+    });
+
     return pos;
   }
 
@@ -2017,10 +2040,10 @@ class MercadoPagoService {
    * Lista Stores de MP que no están vinculados a ninguna Branch
    */
   async getUnlinkedStores(tenantId: string): Promise<Array<{ id: string; name: string; external_id: string }>> {
-    // Obtener stores de MP
-    const allStores = await this.listQRStores(tenantId);
+    // Obtener stores de la DB local
+    const allStores = await this.getLocalStores(tenantId);
 
-    // Obtener IDs de stores ya vinculados
+    // Obtener IDs de stores ya vinculados a branches
     const linkedBranches = await prisma.branch.findMany({
       where: { tenantId, mpStoreId: { not: null } },
       select: { mpStoreId: true },
@@ -2029,7 +2052,242 @@ class MercadoPagoService {
     const linkedStoreIds = new Set(linkedBranches.map(b => b.mpStoreId));
 
     // Filtrar stores no vinculados
-    return allStores.filter(store => !linkedStoreIds.has(store.id));
+    return allStores
+      .filter(store => !linkedStoreIds.has(store.mpStoreId))
+      .map(store => ({
+        id: store.mpStoreId,
+        name: store.name,
+        external_id: store.externalId,
+      }));
+  }
+
+  // ============================================
+  // CACHE LOCAL DE STORES Y CASHIERS
+  // ============================================
+
+  /**
+   * Obtiene stores de la DB local
+   */
+  async getLocalStores(tenantId: string): Promise<Array<{
+    id: string;
+    mpStoreId: string;
+    name: string;
+    externalId: string;
+    streetName: string | null;
+    streetNumber: string | null;
+    cityName: string | null;
+    stateName: string | null;
+    cashierCount: number;
+  }>> {
+    const stores = await prisma.mercadoPagoStore.findMany({
+      where: { tenantId },
+      include: {
+        _count: { select: { cashiers: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return stores.map(store => ({
+      id: store.id,
+      mpStoreId: store.mpStoreId,
+      name: store.name,
+      externalId: store.externalId,
+      streetName: store.streetName,
+      streetNumber: store.streetNumber,
+      cityName: store.cityName,
+      stateName: store.stateName,
+      cashierCount: store._count.cashiers,
+    }));
+  }
+
+  /**
+   * Obtiene cashiers de la DB local
+   */
+  async getLocalCashiers(tenantId: string, mpStoreId?: string): Promise<Array<{
+    id: string;
+    mpCashierId: number;
+    name: string;
+    externalId: string;
+    mpStoreId: string;
+    qrImage: string | null;
+    qrTemplate: string | null;
+  }>> {
+    const where: { tenantId: string; store?: { mpStoreId: string } } = { tenantId };
+    if (mpStoreId) {
+      where.store = { mpStoreId };
+    }
+
+    const cashiers = await prisma.mercadoPagoCashier.findMany({
+      where,
+      include: { store: { select: { mpStoreId: true } } },
+      orderBy: { name: 'asc' },
+    });
+
+    return cashiers.map(cashier => ({
+      id: cashier.id,
+      mpCashierId: cashier.mpCashierId,
+      name: cashier.name,
+      externalId: cashier.externalId,
+      mpStoreId: cashier.store.mpStoreId,
+      qrImage: cashier.qrImage,
+      qrTemplate: cashier.qrTemplate,
+    }));
+  }
+
+  /**
+   * Guarda un store en la DB local (upsert)
+   */
+  async saveLocalStore(tenantId: string, storeData: {
+    mpStoreId: string;
+    externalId: string;
+    name: string;
+    streetName?: string;
+    streetNumber?: string;
+    cityName?: string;
+    stateName?: string;
+  }): Promise<{ id: string; mpStoreId: string }> {
+    const store = await prisma.mercadoPagoStore.upsert({
+      where: {
+        tenantId_mpStoreId: { tenantId, mpStoreId: storeData.mpStoreId },
+      },
+      update: {
+        name: storeData.name,
+        externalId: storeData.externalId,
+        streetName: storeData.streetName,
+        streetNumber: storeData.streetNumber,
+        cityName: storeData.cityName,
+        stateName: storeData.stateName,
+        lastSyncedAt: new Date(),
+      },
+      create: {
+        tenantId,
+        mpStoreId: storeData.mpStoreId,
+        externalId: storeData.externalId,
+        name: storeData.name,
+        streetName: storeData.streetName,
+        streetNumber: storeData.streetNumber,
+        cityName: storeData.cityName,
+        stateName: storeData.stateName,
+      },
+    });
+
+    return { id: store.id, mpStoreId: store.mpStoreId };
+  }
+
+  /**
+   * Guarda un cashier en la DB local (upsert)
+   */
+  async saveLocalCashier(tenantId: string, cashierData: {
+    mpCashierId: number;
+    externalId: string;
+    name: string;
+    mpStoreId: string;
+    qrImage?: string;
+    qrTemplate?: string;
+  }): Promise<{ id: string; mpCashierId: number }> {
+    // Buscar el store local por mpStoreId
+    const store = await prisma.mercadoPagoStore.findFirst({
+      where: { tenantId, mpStoreId: cashierData.mpStoreId },
+    });
+
+    if (!store) {
+      throw new Error(`Store con mpStoreId ${cashierData.mpStoreId} no encontrado en DB local`);
+    }
+
+    const cashier = await prisma.mercadoPagoCashier.upsert({
+      where: {
+        tenantId_mpCashierId: { tenantId, mpCashierId: cashierData.mpCashierId },
+      },
+      update: {
+        name: cashierData.name,
+        externalId: cashierData.externalId,
+        qrImage: cashierData.qrImage,
+        qrTemplate: cashierData.qrTemplate,
+        lastSyncedAt: new Date(),
+      },
+      create: {
+        tenantId,
+        storeId: store.id,
+        mpCashierId: cashierData.mpCashierId,
+        externalId: cashierData.externalId,
+        name: cashierData.name,
+        qrImage: cashierData.qrImage,
+        qrTemplate: cashierData.qrTemplate,
+      },
+    });
+
+    return { id: cashier.id, mpCashierId: cashier.mpCashierId };
+  }
+
+  /**
+   * Sincroniza stores y cashiers desde MP a la DB local
+   */
+  async syncQRDataFromMP(tenantId: string): Promise<{
+    storesAdded: number;
+    storesUpdated: number;
+    cashiersAdded: number;
+    cashiersUpdated: number;
+  }> {
+    let storesAdded = 0;
+    let storesUpdated = 0;
+    let cashiersAdded = 0;
+    let cashiersUpdated = 0;
+
+    try {
+      // 1. Sincronizar stores
+      const mpStores = await this.listQRStores(tenantId);
+
+      for (const mpStore of mpStores) {
+        const existing = await prisma.mercadoPagoStore.findFirst({
+          where: { tenantId, mpStoreId: mpStore.id },
+        });
+
+        await this.saveLocalStore(tenantId, {
+          mpStoreId: mpStore.id,
+          externalId: mpStore.external_id,
+          name: mpStore.name,
+        });
+
+        if (existing) {
+          storesUpdated++;
+        } else {
+          storesAdded++;
+        }
+      }
+
+      // 2. Sincronizar cashiers
+      const mpCashiers = await this.listQRCashiers(tenantId);
+
+      for (const mpCashier of mpCashiers) {
+        const existing = await prisma.mercadoPagoCashier.findFirst({
+          where: { tenantId, mpCashierId: mpCashier.id },
+        });
+
+        try {
+          await this.saveLocalCashier(tenantId, {
+            mpCashierId: mpCashier.id,
+            externalId: mpCashier.external_id,
+            name: mpCashier.name,
+            mpStoreId: mpCashier.store_id,
+            qrImage: mpCashier.qr?.image,
+            qrTemplate: mpCashier.qr?.template_document,
+          });
+
+          if (existing) {
+            cashiersUpdated++;
+          } else {
+            cashiersAdded++;
+          }
+        } catch (err) {
+          console.error(`Error guardando cashier ${mpCashier.id}:`, err);
+        }
+      }
+    } catch (error) {
+      console.error('Error sincronizando datos QR desde MP:', error);
+      throw error;
+    }
+
+    return { storesAdded, storesUpdated, cashiersAdded, cashiersUpdated };
   }
 }
 

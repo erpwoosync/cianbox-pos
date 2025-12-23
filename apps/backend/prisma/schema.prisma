@@ -122,8 +122,10 @@ model Tenant {
   cashSessions      CashSession[]
   printers          Printer[]
   printPoints       PrintPoint[]
-  mercadoPagoConfigs MercadoPagoConfig[]  // Plural: puede tener config para Point y QR
-  mercadoPagoOrders MercadoPagoOrder[]
+  mercadoPagoConfigs  MercadoPagoConfig[]   // Plural: puede tener config para Point y QR
+  mercadoPagoOrders   MercadoPagoOrder[]
+  mercadoPagoStores   MercadoPagoStore[]    // Stores/Locales de MP QR cacheados
+  mercadoPagoCashiers MercadoPagoCashier[]  // Cashiers/Cajas de MP QR cacheados
   posTerminals      PosTerminal[]
   afipConfig        AfipConfig?          // Configuración AFIP (1:1)
   printTemplates    PrintTemplate[]      // Plantillas de impresión
@@ -1456,6 +1458,58 @@ model MercadoPagoConfig {
   @@unique([tenantId, appType])
   @@index([tenantId])
   @@map("mercadopago_configs")
+}
+
+// Stores/Locales de Mercado Pago QR (cacheados localmente)
+model MercadoPagoStore {
+  id              String   @id @default(cuid())
+  tenantId        String
+  mpStoreId       String   // ID del store en MP (ej: "12345678")
+  externalId      String   // external_id del store en MP (ej: "SUC001")
+  name            String   // Nombre del local
+  streetName      String?  // Dirección
+  streetNumber    String?
+  cityName        String?
+  stateName       String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastSyncedAt    DateTime @default(now()) // Última sincronización con MP
+
+  // Relaciones
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cashiers MercadoPagoCashier[]
+
+  @@unique([tenantId, mpStoreId])
+  @@index([tenantId])
+  @@map("mercadopago_stores")
+}
+
+// Cashiers/Cajas de Mercado Pago QR (cacheados localmente)
+model MercadoPagoCashier {
+  id              String   @id @default(cuid())
+  tenantId        String
+  storeId         String   // FK al store local
+  mpCashierId     Int      // ID del cashier en MP (ej: 123221164)
+  externalId      String   // external_id del cashier en MP (ej: "SUC1CAJA01")
+  name            String   // Nombre de la caja
+
+  // QR Data
+  qrImage         String?  // URL de la imagen del QR
+  qrTemplate      String?  // URL del template para imprimir
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastSyncedAt    DateTime @default(now()) // Última sincronización con MP
+
+  // Relaciones
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store  MercadoPagoStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, mpCashierId])
+  @@index([tenantId])
+  @@index([storeId])
+  @@map("mercadopago_cashiers")
 }
 
 // Órdenes de pago en Mercado Pago Point
