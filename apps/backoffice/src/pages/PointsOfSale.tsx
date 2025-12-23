@@ -276,14 +276,25 @@ export default function PointsOfSale() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {pos.mpDeviceId ? (
-                        <div className="flex items-center gap-2">
-                          <Smartphone size={16} className="text-blue-500" />
-                          <span className="text-sm text-gray-700">
-                            {pos.mpDeviceName || pos.mpDeviceId}
-                          </span>
-                        </div>
-                      ) : (
+                      {pos.mpDeviceId ? (() => {
+                        const device = mpDevices.find(d => d.id === pos.mpDeviceId);
+                        const isPDV = device?.operating_mode === 'PDV';
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Smartphone size={16} className={isPDV ? 'text-green-500' : 'text-yellow-500'} />
+                            <div>
+                              <span className="text-sm text-gray-700">
+                                ...{pos.mpDeviceId.slice(-8)}
+                              </span>
+                              <span className={`ml-2 px-1.5 py-0.5 text-xs rounded ${
+                                isPDV ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {isPDV ? 'PDV' : 'Indep.'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })() : (
                         <span className="text-sm text-gray-400">Sin dispositivo</span>
                       )}
                     </td>
@@ -447,18 +458,49 @@ export default function PointsOfSale() {
                       setFormData({
                         ...formData,
                         mpDeviceId: deviceId,
-                        mpDeviceName: device?.operating_mode || null,
+                        mpDeviceName: device ? `${device.operating_mode} - ...${device.id.slice(-8)}` : null,
                       });
                     }}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                   >
                     <option value="">Sin dispositivo asignado</option>
-                    {mpDevices.map((device) => (
-                      <option key={device.id} value={device.id}>
-                        {device.operating_mode} - {device.id.slice(-8)}
-                      </option>
-                    ))}
+                    {mpDevices.map((device) => {
+                      const isPDV = device.operating_mode === 'PDV';
+                      return (
+                        <option key={device.id} value={device.id}>
+                          {isPDV ? '✓ PDV' : '○ Independiente'} - ...{device.id.slice(-8)}
+                          {device.external_pos_id ? ` (POS: ${device.external_pos_id})` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
+                  {formData.mpDeviceId && (() => {
+                    const selectedDevice = mpDevices.find(d => d.id === formData.mpDeviceId);
+                    if (selectedDevice && selectedDevice.operating_mode !== 'PDV') {
+                      return (
+                        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-xs text-yellow-700">
+                            ⚠️ Este dispositivo está en modo <strong>Independiente</strong>.
+                            Para cobros integrados, cámbialo a modo PDV en{' '}
+                            <a href="/integrations" className="text-blue-600 underline">Integraciones</a>.
+                          </p>
+                        </div>
+                      );
+                    }
+                    if (selectedDevice && selectedDevice.operating_mode === 'PDV') {
+                      return (
+                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-xs text-green-700">
+                            ✓ Dispositivo en modo <strong>Integrado (PDV)</strong>
+                            {selectedDevice.external_pos_id && (
+                              <span> - Asociado al POS: <strong>{selectedDevice.external_pos_id}</strong></span>
+                            )}
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   <p className="mt-1 text-xs text-gray-500">
                     Terminal Mercado Pago Point para cobros con tarjeta
                   </p>
