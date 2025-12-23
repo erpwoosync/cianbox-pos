@@ -215,12 +215,22 @@ export default function Integrations() {
   const loadBranchesWithMPStatus = async () => {
     setLoadingBranchesStatus(true);
     try {
-      const [branches, stores] = await Promise.all([
-        mercadoPagoApi.getBranchesWithMPStatus(),
-        mercadoPagoApi.getUnlinkedStores(),
-      ]);
+      // Cargar branches primero (esto no falla)
+      const branches = await mercadoPagoApi.getBranchesWithMPStatus();
       setBranchesWithMPStatus(branches);
-      setUnlinkedStores(stores);
+
+      // Intentar cargar stores no vinculados (puede fallar si MP da error)
+      try {
+        const stores = await mercadoPagoApi.getUnlinkedStores();
+        setUnlinkedStores(stores);
+      } catch (storeError) {
+        console.error('Error loading unlinked stores:', storeError);
+        // Si falla, usar los stores de qrStores que ya tenemos
+        // y filtrar los que no están en branches
+        const linkedStoreIds = new Set(branches.filter(b => b.mpStoreId).map(b => b.mpStoreId));
+        const available = qrStores.filter(s => !linkedStoreIds.has(s.id));
+        setUnlinkedStores(available);
+      }
     } catch (error) {
       console.error('Error loading branches MP status:', error);
     } finally {
