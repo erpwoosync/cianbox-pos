@@ -493,7 +493,16 @@ export default function Integrations() {
 
   const openCreateCashierModal = (store: QRStore) => {
     setSelectedStoreForNewCashier(store);
-    setNewCashierData({ name: '', external_id: '' });
+
+    // Autogenerar nombre y external_id basado en cajas existentes del store
+    const storeCashiers = qrCashiers.filter(c => c.store_id === store.id);
+    const nextNumber = storeCashiers.length + 1;
+    const storeCode = store.external_id.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+    setNewCashierData({
+      name: `Caja ${nextNumber}`,
+      external_id: `${storeCode}CAJA${String(nextNumber).padStart(2, '0')}`,
+    });
     setLinkToPosId('');
     setShowCreateCashierModal(true);
   };
