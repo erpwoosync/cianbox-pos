@@ -74,10 +74,8 @@ export default function Integrations() {
   const [creatingStore, setCreatingStore] = useState(false);
   const [creatingCashier, setCreatingCashier] = useState(false);
 
-  // Point POS association
-  const [pointPOSList, setPointPOSList] = useState<Array<{ id: number; name: string; external_id: string; store_id: string }>>([]);
-  const [devicePOSSelections, setDevicePOSSelections] = useState<Record<string, string>>({});
-  const [associatingDeviceId, setAssociatingDeviceId] = useState<string | null>(null);
+  // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
+  // Se configura desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
 
   // Form data para crear store
   const [newStoreData, setNewStoreData] = useState({
@@ -136,12 +134,9 @@ export default function Integrations() {
       setIsPointConnected(result.isPointConnected);
       setIsQrConnected(result.isQrConnected);
 
-      // Load devices and POS if Point is connected
+      // Load devices if Point is connected
       if (result.isPointConnected) {
-        await Promise.all([
-          loadDevices(),
-          loadPointPOS(),
-        ]);
+        await loadDevices();
       }
 
       // Load QR data if QR is connected - await all to prevent race condition
@@ -350,53 +345,26 @@ export default function Integrations() {
     }
   };
 
-  const loadPointPOS = async () => {
-    try {
-      const posList = await mercadoPagoApi.listPointPOS();
-      setPointPOSList(posList);
-    } catch (error) {
-      console.error('Error loading Point POS:', error);
-    }
-  };
-
   const handleChangeDeviceMode = async (deviceId: string, currentMode: string) => {
     const newMode: 'PDV' | 'STANDALONE' = currentMode === 'PDV' ? 'STANDALONE' : 'PDV';
     const modeLabel = newMode === 'PDV' ? 'Integrado (PDV)' : 'Independiente (STANDALONE)';
 
-    // Si va a cambiar a PDV, verificar que tenga un POS seleccionado
-    const selectedPosId = devicePOSSelections[deviceId];
-    if (newMode === 'PDV' && !selectedPosId) {
-      setNotification({
-        type: 'error',
-        message: 'Selecciona un POS de Mercado Pago para asociar el dispositivo antes de cambiar a modo PDV.',
-      });
-      return;
-    }
-
-    if (!confirm(`¿Cambiar el dispositivo a modo ${modeLabel}?\n\nIMPORTANTE: Deberás reiniciar el dispositivo para que el cambio tome efecto.`)) {
-      return;
+    // Si va a cambiar a PDV, mostrar instrucción sobre cómo asociar a un POS
+    if (newMode === 'PDV') {
+      const confirmMsg = `¿Cambiar el dispositivo a modo ${modeLabel}?\n\nIMPORTANTE:\n1. Solo puede haber UNA terminal en modo PDV por caja\n2. Para múltiples terminales, crea múltiples cajas en la sección QR\n3. La asociación terminal→caja se configura desde el dispositivo:\n   Más opciones > Ajustes > Modo de vinculación\n4. Reinicia el dispositivo después del cambio`;
+      if (!confirm(confirmMsg)) return;
+    } else {
+      if (!confirm(`¿Cambiar el dispositivo a modo ${modeLabel}?\n\nReinicia el dispositivo para aplicar el cambio.`)) return;
     }
 
     setChangingModeDeviceId(deviceId);
     try {
-      // Si va a cambiar a PDV, primero asociar al POS
-      if (newMode === 'PDV' && selectedPosId) {
-        await mercadoPagoApi.associateDeviceToPOS(deviceId, selectedPosId);
-      }
-
       const result = await mercadoPagoApi.changeDeviceOperatingMode(deviceId, newMode);
       console.log('Resultado cambio modo:', result);
       setNotification({
         type: 'success',
         message: `Modo cambiado a ${modeLabel}. Reinicia el dispositivo para aplicar el cambio.`,
       });
-      // Limpiar selección
-      setDevicePOSSelections(prev => {
-        const newSelections = { ...prev };
-        delete newSelections[deviceId];
-        return newSelections;
-      });
-      // Recargar dispositivos para ver el nuevo estado
       await loadDevices();
     } catch (error: unknown) {
       console.error('Error changing device mode:', error);
@@ -407,27 +375,6 @@ export default function Integrations() {
       });
     } finally {
       setChangingModeDeviceId(null);
-    }
-  };
-
-  const handleAssociateDeviceToPOS = async (deviceId: string, externalPosId: string) => {
-    setAssociatingDeviceId(deviceId);
-    try {
-      await mercadoPagoApi.associateDeviceToPOS(deviceId, externalPosId);
-      setNotification({
-        type: 'success',
-        message: 'Dispositivo asociado al POS. Reinicia el dispositivo para aplicar el cambio.',
-      });
-      await loadDevices();
-    } catch (error: unknown) {
-      console.error('Error associating device to POS:', error);
-      const err = error as { response?: { data?: { error?: string } }; message?: string };
-      setNotification({
-        type: 'error',
-        message: err.response?.data?.error || err.message || 'Error al asociar dispositivo',
-      });
-    } finally {
-      setAssociatingDeviceId(null);
     }
   };
 
@@ -776,9 +723,6 @@ export default function Integrations() {
                 {mpDevices.map((device) => {
                   const isPDV = device.operating_mode === 'PDV';
                   const isChanging = changingModeDeviceId === device.id;
-                  const isAssociating = associatingDeviceId === device.id;
-                  const selectedPOS = devicePOSSelections[device.id];
-                  const associatedPOS = pointPOSList.find(p => p.external_id === device.external_pos_id);
 
                   return (
                     <div
@@ -811,75 +755,19 @@ export default function Integrations() {
                       {isPDV && device.external_pos_id && (
                         <div className="mt-2 p-2 bg-green-50 rounded-lg">
                           <p className="text-xs text-green-700">
-                            <span className="font-medium">POS asociado:</span> {associatedPOS?.name || device.external_pos_id}
+                            <span className="font-medium">Caja asociada:</span> {device.external_pos_id}
                           </p>
                         </div>
                       )}
 
-                      {/* Selector de POS para dispositivos no integrados */}
-                      {!isPDV && pointPOSList.length > 0 && (
-                        <div className="mt-3">
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Selecciona un POS para modo integrado:
-                          </label>
-                          <select
-                            value={selectedPOS || ''}
-                            onChange={(e) => setDevicePOSSelections(prev => ({
-                              ...prev,
-                              [device.id]: e.target.value,
-                            }))}
-                            className="w-full px-2 py-1.5 text-sm border rounded-lg"
-                          >
-                            <option value="">Seleccionar POS...</option>
-                            {pointPOSList.map(pos => (
-                              <option key={pos.id} value={pos.external_id}>
-                                {pos.name} ({pos.external_id})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Selector para cambiar POS en dispositivos ya integrados */}
-                      {isPDV && pointPOSList.length > 1 && (
-                        <div className="mt-3">
-                          <label className="block text-xs text-gray-500 mb-1">
-                            Cambiar a otro POS:
-                          </label>
-                          <div className="flex gap-2">
-                            <select
-                              value={selectedPOS || ''}
-                              onChange={(e) => setDevicePOSSelections(prev => ({
-                                ...prev,
-                                [device.id]: e.target.value,
-                              }))}
-                              className="flex-1 px-2 py-1.5 text-sm border rounded-lg"
-                            >
-                              <option value="">Seleccionar POS...</option>
-                              {pointPOSList
-                                .filter(pos => pos.external_id !== device.external_pos_id)
-                                .map(pos => (
-                                  <option key={pos.id} value={pos.external_id}>
-                                    {pos.name} ({pos.external_id})
-                                  </option>
-                                ))}
-                            </select>
-                            <button
-                              onClick={() => selectedPOS && handleAssociateDeviceToPOS(device.id, selectedPOS)}
-                              disabled={!selectedPOS || isAssociating}
-                              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                            >
-                              {isAssociating ? <RefreshCw size={14} className="animate-spin" /> : 'Cambiar'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Mensaje si no hay POS disponibles */}
-                      {!isPDV && pointPOSList.length === 0 && (
-                        <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-xs text-yellow-700">
-                            Crea primero un POS/Caja en la sección de QR para poder integrar este dispositivo.
+                      {/* Instrucciones para configurar desde el dispositivo */}
+                      {!isPDV && (
+                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-xs text-blue-700">
+                            <strong>Para integrar:</strong><br/>
+                            1. Crea una Caja en la sección QR abajo<br/>
+                            2. En el dispositivo: Más opciones → Ajustes → Modo de vinculación<br/>
+                            3. Activa modo PDV aquí
                           </p>
                         </div>
                       )}
@@ -887,7 +775,7 @@ export default function Integrations() {
                       {/* Botón para cambiar modo */}
                       <button
                         onClick={() => handleChangeDeviceMode(device.id, device.operating_mode)}
-                        disabled={isChanging || (!isPDV && !selectedPOS && pointPOSList.length > 0)}
+                        disabled={isChanging}
                         className={`mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
                           isPDV
                             ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'

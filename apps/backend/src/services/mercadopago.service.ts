@@ -1048,41 +1048,15 @@ class MercadoPagoService {
   }
 
   /**
-   * Asocia un dispositivo Point a un POS específico
-   * Esto permite tener múltiples dispositivos en modo PDV, cada uno en un POS diferente
-   * @param tenantId - ID del tenant
-   * @param deviceId - ID del dispositivo Point
-   * @param externalPosId - ID externo del POS (debe existir en MP)
-   * @returns Dispositivo actualizado
+   * NOTA: La asociación terminal→POS NO se puede hacer vía API.
+   * Se debe configurar desde el dispositivo físico:
+   * Más opciones > Ajustes > Modo de vinculación
+   *
+   * Este método queda comentado porque la API de MP no lo soporta.
+   * Solo es posible:
+   * - Consultar terminales con GET /terminals/v1/list
+   * - Cambiar operating_mode con PATCH /terminals/v1/setup
    */
-  async associateDeviceToPOS(
-    tenantId: string,
-    deviceId: string,
-    externalPosId: string
-  ): Promise<MPDevice> {
-    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
-
-    console.log(`[MP Point] Asociando dispositivo ${deviceId} a POS ${externalPosId}`);
-
-    const response = await fetch(`${this.baseUrl}/point/integration-api/devices/${deviceId}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ external_pos_id: externalPosId }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({})) as { message?: string; error?: string };
-      console.error('Error asociando dispositivo a POS:', errorData);
-      throw new Error(errorData.message || errorData.error || `Error al asociar dispositivo: ${response.status}`);
-    }
-
-    const device = (await response.json()) as MPDevice;
-    console.log(`[MP Point] Dispositivo ${deviceId} asociado a POS ${externalPosId}:`, device);
-    return device;
-  }
 
   /**
    * Lista stores para Point (usa la misma estructura que QR)

@@ -354,9 +354,9 @@ const changeOperatingModeSchema = z.object({
   operatingMode: z.enum(['PDV', 'STANDALONE']),
 });
 
-const associateDeviceToPOSSchema = z.object({
-  externalPosId: z.string().min(1, 'El external_id del POS es requerido'),
-});
+// NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
+// Se debe configurar desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
+// Solo se puede tener UNA terminal en modo PDV por caja. Para múltiples terminales, crear múltiples cajas.
 
 /**
  * PATCH /api/mercadopago/devices/:deviceId/operating-mode
@@ -395,87 +395,8 @@ router.patch('/devices/:deviceId/operating-mode', authenticate, async (req: Auth
   }
 });
 
-/**
- * PATCH /api/mercadopago/devices/:deviceId/pos
- * Asocia un dispositivo Point a un POS específico en Mercado Pago
- * Esto permite tener múltiples dispositivos en modo PDV, cada uno en un POS diferente
- */
-router.patch('/devices/:deviceId/pos', authenticate, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const tenantId = req.user!.tenantId;
-    const { deviceId } = req.params;
-    const { externalPosId } = associateDeviceToPOSSchema.parse(req.body);
-
-    const device = await mercadoPagoService.associateDeviceToPOS(tenantId, deviceId, externalPosId);
-
-    res.json({
-      success: true,
-      data: device,
-      message: `Dispositivo asociado al POS ${externalPosId}. Reinicia el dispositivo para aplicar el cambio.`,
-    });
-  } catch (error) {
-    console.error('Error asociando dispositivo a POS:', error);
-
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        success: false,
-        error: 'Datos inválidos',
-        details: error.errors,
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Error interno del servidor',
-    });
-  }
-});
-
-/**
- * GET /api/mercadopago/point/stores
- * Lista las sucursales de MP para Point (usa misma estructura que QR)
- */
-router.get('/point/stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const tenantId = req.user!.tenantId;
-    const stores = await mercadoPagoService.listPointStores(tenantId);
-
-    res.json({
-      success: true,
-      data: stores,
-    });
-  } catch (error) {
-    console.error('Error listando stores Point:', error);
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Error interno del servidor',
-    });
-  }
-});
-
-/**
- * GET /api/mercadopago/point/pos
- * Lista los POS de MP para Point (usados para asociar dispositivos)
- * Query params: storeId (opcional) para filtrar por sucursal
- */
-router.get('/point/pos', authenticate, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const tenantId = req.user!.tenantId;
-    const { storeId } = req.query;
-    const posList = await mercadoPagoService.listPointPOS(tenantId, storeId as string | undefined);
-
-    res.json({
-      success: true,
-      data: posList,
-    });
-  } catch (error) {
-    console.error('Error listando POS Point:', error);
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Error interno del servidor',
-    });
-  }
-});
+// Rutas de asociación terminal→POS eliminadas - no soportado por API de MP
+// La asociación se hace desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
 
 /**
  * PUT /api/mercadopago/points-of-sale/:id/device

@@ -793,17 +793,9 @@ export const mercadoPagoApi = {
     return response.data;
   },
 
-  // Asociar dispositivo Point a un POS específico (para múltiples dispositivos en PDV)
-  associateDeviceToPOS: async (deviceId: string, externalPosId: string) => {
-    const response = await api.patch(`/mercadopago/devices/${deviceId}/pos`, { externalPosId });
-    return response.data;
-  },
-
-  // Listar POS para Point (usados para asociar dispositivos)
-  listPointPOS: async (): Promise<Array<{ id: number; name: string; external_id: string; store_id: string }>> => {
-    const response = await api.get('/mercadopago/point/pos');
-    return response.data.data;
-  },
+  // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
+  // Se configura desde el panel web de MP o desde el dispositivo físico:
+  // Más opciones > Ajustes > Modo de vinculación
 
   // Listar sucursales/locales de MP QR
   listQRStores: async (): Promise<Array<{ id: string; name: string; external_id: string }>> => {
