@@ -554,7 +554,22 @@ router.get(
           branch: true,
           pointOfSale: true,
           user: { select: { id: true, name: true, email: true } },
-          afipInvoices: true,
+          afipInvoices: {
+            include: {
+              afipConfig: {
+                select: {
+                  cuit: true,
+                  businessName: true,
+                  tradeName: true,
+                  address: true,
+                  taxCategory: true,
+                }
+              },
+              salesPoint: {
+                select: { number: true }
+              }
+            }
+          },
         },
       });
 

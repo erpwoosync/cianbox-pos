@@ -45,23 +45,34 @@ interface Invoice {
   number: number;
   cae: string;
   caeExpiration: string;
-  salesPoint?: { number: number };  // Del listado
-  salesPointNumber?: number;        // Del detalle completo
-  total: number;
-  receiverName: string;
+  salesPoint?: { number: number };
+  totalAmount: number;
+  receiverName?: string;
   receiverDocNum: string;
   issueDate: string;
-  cuit: string;
-  businessName: string;
-  tradeName?: string;
-  address: string;
-  taxCategory: string;
+  // Datos del emisor vienen de afipConfig
+  afipConfig?: {
+    cuit: string;
+    businessName: string;
+    tradeName?: string;
+    address: string;
+    taxCategory: string;
+  };
 }
 
 // Helper para obtener número de punto de venta
 const getSalesPointNumber = (invoice: Invoice): number => {
-  return invoice.salesPointNumber || invoice.salesPoint?.number || 0;
+  return invoice.salesPoint?.number || 0;
 };
+
+// Helper para obtener datos del emisor
+const getEmitterData = (invoice: Invoice) => ({
+  cuit: invoice.afipConfig?.cuit || '',
+  businessName: invoice.afipConfig?.businessName || '',
+  tradeName: invoice.afipConfig?.tradeName,
+  address: invoice.afipConfig?.address || '',
+  taxCategory: invoice.afipConfig?.taxCategory || '',
+});
 
 interface Sale {
   id: string;
@@ -275,14 +286,15 @@ export default function SalesHistoryModal({
   };
 
   const getQRUrl = (invoice: Invoice) => {
+    const emitter = getEmitterData(invoice);
     const data = {
       ver: 1,
       fecha: new Date(invoice.issueDate).toISOString().split('T')[0],
-      cuit: invoice.cuit.replace(/\D/g, ''),
+      cuit: emitter.cuit.replace(/\D/g, ''),
       ptoVta: getSalesPointNumber(invoice),
       tipoCmp: invoice.voucherType === 'FACTURA_B' ? 6 : 11,
       nroCmp: invoice.number,
-      importe: Number(invoice.total),
+      importe: Number(invoice.totalAmount),
       moneda: 'PES',
       ctz: 1,
       tipoDocRec: invoice.receiverDocNum === '0' ? 99 : 96,
@@ -298,13 +310,16 @@ export default function SalesHistoryModal({
   const handlePrint = (invoice: Invoice) => {
     if (!selectedSale) return;
 
+    const emitter = getEmitterData(invoice);
+    const spNumber = getSalesPointNumber(invoice);
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Factura ${invoice.voucherType} ${String(getSalesPointNumber(invoice)).padStart(4, '0')}-${String(invoice.number).padStart(8, '0')}</title>
+          <title>Factura ${invoice.voucherType} ${String(spNumber).padStart(4, '0')}-${String(invoice.number).padStart(8, '0')}</title>
           <style>
             @page {
               size: 80mm auto;
@@ -434,17 +449,17 @@ export default function SalesHistoryModal({
         </head>
         <body>
           <div class="header">
-            <h1>${invoice.tradeName || invoice.businessName}</h1>
-            ${invoice.tradeName ? `<p>${invoice.businessName}</p>` : ''}
-            <p>${invoice.address}</p>
-            <p>CUIT: ${invoice.cuit}</p>
-            <p>${formatTaxCategory(invoice.taxCategory)}</p>
+            <h1>${emitter.tradeName || emitter.businessName}</h1>
+            ${emitter.tradeName ? `<p>${emitter.businessName}</p>` : ''}
+            <p>${emitter.address}</p>
+            <p>CUIT: ${emitter.cuit}</p>
+            <p>${formatTaxCategory(emitter.taxCategory)}</p>
           </div>
           <div class="voucher-type">FACTURA ${getVoucherTypeLetter(invoice.voucherType)}</div>
-          <div class="voucher-number">Nro: ${String(getSalesPointNumber(invoice)).padStart(4, '0')}-${String(invoice.number).padStart(8, '0')}</div>
+          <div class="voucher-number">Nro: ${String(spNumber).padStart(4, '0')}-${String(invoice.number).padStart(8, '0')}</div>
           <div class="section">
             <div class="row"><span>Fecha:</span><span>${formatDateShort(invoice.issueDate)}</span></div>
-            <div class="row"><span>Cliente:</span><span>${invoice.receiverName}</span></div>
+            <div class="row"><span>Cliente:</span><span>${invoice.receiverName || 'Consumidor Final'}</span></div>
             ${invoice.receiverDocNum !== '0' ? `<div class="row"><span>DNI/CUIT:</span><span>${invoice.receiverDocNum}</span></div>` : ''}
           </div>
           <div class="section">
@@ -464,7 +479,7 @@ export default function SalesHistoryModal({
               </tbody>
             </table>
           </div>
-          <div class="total">TOTAL: $${Number(invoice.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>
+          <div class="total">TOTAL: $${Number(invoice.totalAmount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>
           <div class="cae">
             <div><strong>CAE:</strong> ${invoice.cae}</div>
             <div><strong>Vto CAE:</strong> ${formatDateShort(invoice.caeExpiration)}</div>
