@@ -497,11 +497,17 @@ export default function Integrations() {
     // Autogenerar nombre y external_id basado en cajas existentes del store
     const storeCashiers = qrCashiers.filter(c => c.store_id === store.id);
     const nextNumber = storeCashiers.length + 1;
-    const storeCode = store.external_id.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+    // Buscar la sucursal del sistema vinculada a este store
+    const linkedBranch = branchesWithMPStatus.find(b => b.mpStoreId === store.id);
+    // Usar el código de la sucursal (ej: SUC-1 → SUC1) o fallback al store
+    const branchCode = linkedBranch
+      ? linkedBranch.code.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+      : store.external_id.replace(/[^A-Z0-9]/gi, '').toUpperCase();
 
     setNewCashierData({
       name: `Caja ${nextNumber}`,
-      external_id: `${storeCode}CAJA${String(nextNumber).padStart(2, '0')}`,
+      external_id: `${branchCode}CAJA${String(nextNumber).padStart(2, '0')}`,
     });
     setLinkToPosId('');
     setShowCreateCashierModal(true);
