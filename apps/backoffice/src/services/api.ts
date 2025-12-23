@@ -850,6 +850,42 @@ export const mercadoPagoApi = {
     const response = await api.put(`/mercadopago/points-of-sale/${posId}/qr-cashier`, data);
     return response.data.data;
   },
+
+  // ============ BRANCHES CON MP STORES ============
+
+  // Obtener sucursales con estado de MP (vinculadas/pendientes)
+  getBranchesWithMPStatus: async (): Promise<Array<{
+    id: string;
+    name: string;
+    code: string;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    hasStore: boolean;
+    mpStoreId: string | null;
+    mpExternalId: string | null;
+  }>> => {
+    const response = await api.get('/mercadopago/qr/branches-status');
+    return response.data.data;
+  },
+
+  // Crear Store en MP desde una Branch del sistema (1 click)
+  createStoreFromBranch: async (branchId: string): Promise<{
+    branch: { id: string; name: string; code: string; mpStoreId: string | null; mpExternalId: string | null };
+    store: { id: string; name: string; external_id: string };
+  }> => {
+    const response = await api.post(`/mercadopago/qr/stores/from-branch/${branchId}`);
+    return response.data.data;
+  },
+
+  // Sincronizar Stores existentes de MP con Branches del sistema
+  syncMPStores: async (): Promise<{
+    synced: number;
+    notMatched: Array<{ id: string; name: string; external_id: string }>;
+  }> => {
+    const response = await api.post('/mercadopago/qr/sync-stores');
+    return response.data.data;
+  },
 };
 
 // ============ CAJA / TURNOS ============

@@ -291,6 +291,10 @@ model Branch {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  // Mercado Pago QR - Store vinculado
+  mpStoreId        String?   // ID del Store en MP (ej: "12345678")
+  mpExternalId     String?   // external_id del Store en MP (ej: "SUC001")
+
   // Relaciones
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   pointsOfSale PointOfSale[]

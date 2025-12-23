@@ -723,6 +723,80 @@ router.post('/qr/stores', authenticate, async (req: AuthenticatedRequest, res: R
   }
 });
 
+// ============================================
+// RUTAS DE BRANCHES CON MP STORES
+// ============================================
+
+/**
+ * GET /api/mercadopago/qr/branches-status
+ * Lista las sucursales del tenant con su estado de MP
+ */
+router.get('/qr/branches-status', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const branches = await mercadoPagoService.getBranchesWithMPStatus(tenantId);
+
+    res.json({
+      success: true,
+      data: branches,
+    });
+  } catch (error) {
+    console.error('Error obteniendo estado de branches:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * POST /api/mercadopago/qr/stores/from-branch/:branchId
+ * Crea un Store en MP usando los datos de una Branch del sistema
+ */
+router.post('/qr/stores/from-branch/:branchId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { branchId } = req.params;
+
+    const result = await mercadoPagoService.createStoreFromBranch(tenantId, branchId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Local creado exitosamente en Mercado Pago y vinculado a la sucursal',
+    });
+  } catch (error) {
+    console.error('Error creando store desde branch:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * POST /api/mercadopago/qr/sync-stores
+ * Sincroniza Stores existentes en MP con las Branches del sistema
+ */
+router.post('/qr/sync-stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const result = await mercadoPagoService.syncExistingStores(tenantId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: `${result.synced} sucursales vinculadas. ${result.notMatched.length} stores sin coincidencia.`,
+    });
+  } catch (error) {
+    console.error('Error sincronizando stores:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
 const createQRCashierSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   external_id: z.string().min(1, 'El ID externo es requerido'),

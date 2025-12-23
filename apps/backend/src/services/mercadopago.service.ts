@@ -1767,6 +1767,166 @@ class MercadoPagoService {
       }
     }
   }
+
+  // ============================================
+  // BRANCHES CON MP STORES
+  // ============================================
+
+  /**
+   * Crea un Store en MP usando los datos de una Branch del sistema
+   * Vincula automáticamente el Store creado con la Branch
+   */
+  async createStoreFromBranch(tenantId: string, branchId: string): Promise<{
+    branch: { id: string; name: string; code: string; mpStoreId: string | null; mpExternalId: string | null };
+    store: { id: string; name: string; external_id: string };
+  }> {
+    // Obtener la Branch
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, tenantId },
+    });
+
+    if (!branch) {
+      throw new Error('Sucursal no encontrada');
+    }
+
+    if (branch.mpStoreId) {
+      throw new Error('Esta sucursal ya tiene un Local de MP vinculado');
+    }
+
+    // Generar external_id limpiando caracteres especiales del code
+    const externalId = branch.code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    // Preparar datos para crear Store
+    const storeData = {
+      name: branch.name,
+      external_id: externalId,
+      location: {
+        street_name: branch.address || 'Sin dirección',
+        street_number: '0',
+        city_name: branch.city || 'Ciudad',
+        state_name: branch.state || 'Provincia',
+      },
+    };
+
+    // Crear Store en MP
+    const store = await this.createQRStore(tenantId, storeData);
+
+    // Actualizar Branch con los datos del Store
+    const updatedBranch = await prisma.branch.update({
+      where: { id: branchId },
+      data: {
+        mpStoreId: store.id,
+        mpExternalId: store.external_id,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        mpStoreId: true,
+        mpExternalId: true,
+      },
+    });
+
+    return {
+      branch: updatedBranch,
+      store,
+    };
+  }
+
+  /**
+   * Sincroniza Stores existentes en MP con las Branches del sistema
+   * Busca coincidencias por external_id similar al code de Branch
+   */
+  async syncExistingStores(tenantId: string): Promise<{
+    synced: number;
+    notMatched: Array<{ id: string; name: string; external_id: string }>;
+  }> {
+    // Listar Stores en MP
+    const stores = await this.listQRStores(tenantId);
+
+    // Obtener Branches sin Store vinculado
+    const branches = await prisma.branch.findMany({
+      where: {
+        tenantId,
+        mpStoreId: null,
+      },
+    });
+
+    let synced = 0;
+    const notMatched: Array<{ id: string; name: string; external_id: string }> = [];
+
+    for (const store of stores) {
+      // Buscar Branch que coincida por external_id
+      // Comparamos limpiando caracteres especiales
+      const storeExternalIdClean = store.external_id.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+      const matchingBranch = branches.find(branch => {
+        const branchCodeClean = branch.code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        return branchCodeClean === storeExternalIdClean;
+      });
+
+      if (matchingBranch) {
+        // Vincular Store con Branch
+        await prisma.branch.update({
+          where: { id: matchingBranch.id },
+          data: {
+            mpStoreId: store.id,
+            mpExternalId: store.external_id,
+          },
+        });
+        synced++;
+        // Remover de la lista de branches para no volver a matchear
+        const idx = branches.findIndex(b => b.id === matchingBranch.id);
+        if (idx !== -1) branches.splice(idx, 1);
+      } else {
+        // Verificar si ya está vinculado a otra Branch
+        const existingLink = await prisma.branch.findFirst({
+          where: { tenantId, mpStoreId: store.id },
+        });
+
+        if (!existingLink) {
+          notMatched.push(store);
+        }
+      }
+    }
+
+    return { synced, notMatched };
+  }
+
+  /**
+   * Lista las Branches del tenant con su estado de MP
+   */
+  async getBranchesWithMPStatus(tenantId: string): Promise<Array<{
+    id: string;
+    name: string;
+    code: string;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    hasStore: boolean;
+    mpStoreId: string | null;
+    mpExternalId: string | null;
+  }>> {
+    const branches = await prisma.branch.findMany({
+      where: { tenantId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        address: true,
+        city: true,
+        state: true,
+        mpStoreId: true,
+        mpExternalId: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return branches.map(branch => ({
+      ...branch,
+      hasStore: !!branch.mpStoreId,
+    }));
+  }
 }
 
 export const mercadoPagoService = new MercadoPagoService();

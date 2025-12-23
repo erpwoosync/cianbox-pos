@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi, stockApi } from '../services/api';
-import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin, ToggleLeft, ToggleRight, Plus, X } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin, ToggleLeft, ToggleRight, Plus, X, ChevronDown, ChevronRight, Building2 } from 'lucide-react';
 
 interface QRStore {
   id: string;
@@ -40,6 +40,18 @@ interface SystemBranch {
   state?: string;
 }
 
+interface BranchWithMPStatus {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  hasStore: boolean;
+  mpStoreId: string | null;
+  mpExternalId: string | null;
+}
+
 export default function Integrations() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -73,6 +85,13 @@ export default function Integrations() {
   const [selectedStoreForNewCashier, setSelectedStoreForNewCashier] = useState<QRStore | null>(null);
   const [creatingStore, setCreatingStore] = useState(false);
   const [creatingCashier, setCreatingCashier] = useState(false);
+
+  // Nueva sección: Sucursales con MP Status
+  const [branchesWithMPStatus, setBranchesWithMPStatus] = useState<BranchWithMPStatus[]>([]);
+  const [loadingBranchesStatus, setLoadingBranchesStatus] = useState(false);
+  const [creatingStoreFromBranch, setCreatingStoreFromBranch] = useState<string | null>(null);
+  const [syncingStores, setSyncingStores] = useState(false);
+  const [expandedBranchId, setExpandedBranchId] = useState<string | null>(null);
 
   // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
   // Se configura desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
@@ -145,6 +164,7 @@ export default function Integrations() {
           loadQRData(),
           loadSystemPOS(),
           loadSystemBranches(),
+          loadBranchesWithMPStatus(),
         ]);
       }
     } catch (error) {
@@ -185,6 +205,57 @@ export default function Integrations() {
       setSystemBranches(branches);
     } catch (error) {
       console.error('Error loading system branches:', error);
+    }
+  };
+
+  // Cargar sucursales con estado de MP
+  const loadBranchesWithMPStatus = async () => {
+    setLoadingBranchesStatus(true);
+    try {
+      const branches = await mercadoPagoApi.getBranchesWithMPStatus();
+      setBranchesWithMPStatus(branches);
+    } catch (error) {
+      console.error('Error loading branches MP status:', error);
+    } finally {
+      setLoadingBranchesStatus(false);
+    }
+  };
+
+  // Crear Store en MP desde una Branch (1 click)
+  const handleCreateStoreFromBranch = async (branchId: string) => {
+    setCreatingStoreFromBranch(branchId);
+    try {
+      await mercadoPagoApi.createStoreFromBranch(branchId);
+      setNotification({ type: 'success', message: 'Local creado exitosamente en Mercado Pago' });
+      await Promise.all([loadBranchesWithMPStatus(), loadQRData()]);
+    } catch (error: unknown) {
+      console.error('Error creating store from branch:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({ type: 'error', message: err.response?.data?.error || err.message || 'Error al crear local' });
+    } finally {
+      setCreatingStoreFromBranch(null);
+    }
+  };
+
+  // Sincronizar Stores existentes con Branches
+  const handleSyncMPStores = async () => {
+    setSyncingStores(true);
+    try {
+      const result = await mercadoPagoApi.syncMPStores();
+      if (result.synced > 0) {
+        setNotification({ type: 'success', message: `${result.synced} sucursales vinculadas exitosamente` });
+      } else if (result.notMatched.length > 0) {
+        setNotification({ type: 'success', message: `No se encontraron coincidencias. ${result.notMatched.length} stores sin vincular.` });
+      } else {
+        setNotification({ type: 'success', message: 'Sincronización completada' });
+      }
+      await loadBranchesWithMPStatus();
+    } catch (error: unknown) {
+      console.error('Error syncing stores:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({ type: 'error', message: err.response?.data?.error || err.message || 'Error al sincronizar' });
+    } finally {
+      setSyncingStores(false);
     }
   };
 
@@ -807,6 +878,169 @@ export default function Integrations() {
                 y edita el POS deseado.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sucursales con Estado de MP - Only show if QR is connected */}
+      {isQrConnected && (
+        <div className="bg-white rounded-xl shadow-sm mt-6">
+          <div className="p-4 border-b flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                <Building2 size={20} className="text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Sucursales</h2>
+                <p className="text-sm text-gray-500">
+                  Vincula tus sucursales con locales de Mercado Pago QR
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSyncMPStores}
+                disabled={syncingStores}
+                className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                title="Detectar stores existentes en MP y vincularlos automáticamente"
+              >
+                <RefreshCw size={18} className={syncingStores ? 'animate-spin' : ''} />
+                Sincronizar
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4">
+            {loadingBranchesStatus ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
+              </div>
+            ) : branchesWithMPStatus.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Building2 size={48} className="mx-auto mb-3 text-gray-300" />
+                <p>No hay sucursales configuradas</p>
+                <p className="text-sm mt-1">
+                  Las sucursales se importan automáticamente desde Cianbox
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {branchesWithMPStatus.map(branch => {
+                  const isCreating = creatingStoreFromBranch === branch.id;
+                  const isExpanded = expandedBranchId === branch.id;
+                  const branchCashiers = branch.mpStoreId
+                    ? qrCashiers.filter(c => c.store_id === branch.mpStoreId)
+                    : [];
+
+                  return (
+                    <div key={branch.id} className="py-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {/* Status indicator */}
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              branch.hasStore
+                                ? 'bg-green-100 text-green-600'
+                                : 'bg-gray-100 text-gray-400'
+                            }`}
+                          >
+                            {branch.hasStore ? (
+                              <CheckCircle size={18} />
+                            ) : (
+                              <XCircle size={18} />
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="font-medium text-gray-900">{branch.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {branch.code}
+                              {branch.hasStore && branch.mpExternalId && (
+                                <span className="ml-2 text-green-600">
+                                  → Local MP: {branch.mpExternalId}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {branch.hasStore ? (
+                            <>
+                              <span className="text-xs text-gray-500">
+                                {branchCashiers.length} cajas
+                              </span>
+                              <button
+                                onClick={() => setExpandedBranchId(isExpanded ? null : branch.id)}
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"
+                              >
+                                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                Ver cajas
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleCreateStoreFromBranch(branch.id)}
+                              disabled={isCreating}
+                              className="flex items-center gap-2 px-3 py-1.5 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              {isCreating ? (
+                                <RefreshCw size={14} className="animate-spin" />
+                              ) : (
+                                <Plus size={14} />
+                              )}
+                              Crear Local MP
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expanded cashiers list */}
+                      {isExpanded && branch.hasStore && (
+                        <div className="mt-3 ml-11 p-3 bg-gray-50 rounded-lg">
+                          {branchCashiers.length === 0 ? (
+                            <p className="text-sm text-gray-500">No hay cajas en este local</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {branchCashiers.map(cashier => {
+                                const linkedPOS = systemPOSList.find(pos => pos.mpQrPosId === cashier.id);
+                                return (
+                                  <div key={cashier.id} className="flex items-center justify-between p-2 bg-white rounded border">
+                                    <div className="flex items-center gap-2">
+                                      <QrCode size={16} className="text-purple-500" />
+                                      <span className="text-sm font-medium">{cashier.name}</span>
+                                      <span className="text-xs text-gray-400">({cashier.external_id})</span>
+                                    </div>
+                                    {linkedPOS ? (
+                                      <span className="text-xs text-green-600 flex items-center gap-1">
+                                        <CheckCircle size={12} />
+                                        {linkedPOS.name}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-gray-400">Sin vincular</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => {
+                              const store = qrStores.find(s => s.id === branch.mpStoreId);
+                              if (store) openCreateCashierModal(store);
+                            }}
+                            className="mt-2 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                          >
+                            <Plus size={14} />
+                            Agregar caja
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
