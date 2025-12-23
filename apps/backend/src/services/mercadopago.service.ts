@@ -1424,7 +1424,20 @@ class MercadoPagoService {
       let errorMessage = 'Error al crear local en Mercado Pago';
       try {
         const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.message || errorJson.error || errorMessage;
+        // MP devuelve detalles en 'cause' o 'causes'
+        if (errorJson.cause && Array.isArray(errorJson.cause) && errorJson.cause.length > 0) {
+          const causes = errorJson.cause.map((c: { code?: string; description?: string }) =>
+            c.description || c.code || JSON.stringify(c)
+          ).join(', ');
+          errorMessage = `${errorJson.message || 'Error'}: ${causes}`;
+        } else if (errorJson.causes && Array.isArray(errorJson.causes) && errorJson.causes.length > 0) {
+          const causes = errorJson.causes.map((c: { code?: string; description?: string }) =>
+            c.description || c.code || JSON.stringify(c)
+          ).join(', ');
+          errorMessage = `${errorJson.message || 'Error'}: ${causes}`;
+        } else {
+          errorMessage = errorJson.message || errorJson.error || errorMessage;
+        }
       } catch {
         // Si no es JSON, usar el texto como mensaje
         if (errorText) errorMessage = errorText;
