@@ -768,13 +768,13 @@ export default function Integrations() {
         <h1 className="text-2xl font-bold text-gray-900">Integraciones</h1>
       </div>
 
-      {/* Notification */}
+      {/* Notification Toast - Fixed position */}
       {notification && (
         <div
-          className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center gap-3 max-w-md animate-in fade-in slide-in-from-top-2 ${
             notification.type === 'success'
-              ? 'bg-green-50 text-green-800 border border-green-200'
-              : 'bg-red-50 text-red-800 border border-red-200'
+              ? 'bg-green-600 text-white'
+              : 'bg-red-600 text-white'
           }`}
         >
           {notification.type === 'success' ? (
@@ -782,7 +782,13 @@ export default function Integrations() {
           ) : (
             <XCircle size={20} />
           )}
-          <span>{notification.message}</span>
+          <span className="flex-1">{notification.message}</span>
+          <button
+            onClick={() => setNotification(null)}
+            className="p-1 hover:bg-white/20 rounded"
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
