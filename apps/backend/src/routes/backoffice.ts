@@ -2256,6 +2256,24 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
             pointOfSale: { select: { id: true, name: true, code: true } },
           },
         },
+        // Venta original (si es una devolución)
+        originalSale: {
+          select: {
+            id: true,
+            saleNumber: true,
+            total: true,
+          },
+        },
+        // Devoluciones asociadas (si es una venta)
+        refunds: {
+          select: {
+            id: true,
+            saleNumber: true,
+            total: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 

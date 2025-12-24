@@ -21,6 +21,8 @@ import {
   RotateCcw,
   FileText,
   Loader2,
+  Link2,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -140,6 +142,19 @@ interface Sale {
   };
   items: SaleItem[];
   payments: Payment[];
+  // Relaciones de devolución
+  originalSaleId?: string;
+  originalSale?: {
+    id: string;
+    saleNumber: string;
+    total: number;
+  };
+  refunds?: Array<{
+    id: string;
+    saleNumber: string;
+    total: number;
+    createdAt: string;
+  }>;
 }
 
 export default function SaleDetail() {
@@ -479,6 +494,58 @@ export default function SaleDetail() {
           </div>
         </div>
       </div>
+
+      {/* Enlaces a venta original o devoluciones */}
+      {sale.originalSale && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link2 className="w-5 h-5 text-orange-600" />
+            <div>
+              <p className="text-sm font-medium text-orange-800">Esta es una devolución</p>
+              <p className="text-sm text-orange-600">
+                Venta original: {sale.originalSale.saleNumber} ({formatCurrency(sale.originalSale.total)})
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate(`/sales/${sale.originalSale!.id}`)}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Ver venta original
+          </button>
+        </div>
+      )}
+
+      {sale.refunds && sale.refunds.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <RotateCcw className="w-5 h-5 text-blue-600" />
+            <p className="text-sm font-medium text-blue-800">
+              Esta venta tiene {sale.refunds.length} devolución{sale.refunds.length > 1 ? 'es' : ''}
+            </p>
+          </div>
+          <div className="space-y-2">
+            {sale.refunds.map((refund) => (
+              <div key={refund.id} className="flex items-center justify-between bg-white rounded-lg p-3 border border-blue-100">
+                <div>
+                  <p className="font-medium text-gray-900">{refund.saleNumber}</p>
+                  <p className="text-sm text-gray-500">
+                    {formatDate(refund.createdAt)} • {formatCurrency(refund.total)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate(`/sales/${refund.id}`)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Ver
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Información general */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
