@@ -354,14 +354,23 @@ export default function SaleDetail() {
           creditNote: data.creditNote || null,
         });
       } else {
-        setRefundError(response.data?.error || 'Error al procesar devolucion');
+        const err = response.data?.error;
+        const errorMsg = typeof err === 'string' ? err : (err?.message || 'Error al procesar devolucion');
+        setRefundError(errorMsg);
       }
     } catch (error: any) {
       console.error('Error procesando devolucion:', error);
-      const errorMsg = error.response?.data?.error
-        || error.response?.data?.message
-        || error.message
-        || 'Error al procesar devolucion';
+      let errorMsg = 'Error al procesar devolucion';
+
+      if (error.response?.data?.error) {
+        const err = error.response.data.error;
+        errorMsg = typeof err === 'string' ? err : (err.message || err.code || JSON.stringify(err));
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+
       setRefundError(errorMsg);
     } finally {
       setIsProcessingRefund(false);

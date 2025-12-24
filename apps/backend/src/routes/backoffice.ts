@@ -2274,7 +2274,7 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
 
 // Schema para devolución
 const backofficeRefundItemSchema = z.object({
-  saleItemId: z.string().uuid(),
+  saleItemId: z.string().min(1),
   quantity: z.number().positive(),
 });
 
