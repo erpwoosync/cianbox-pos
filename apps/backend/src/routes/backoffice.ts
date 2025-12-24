@@ -2274,6 +2274,13 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
           },
           orderBy: { createdAt: 'desc' },
         },
+        // Facturas AFIP (factura electrónica o nota de crédito)
+        afipInvoices: {
+          include: {
+            salesPoint: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 

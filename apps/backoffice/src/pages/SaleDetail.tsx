@@ -155,6 +155,24 @@ interface Sale {
     total: number;
     createdAt: string;
   }>;
+  // Facturas AFIP
+  afipInvoices?: Array<{
+    id: string;
+    voucherType: string;
+    number: number;
+    cae: string;
+    caeExpiration: string;
+    issueDate: string;
+    totalAmount: number;
+    receiverDocType: string;
+    receiverDocNum: string;
+    receiverName?: string;
+    salesPoint: {
+      id: string;
+      name: string;
+      number: number;
+    };
+  }>;
 }
 
 export default function SaleDetail() {
@@ -861,6 +879,74 @@ export default function SaleDetail() {
           </div>
         </div>
       </div>
+
+      {/* Facturas Electrónicas AFIP */}
+      {sale.afipInvoices && sale.afipInvoices.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="px-4 py-3 border-b bg-gradient-to-r from-green-50 to-emerald-50">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-green-600" />
+              <h2 className="text-lg font-semibold text-gray-900">
+                {sale.afipInvoices[0].voucherType.includes('CREDIT') ? 'Notas de Crédito' : 'Facturas Electrónicas'}
+              </h2>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
+            {sale.afipInvoices.map((invoice) => (
+              <div key={invoice.id} className="p-4 bg-gray-50 rounded-lg border">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                        invoice.voucherType.includes('CREDIT')
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {invoice.voucherType.replace('_', ' ')}
+                      </span>
+                      <span className="font-mono font-bold text-gray-900">
+                        {String(invoice.salesPoint.number).padStart(5, '0')}-{String(invoice.number).padStart(8, '0')}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Pto. Vta: {invoice.salesPoint.name}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-gray-900">{formatCurrency(invoice.totalAmount)}</p>
+                    <p className="text-xs text-gray-500">
+                      {formatDate(invoice.issueDate)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="bg-white p-2 rounded border">
+                    <p className="text-xs text-gray-500">CAE</p>
+                    <p className="font-mono font-medium text-green-700">{invoice.cae}</p>
+                  </div>
+                  <div className="bg-white p-2 rounded border">
+                    <p className="text-xs text-gray-500">Vto. CAE</p>
+                    <p className="font-medium">{formatDate(invoice.caeExpiration)}</p>
+                  </div>
+                  <div className="bg-white p-2 rounded border">
+                    <p className="text-xs text-gray-500">Doc. Receptor</p>
+                    <p className="font-mono font-medium">
+                      {invoice.receiverDocType === '80' ? 'CUIT' : invoice.receiverDocType === '96' ? 'DNI' : 'CF'}: {invoice.receiverDocNum}
+                    </p>
+                  </div>
+                  {invoice.receiverName && (
+                    <div className="bg-white p-2 rounded border">
+                      <p className="text-xs text-gray-500">Receptor</p>
+                      <p className="font-medium truncate">{invoice.receiverName}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Notas */}
       {sale.notes && (
