@@ -335,7 +335,7 @@ export default function SaleDetail() {
     setRefundError(null);
 
     try {
-      const response = await api.post(`/sales/${id}/refund`, {
+      const response = await api.post(`/backoffice/sales/${id}/refund`, {
         items: itemsToRefund,
         reason: refundReason.trim(),
         emitCreditNote,

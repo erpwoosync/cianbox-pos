@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError } from '../utils/errors.js';
+import { AfipService } from '../services/afip.service.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -2265,6 +2266,198 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
     res.json({
       success: true,
       data: sale,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Schema para devolución
+const backofficeRefundItemSchema = z.object({
+  saleItemId: z.string().uuid(),
+  quantity: z.number().positive(),
+});
+
+const backofficeRefundSchema = z.object({
+  items: z.array(backofficeRefundItemSchema).min(1),
+  reason: z.string().min(1),
+  emitCreditNote: z.boolean().default(true),
+});
+
+// Procesar devolución de venta
+router.post('/sales/:id/refund', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+
+    const validation = backofficeRefundSchema.safeParse(req.body);
+    if (!validation.success) {
+      throw new ApiError(400, 'VALIDATION_ERROR', validation.error.errors[0].message);
+    }
+
+    const { items, reason, emitCreditNote } = validation.data;
+
+    // Obtener venta original
+    const originalSale = await prisma.sale.findFirst({
+      where: { id, tenantId },
+      include: {
+        items: true,
+        afipInvoices: true,
+        branch: true,
+        pointOfSale: true,
+      },
+    });
+
+    if (!originalSale) {
+      throw new ApiError(404, 'NOT_FOUND', 'Venta no encontrada');
+    }
+
+    if (originalSale.status === 'REFUNDED') {
+      throw new ApiError(400, 'ALREADY_REFUNDED', 'Esta venta ya fue devuelta completamente');
+    }
+
+    if (originalSale.status === 'CANCELLED') {
+      throw new ApiError(400, 'CANCELLED_SALE', 'No se puede devolver una venta anulada');
+    }
+
+    // Validar items y calcular totales
+    let refundTotal = 0;
+    const refundItems: Array<{
+      originalItem: typeof originalSale.items[0];
+      quantity: number;
+      subtotal: number;
+    }> = [];
+
+    for (const item of items) {
+      const originalItem = originalSale.items.find(i => i.id === item.saleItemId);
+      if (!originalItem) {
+        throw new ApiError(400, 'INVALID_ITEM', `Item ${item.saleItemId} no encontrado`);
+      }
+
+      if (item.quantity > Number(originalItem.quantity)) {
+        throw new ApiError(400, 'INVALID_QUANTITY', `Cantidad a devolver excede la original`);
+      }
+
+      const subtotal = item.quantity * Number(originalItem.unitPrice) * (1 - Number(originalItem.discount) / 100);
+      refundTotal += subtotal;
+
+      refundItems.push({ originalItem, quantity: item.quantity, subtotal });
+    }
+
+    // Determinar si es devolución total
+    const isFullRefund = refundItems.every(ri =>
+      ri.quantity === Number(ri.originalItem.quantity)
+    ) && refundItems.length === originalSale.items.length;
+
+    // Crear venta de devolución (negativa)
+    const refundSale = await prisma.sale.create({
+      data: {
+        tenantId,
+        branchId: originalSale.branchId,
+        pointOfSaleId: originalSale.pointOfSaleId,
+        userId: req.user!.userId,
+        cashSessionId: null,
+        saleNumber: `DEV-${originalSale.saleNumber}`,
+        saleDate: new Date(),
+        receiptType: 'TICKET',
+        subtotal: -refundTotal,
+        discount: 0,
+        tax: 0,
+        total: -refundTotal,
+        status: 'COMPLETED',
+        notes: `Devolución: ${reason}`,
+        originalSaleId: originalSale.id,
+        items: {
+          create: refundItems.map(ri => ({
+            tenantId,
+            productId: ri.originalItem.productId,
+            productCode: ri.originalItem.productCode,
+            productName: ri.originalItem.productName,
+            productBarcode: ri.originalItem.productBarcode,
+            quantity: -ri.quantity,
+            unitPrice: ri.originalItem.unitPrice,
+            discount: ri.originalItem.discount,
+            subtotal: -ri.subtotal,
+            taxRate: ri.originalItem.taxRate,
+            taxAmount: 0,
+            originalItemId: ri.originalItem.id,
+          })),
+        },
+      },
+    });
+
+    // Restaurar stock
+    for (const ri of refundItems) {
+      if (ri.originalItem.productId) {
+        await prisma.productStock.updateMany({
+          where: {
+            productId: ri.originalItem.productId,
+            branchId: originalSale.branchId,
+          },
+          data: {
+            quantity: { increment: ri.quantity },
+            available: { increment: ri.quantity },
+          },
+        });
+      }
+    }
+
+    // Actualizar estado de venta original
+    await prisma.sale.update({
+      where: { id: originalSale.id },
+      data: { status: isFullRefund ? 'REFUNDED' : 'PARTIAL_REFUND' },
+    });
+
+    // Emitir nota de crédito si corresponde
+    let creditNoteResult = null;
+    if (emitCreditNote && originalSale.afipInvoices.length > 0) {
+      const originalInvoice = originalSale.afipInvoices[0];
+      const afipService = new AfipService();
+
+      try {
+        if (originalInvoice.voucherType === 'FACTURA_A') {
+          creditNoteResult = await afipService.createCreditNoteA(
+            tenantId,
+            originalInvoice.salesPointId,
+            originalInvoice.id,
+            refundTotal,
+            refundSale.id
+          );
+        } else if (originalInvoice.voucherType === 'FACTURA_C') {
+          creditNoteResult = await afipService.createCreditNoteC(
+            tenantId,
+            originalInvoice.salesPointId,
+            originalInvoice.id,
+            refundTotal,
+            refundSale.id
+          );
+        } else {
+          creditNoteResult = await afipService.createCreditNoteB(
+            tenantId,
+            originalInvoice.salesPointId,
+            originalInvoice.id,
+            refundTotal,
+            refundSale.id
+          );
+        }
+      } catch (error) {
+        console.error('Error emitiendo nota de crédito:', error);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        refundSale,
+        refundAmount: refundTotal,
+        isFullRefund,
+        creditNote: creditNoteResult?.invoiceId ? {
+          id: creditNoteResult.invoiceId,
+          cae: creditNoteResult.cae,
+          caeExpiration: creditNoteResult.caeExpiration,
+          voucherNumber: creditNoteResult.voucherNumber,
+        } : null,
+      },
     });
   } catch (error) {
     next(error);
