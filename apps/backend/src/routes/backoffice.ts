@@ -2371,6 +2371,20 @@ router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Respons
     };
     const docTypeLabel = docTypeLabels[invoice.receiverDocType] || 'Doc.';
 
+    // Condición IVA del receptor
+    const taxCategoryLabels: Record<string, string> = {
+      '1': 'IVA Responsable Inscripto',
+      '4': 'IVA Sujeto Exento',
+      '5': 'Consumidor Final',
+      '6': 'Responsable Monotributo',
+      '8': 'Proveedor del Exterior',
+      '9': 'Cliente del Exterior',
+      '10': 'IVA Liberado',
+      '13': 'Monotributista Social',
+      '15': 'IVA No Alcanzado',
+    };
+    const receiverTaxCategoryLabel = taxCategoryLabels[invoice.receiverTaxCategory || '5'] || invoice.receiverTaxCategory || 'Consumidor Final';
+
     // Generar datos para QR de AFIP
     // Tipos de comprobante AFIP
     const voucherTypeCodes: Record<string, number> = {
@@ -2569,8 +2583,8 @@ router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Respons
 
   <div class="header">
     <div class="header-left">
-      <div class="company-name">${tenant.name}</div>
-      <div>Razón Social: ${tenant.name}</div>
+      <div class="company-name">${invoice.afipConfig.businessName}</div>
+      <div>Razón Social: ${invoice.afipConfig.businessName}</div>
       <div>Domicilio: ${invoice.afipConfig.address || '-'}</div>
       <div>Condición IVA: ${invoice.afipConfig.taxCategory === 'RESPONSABLE_INSCRIPTO' ? 'IVA Responsable Inscripto' : invoice.afipConfig.taxCategory}</div>
     </div>
@@ -2599,7 +2613,7 @@ router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Respons
       </div>
     </div>
     <div style="margin-top: 5px;">
-      <span class="info-label">Condición IVA:</span> ${invoice.receiverTaxCategory || 'Consumidor Final'}
+      <span class="info-label">Condición IVA:</span> ${receiverTaxCategoryLabel}
       <span style="margin-left: 20px;"><span class="info-label">Condición de Venta:</span> Contado</span>
     </div>
   </div>
@@ -2661,7 +2675,7 @@ router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Respons
   </div>
 
   <div class="footer">
-    <p>Comprobante emitido por sistema - ${tenant.name}</p>
+    <p>Comprobante emitido por sistema - ${invoice.afipConfig.businessName}</p>
     <p>Este documento es una representación impresa de un comprobante electrónico</p>
   </div>
 
