@@ -2371,6 +2371,37 @@ router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Respons
     };
     const docTypeLabel = docTypeLabels[invoice.receiverDocType] || 'Doc.';
 
+    // Generar datos para QR de AFIP
+    // Tipos de comprobante AFIP
+    const voucherTypeCodes: Record<string, number> = {
+      'FACTURA_A': 1,
+      'FACTURA_B': 6,
+      'FACTURA_C': 11,
+      'CREDIT_NOTE_A': 3,
+      'CREDIT_NOTE_B': 8,
+      'CREDIT_NOTE_C': 13,
+    };
+
+    const qrData = {
+      ver: 1,
+      fecha: new Date(invoice.issueDate).toISOString().split('T')[0],
+      cuit: parseInt(invoice.afipConfig.cuit.replace(/\D/g, '')),
+      ptoVta: invoice.salesPoint.number,
+      tipoCmp: voucherTypeCodes[invoice.voucherType] || 11,
+      nroCmp: invoice.number,
+      importe: Number(invoice.totalAmount),
+      moneda: 'PES',
+      ctz: 1,
+      tipoDocRec: parseInt(invoice.receiverDocType) || 99,
+      nroDocRec: parseInt(invoice.receiverDocNum.replace(/\D/g, '')) || 0,
+      tipoCodAut: 'E',
+      codAut: parseInt(invoice.cae),
+    };
+
+    const qrBase64 = Buffer.from(JSON.stringify(qrData)).toString('base64');
+    const qrUrl = `https://www.afip.gob.ar/fe/qr/?p=${qrBase64}`;
+    const qrImageUrl = `https://chart.googleapis.com/chart?chs=150x150&cht=qr&chl=${encodeURIComponent(qrUrl)}`;
+
     // Generar HTML de la factura
     const html = `
 <!DOCTYPE html>
@@ -2624,8 +2655,8 @@ router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Respons
       <div><span class="cae-label">CAE:</span> ${invoice.cae}</div>
       <div><span class="cae-label">Vto. CAE:</span> ${formatDate(invoice.caeExpiration)}</div>
     </div>
-    <div class="qr-placeholder">
-      QR AFIP
+    <div>
+      <img src="${qrImageUrl}" alt="QR AFIP" style="width: 120px; height: 120px;" />
     </div>
   </div>
 
