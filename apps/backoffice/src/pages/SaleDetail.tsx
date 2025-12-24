@@ -23,6 +23,7 @@ import {
   Loader2,
   Link2,
   ExternalLink,
+  Printer,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -942,6 +943,17 @@ export default function SaleDetail() {
                       <p className="font-medium truncate">{invoice.receiverName}</p>
                     </div>
                   )}
+                </div>
+
+                {/* Botón Reimprimir */}
+                <div className="mt-3 pt-3 border-t border-gray-200 flex justify-end">
+                  <button
+                    onClick={() => window.open(`/api/backoffice/invoices/${invoice.id}/print`, '_blank')}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Reimprimir
+                  </button>
                 </div>
               </div>
             ))}

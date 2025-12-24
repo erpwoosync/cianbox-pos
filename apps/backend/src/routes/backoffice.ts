@@ -2297,6 +2297,360 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
   }
 });
 
+// Imprimir factura electrónica
+router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { id } = req.params;
+
+    // Obtener la factura con todos los datos necesarios
+    const invoice = await prisma.afipInvoice.findFirst({
+      where: { id, tenantId },
+      include: {
+        salesPoint: true,
+        sale: {
+          include: {
+            items: true,
+            customer: true,
+            branch: true,
+          },
+        },
+        afipConfig: {
+          include: {
+            tenant: true,
+          },
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new ApiError(404, 'NOT_FOUND', 'Factura no encontrada');
+    }
+
+    const tenant = invoice.afipConfig.tenant;
+    const sale = invoice.sale;
+
+    // Formatear fecha
+    const formatDate = (date: Date) => {
+      return new Date(date).toLocaleDateString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    };
+
+    // Formatear moneda
+    const formatCurrency = (amount: number | any) => {
+      const num = typeof amount === 'object' ? Number(amount) : amount;
+      return num.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
+    };
+
+    // Determinar tipo de comprobante para mostrar
+    const voucherTypeLabels: Record<string, string> = {
+      'FACTURA_A': 'FACTURA A',
+      'FACTURA_B': 'FACTURA B',
+      'FACTURA_C': 'FACTURA C',
+      'CREDIT_NOTE_A': 'NOTA DE CRÉDITO A',
+      'CREDIT_NOTE_B': 'NOTA DE CRÉDITO B',
+      'CREDIT_NOTE_C': 'NOTA DE CRÉDITO C',
+    };
+
+    const voucherLabel = voucherTypeLabels[invoice.voucherType] || invoice.voucherType;
+    const isCreditNote = invoice.voucherType.includes('CREDIT');
+    const voucherLetter = invoice.voucherType.includes('_A') ? 'A' : invoice.voucherType.includes('_B') ? 'B' : 'C';
+
+    // Número de comprobante formateado
+    const ptoVta = String(invoice.salesPoint.number).padStart(5, '0');
+    const nroComp = String(invoice.number).padStart(8, '0');
+
+    // Datos del receptor
+    const docTypeLabels: Record<string, string> = {
+      '80': 'CUIT',
+      '96': 'DNI',
+      '99': 'Consumidor Final',
+    };
+    const docTypeLabel = docTypeLabels[invoice.receiverDocType] || 'Doc.';
+
+    // Generar HTML de la factura
+    const html = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${voucherLabel} ${ptoVta}-${nroComp}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header {
+      display: flex;
+      border: 2px solid #000;
+      margin-bottom: 10px;
+    }
+    .header-left, .header-right {
+      flex: 1;
+      padding: 15px;
+    }
+    .header-center {
+      width: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-left: 2px solid #000;
+      border-right: 2px solid #000;
+    }
+    .voucher-letter {
+      font-size: 48px;
+      font-weight: bold;
+      line-height: 1;
+    }
+    .voucher-code {
+      font-size: 10px;
+      margin-top: 5px;
+    }
+    .company-name {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .voucher-type {
+      font-size: 16px;
+      font-weight: bold;
+      text-align: right;
+    }
+    .voucher-number {
+      font-size: 14px;
+      text-align: right;
+      margin-top: 5px;
+    }
+    .info-row {
+      display: flex;
+      border: 1px solid #000;
+      border-top: none;
+    }
+    .info-col {
+      flex: 1;
+      padding: 8px;
+      border-right: 1px solid #000;
+    }
+    .info-col:last-child {
+      border-right: none;
+    }
+    .info-label {
+      font-weight: bold;
+      font-size: 10px;
+      color: #666;
+    }
+    .receptor {
+      border: 1px solid #000;
+      border-top: none;
+      padding: 10px;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    .items-table th, .items-table td {
+      border: 1px solid #000;
+      padding: 8px;
+      text-align: left;
+    }
+    .items-table th {
+      background: #f0f0f0;
+      font-weight: bold;
+    }
+    .items-table .number {
+      text-align: right;
+    }
+    .totals {
+      margin-top: 15px;
+      border: 1px solid #000;
+      padding: 10px;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+    }
+    .totals-row.total {
+      font-size: 16px;
+      font-weight: bold;
+      border-top: 1px solid #000;
+      padding-top: 8px;
+      margin-top: 5px;
+    }
+    .cae-section {
+      margin-top: 15px;
+      border: 1px solid #000;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cae-info { flex: 1; }
+    .cae-label { font-weight: bold; }
+    .qr-placeholder {
+      width: 100px;
+      height: 100px;
+      border: 1px solid #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #999;
+    }
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 10px;
+      color: #666;
+    }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none; }
+    }
+    .print-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .print-btn:hover { background: #45a049; }
+  </style>
+</head>
+<body>
+  <button class="print-btn no-print" onclick="window.print()">🖨️ Imprimir</button>
+
+  <div class="header">
+    <div class="header-left">
+      <div class="company-name">${tenant.name}</div>
+      <div>Razón Social: ${tenant.name}</div>
+      <div>Domicilio: ${invoice.afipConfig.address || '-'}</div>
+      <div>Condición IVA: ${invoice.afipConfig.taxCategory === 'RESPONSABLE_INSCRIPTO' ? 'IVA Responsable Inscripto' : invoice.afipConfig.taxCategory}</div>
+    </div>
+    <div class="header-center">
+      <div class="voucher-letter">${voucherLetter}</div>
+      <div class="voucher-code">Cód. ${invoice.voucherType.includes('_A') ? '01' : invoice.voucherType.includes('_B') ? '06' : '11'}</div>
+    </div>
+    <div class="header-right">
+      <div class="voucher-type">${voucherLabel}</div>
+      <div class="voucher-number">Nº ${ptoVta}-${nroComp}</div>
+      <div style="margin-top: 10px;">
+        <div>Fecha: ${formatDate(invoice.issueDate)}</div>
+        <div>CUIT: ${invoice.afipConfig.cuit}</div>
+        <div>Inicio Act.: ${invoice.afipConfig.activityStartDate ? formatDate(invoice.afipConfig.activityStartDate) : '-'}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="receptor">
+    <div style="display: flex; gap: 20px;">
+      <div style="flex: 1;">
+        <span class="info-label">${docTypeLabel}:</span> ${invoice.receiverDocNum}
+      </div>
+      <div style="flex: 2;">
+        <span class="info-label">Apellido y Nombre / Razón Social:</span> ${invoice.receiverName || 'CONSUMIDOR FINAL'}
+      </div>
+    </div>
+    <div style="margin-top: 5px;">
+      <span class="info-label">Condición IVA:</span> ${invoice.receiverTaxCategory || 'Consumidor Final'}
+      <span style="margin-left: 20px;"><span class="info-label">Condición de Venta:</span> Contado</span>
+    </div>
+  </div>
+
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th style="width: 50px;">Cant.</th>
+        <th>Descripción</th>
+        <th style="width: 100px;" class="number">Precio Unit.</th>
+        ${voucherLetter === 'A' ? '<th style="width: 60px;" class="number">% IVA</th>' : ''}
+        <th style="width: 100px;" class="number">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${sale?.items.map(item => `
+        <tr>
+          <td class="number">${Number(item.quantity)}</td>
+          <td>${item.productName}</td>
+          <td class="number">${formatCurrency(item.unitPrice)}</td>
+          ${voucherLetter === 'A' ? `<td class="number">${Number(item.taxRate)}%</td>` : ''}
+          <td class="number">${formatCurrency(item.subtotal)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="5">Sin items</td></tr>'}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    ${voucherLetter === 'A' ? `
+      <div class="totals-row">
+        <span>Subtotal Neto Gravado:</span>
+        <span>${formatCurrency(invoice.netAmount)}</span>
+      </div>
+      <div class="totals-row">
+        <span>IVA 21%:</span>
+        <span>${formatCurrency(invoice.taxAmount)}</span>
+      </div>
+      ${Number(invoice.exemptAmount) > 0 ? `
+        <div class="totals-row">
+          <span>Exento:</span>
+          <span>${formatCurrency(invoice.exemptAmount)}</span>
+        </div>
+      ` : ''}
+    ` : ''}
+    <div class="totals-row total">
+      <span>TOTAL:</span>
+      <span>${formatCurrency(invoice.totalAmount)}</span>
+    </div>
+  </div>
+
+  <div class="cae-section">
+    <div class="cae-info">
+      <div><span class="cae-label">CAE:</span> ${invoice.cae}</div>
+      <div><span class="cae-label">Vto. CAE:</span> ${formatDate(invoice.caeExpiration)}</div>
+    </div>
+    <div class="qr-placeholder">
+      QR AFIP
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Comprobante emitido por sistema - ${tenant.name}</p>
+    <p>Este documento es una representación impresa de un comprobante electrónico</p>
+  </div>
+
+  <script>
+    // Auto-print si viene de un iframe o popup
+    if (window.opener || window.parent !== window) {
+      window.onload = function() { window.print(); }
+    }
+  </script>
+</body>
+</html>
+    `;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Schema para devolución
 const backofficeRefundItemSchema = z.object({
   saleItemId: z.string().min(1),
