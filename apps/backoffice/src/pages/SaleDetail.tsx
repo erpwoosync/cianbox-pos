@@ -335,28 +335,34 @@ export default function SaleDetail() {
     setRefundError(null);
 
     try {
+      console.log('Enviando refund request:', { items: itemsToRefund, reason: refundReason.trim(), emitCreditNote });
+
       const response = await api.post(`/backoffice/sales/${id}/refund`, {
         items: itemsToRefund,
         reason: refundReason.trim(),
         emitCreditNote,
       });
 
-      if (response.data.success) {
-        const data = response.data.data;
+      console.log('Refund response:', response.data);
+
+      if (response.data?.success) {
+        const data = response.data.data || {};
         setRefundSuccess({
           message: data.isFullRefund
             ? 'Devolucion total procesada correctamente'
             : 'Devolucion parcial procesada correctamente',
-          creditNote: data.creditNote,
+          creditNote: data.creditNote || null,
         });
       } else {
-        setRefundError(response.data.error || 'Error al procesar devolucion');
+        setRefundError(response.data?.error || 'Error al procesar devolucion');
       }
     } catch (error: any) {
       console.error('Error procesando devolucion:', error);
-      setRefundError(
-        error.response?.data?.error || error.message || 'Error al procesar devolucion'
-      );
+      const errorMsg = error.response?.data?.error
+        || error.response?.data?.message
+        || error.message
+        || 'Error al procesar devolucion';
+      setRefundError(errorMsg);
     } finally {
       setIsProcessingRefund(false);
     }
