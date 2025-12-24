@@ -420,7 +420,8 @@ export default function SaleDetail() {
     }
   };
 
-  const canRefund = sale && sale.status !== 'REFUNDED' && sale.status !== 'CANCELLED';
+  // No se puede devolver si: ya está devuelta, cancelada, o ES una devolución
+  const canRefund = sale && sale.status !== 'REFUNDED' && sale.status !== 'CANCELLED' && !sale.originalSaleId;
 
   const getPaymentMethodText = (method: string) => {
     const methods: Record<string, string> = {
