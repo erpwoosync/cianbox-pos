@@ -2376,7 +2376,6 @@ router.post('/sales/:id/refund', async (req: AuthenticatedRequest, res: Response
         originalSaleId: originalSale.id,
         items: {
           create: refundItems.map(ri => ({
-            tenantId,
             productId: ri.originalItem.productId,
             productCode: ri.originalItem.productCode,
             productName: ri.originalItem.productName,
