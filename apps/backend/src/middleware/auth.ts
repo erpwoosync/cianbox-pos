@@ -41,18 +41,25 @@ export const authenticate = (
   next: NextFunction
 ): void => {
   try {
-    const authHeader = req.headers.authorization;
+    let token: string | undefined;
 
-    if (!authHeader) {
+    // Primero intentar obtener del header Authorization
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      const parts = authHeader.split(' ');
+      if (parts.length === 2 && parts[0] === 'Bearer') {
+        token = parts[1];
+      }
+    }
+
+    // Si no hay token en header, intentar desde query parameter (para URLs de impresión)
+    if (!token && req.query.token) {
+      token = req.query.token as string;
+    }
+
+    if (!token) {
       throw new AuthenticationError('Token no proporcionado');
     }
-
-    const parts = authHeader.split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer') {
-      throw new AuthenticationError('Formato de token inválido');
-    }
-
-    const token = parts[1];
 
     try {
       const decoded = jwt.verify(token, getJwtSecret()) as JWTPayload;
