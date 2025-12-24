@@ -266,8 +266,13 @@ export default function SaleDetail() {
   };
 
   const closeRefundModal = () => {
+    const shouldReload = refundSuccess !== null;
     setShowRefundModal(false);
-    if (refundSuccess) {
+    setRefundItems([]);
+    setRefundReason('');
+    setRefundError(null);
+    setRefundSuccess(null);
+    if (shouldReload) {
       loadSale();
     }
   };
