@@ -757,4 +757,310 @@ router.get(
   }
 );
 
+// Schema de validación para devolución
+const refundItemSchema = z.object({
+  saleItemId: z.string(),
+  quantity: z.number().positive(),
+  reason: z.string().optional(),
+});
+
+const refundSchema = z.object({
+  items: z.array(refundItemSchema).min(1, 'Debe incluir al menos un item a devolver'),
+  reason: z.string().min(1, 'Debe indicar el motivo de la devolución'),
+  emitCreditNote: z.boolean().default(true),
+  salesPointId: z.string().optional(), // Para nota de crédito AFIP
+});
+
+/**
+ * POST /api/sales/:id/refund
+ * Procesar devolución parcial o total
+ */
+router.post(
+  '/:id/refund',
+  authenticate,
+  authorize('pos:refund'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const validation = refundSchema.safeParse(req.body);
+      if (!validation.success) {
+        throw new ValidationError('Datos inválidos', validation.error.errors);
+      }
+
+      const data = validation.data;
+      const tenantId = req.user!.tenantId;
+      const userId = req.user!.userId;
+
+      // Obtener venta original con items y factura
+      const originalSale = await prisma.sale.findFirst({
+        where: {
+          id: req.params.id,
+          tenantId,
+        },
+        include: {
+          items: true,
+          payments: true,
+          customer: true,
+          branch: true,
+          pointOfSale: true,
+          afipInvoices: {
+            include: {
+              salesPoint: true,
+              afipConfig: true,
+            },
+          },
+        },
+      });
+
+      if (!originalSale) {
+        throw new NotFoundError('Venta');
+      }
+
+      if (originalSale.status === 'CANCELLED') {
+        throw ApiError.badRequest('No se puede devolver una venta anulada');
+      }
+
+      if (originalSale.status === 'REFUNDED') {
+        throw ApiError.badRequest('Esta venta ya fue devuelta completamente');
+      }
+
+      // Validar items a devolver
+      let refundTotal = new Prisma.Decimal(0);
+      const itemsToRefund: Array<{
+        originalItem: typeof originalSale.items[0];
+        quantity: number;
+        reason?: string;
+      }> = [];
+
+      for (const refundItem of data.items) {
+        const originalItem = originalSale.items.find(
+          (item) => item.id === refundItem.saleItemId
+        );
+
+        if (!originalItem) {
+          throw ApiError.badRequest(
+            `Item ${refundItem.saleItemId} no encontrado en la venta`
+          );
+        }
+
+        // Calcular cantidad ya devuelta de este item
+        const alreadyRefunded = await prisma.saleItem.aggregate({
+          where: {
+            originalItemId: originalItem.id,
+            isReturn: true,
+          },
+          _sum: { quantity: true },
+        });
+
+        const refundedQty = Number(alreadyRefunded._sum.quantity || 0);
+        const availableQty = Number(originalItem.quantity) - refundedQty;
+
+        if (refundItem.quantity > availableQty) {
+          throw ApiError.badRequest(
+            `Solo se pueden devolver ${availableQty} unidades del item ${originalItem.productName}`
+          );
+        }
+
+        // Calcular monto proporcional
+        const unitPrice = Number(originalItem.subtotal) / Number(originalItem.quantity);
+        const itemRefundAmount = unitPrice * refundItem.quantity;
+        refundTotal = refundTotal.plus(itemRefundAmount);
+
+        itemsToRefund.push({
+          originalItem,
+          quantity: refundItem.quantity,
+          reason: refundItem.reason,
+        });
+      }
+
+      // Determinar si es devolución total o parcial
+      const isFullRefund = refundTotal.equals(originalSale.total);
+
+      // Verificar si tiene factura AFIP y necesita nota de crédito
+      const originalInvoice = originalSale.afipInvoices[0];
+      let creditNoteResult = null;
+
+      // Procesar en transacción
+      const result = await prisma.$transaction(async (tx) => {
+        // Crear venta de devolución (con valores negativos)
+        const refundSale = await tx.sale.create({
+          data: {
+            tenantId,
+            branchId: originalSale.branchId,
+            pointOfSaleId: originalSale.pointOfSaleId,
+            userId,
+            customerId: originalSale.customerId,
+            saleNumber: `DEV-${originalSale.saleNumber}`,
+            receiptType: originalInvoice
+              ? originalInvoice.voucherType.replace('FACTURA', 'CREDIT_NOTE') as any
+              : 'TICKET',
+            subtotal: refundTotal.negated(),
+            discount: new Prisma.Decimal(0),
+            tax: refundTotal.times(0.21 / 1.21).negated(),
+            total: refundTotal.negated(),
+            status: 'COMPLETED',
+            notes: `Devolución de venta ${originalSale.saleNumber}: ${data.reason}`,
+            originalSaleId: originalSale.id,
+            items: {
+              create: itemsToRefund.map((item) => ({
+                productId: item.originalItem.productId,
+                productCode: item.originalItem.productCode,
+                productName: item.originalItem.productName,
+                productBarcode: item.originalItem.productBarcode,
+                quantity: -item.quantity,
+                unitPrice: Number(item.originalItem.unitPrice),
+                unitPriceNet: Number(item.originalItem.unitPriceNet),
+                discount: 0,
+                subtotal: new Prisma.Decimal(
+                  (Number(item.originalItem.subtotal) / Number(item.originalItem.quantity)) *
+                    item.quantity
+                ).negated(),
+                taxRate: Number(item.originalItem.taxRate),
+                taxAmount: new Prisma.Decimal(
+                  (Number(item.originalItem.taxAmount) / Number(item.originalItem.quantity)) *
+                    item.quantity
+                ).negated(),
+                isReturn: true,
+                originalItemId: item.originalItem.id,
+              })),
+            },
+            payments: {
+              create: [
+                {
+                  method: 'CREDIT', // Crédito a favor del cliente
+                  amount: refundTotal.negated().toNumber(),
+                  status: 'COMPLETED',
+                  reference: `Devolución de ${originalSale.saleNumber}`,
+                },
+              ],
+            },
+          },
+          include: {
+            items: true,
+            payments: true,
+          },
+        });
+
+        // Actualizar estado de venta original
+        await tx.sale.update({
+          where: { id: originalSale.id },
+          data: {
+            status: isFullRefund ? 'REFUNDED' : 'PARTIAL_REFUND',
+          },
+        });
+
+        // Restaurar stock
+        for (const item of itemsToRefund) {
+          if (item.originalItem.productId) {
+            const product = await tx.product.findUnique({
+              where: { id: item.originalItem.productId },
+            });
+
+            if (product?.trackStock) {
+              await tx.productStock.updateMany({
+                where: {
+                  productId: item.originalItem.productId,
+                  branchId: originalSale.branchId,
+                },
+                data: {
+                  quantity: { increment: item.quantity },
+                  available: { increment: item.quantity },
+                },
+              });
+            }
+          }
+        }
+
+        return refundSale;
+      });
+
+      // Emitir nota de crédito AFIP si corresponde
+      if (data.emitCreditNote && originalInvoice) {
+        const { AfipService } = await import('../services/afip.service.js');
+        const afipService = new AfipService();
+
+        // Determinar tipo de nota de crédito según factura original
+        const voucherType = originalInvoice.voucherType;
+        let creditNoteMethod: 'createCreditNoteA' | 'createCreditNoteB' | 'createCreditNoteC';
+
+        if (voucherType === 'FACTURA_A') {
+          creditNoteMethod = 'createCreditNoteA';
+        } else if (voucherType === 'FACTURA_C') {
+          creditNoteMethod = 'createCreditNoteC';
+        } else {
+          creditNoteMethod = 'createCreditNoteB';
+        }
+
+        creditNoteResult = await afipService[creditNoteMethod](
+          tenantId,
+          data.salesPointId || originalInvoice.salesPointId,
+          originalInvoice.id,
+          refundTotal.toNumber(),
+          result.id // saleId de la devolución
+        );
+
+        if (!creditNoteResult.success) {
+          // La devolución se procesó pero la nota de crédito falló
+          // Registramos el error pero no revertimos la devolución
+          console.error('Error emitiendo nota de crédito:', creditNoteResult.error);
+        }
+      }
+
+      res.status(201).json({
+        success: true,
+        data: {
+          refundSale: result,
+          creditNote: creditNoteResult?.invoiceId ? {
+            id: creditNoteResult.invoiceId,
+            cae: creditNoteResult.cae,
+            caeExpiration: creditNoteResult.caeExpiration,
+            voucherNumber: creditNoteResult.voucherNumber,
+          } : null,
+          isFullRefund,
+          refundAmount: refundTotal.toNumber(),
+        },
+        message: isFullRefund
+          ? 'Devolución total procesada correctamente'
+          : 'Devolución parcial procesada correctamente',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/sales/:id/refunds
+ * Obtener devoluciones de una venta
+ */
+router.get(
+  '/:id/refunds',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+
+      const refunds = await prisma.sale.findMany({
+        where: {
+          originalSaleId: req.params.id,
+          tenantId,
+        },
+        include: {
+          items: true,
+          afipInvoices: {
+            include: {
+              salesPoint: true,
+            },
+          },
+          user: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      res.json({ success: true, data: refunds });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

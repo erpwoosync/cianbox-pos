@@ -820,6 +820,7 @@ model Sale {
 
   // Referencia
   cianboxSaleId   Int?        // ID si se sincronizó con Cianbox
+  originalSaleId  String?     // ID de venta original (para devoluciones)
   notes           String?
   metadata        Json        @default("{}")
 
@@ -838,6 +839,8 @@ model Sale {
   user             User              @relation(fields: [userId], references: [id])
   customer         Customer?         @relation(fields: [customerId], references: [id])
   cashSession      CashSession?      @relation(fields: [cashSessionId], references: [id])
+  originalSale     Sale?             @relation("SaleRefunds", fields: [originalSaleId], references: [id])
+  refunds          Sale[]            @relation("SaleRefunds") // Devoluciones de esta venta
   items            SaleItem[]
   payments         Payment[]
   mercadoPagoOrder MercadoPagoOrder?
@@ -901,20 +904,24 @@ model SaleItem {
   promotionName String?  // Nombre de la promoción aplicada
 
   // Control
-  isReturn      Boolean  @default(false) // Si es devolución
+  isReturn        Boolean  @default(false) // Si es devolución
+  originalItemId  String?  // ID del item original (para devoluciones)
 
   createdAt     DateTime @default(now())
 
   // Relaciones
-  sale      Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product   Product?   @relation(fields: [productId], references: [id])
-  combo     Combo?     @relation(fields: [comboId], references: [id])
-  promotion Promotion? @relation(fields: [promotionId], references: [id])
-  priceList PriceList? @relation(fields: [priceListId], references: [id])
-  branch    Branch?    @relation(fields: [branchId], references: [id])
+  sale         Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product      Product?   @relation(fields: [productId], references: [id])
+  combo        Combo?     @relation(fields: [comboId], references: [id])
+  promotion    Promotion? @relation(fields: [promotionId], references: [id])
+  priceList    PriceList? @relation(fields: [priceListId], references: [id])
+  branch       Branch?    @relation(fields: [branchId], references: [id])
+  originalItem SaleItem?  @relation("SaleItemRefunds", fields: [originalItemId], references: [id])
+  refundItems  SaleItem[] @relation("SaleItemRefunds") // Items que devolvieron este
 
   @@index([saleId])
   @@index([productId])
+  @@index([originalItemId])
   @@map("sale_items")
 }
 

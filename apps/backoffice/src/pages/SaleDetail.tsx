@@ -18,9 +18,21 @@ import {
   Banknote,
   Percent,
   Building2,
+  RotateCcw,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+
+interface RefundItem {
+  saleItemId: string;
+  quantity: number;
+  maxQuantity: number;
+  productName: string;
+  unitPrice: number;
+  selected: boolean;
+}
 
 interface SaleItem {
   id: string;
@@ -135,6 +147,13 @@ export default function SaleDetail() {
   const [sale, setSale] = useState<Sale | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [syncingPaymentId, setSyncingPaymentId] = useState<string | null>(null);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundItems, setRefundItems] = useState<RefundItem[]>([]);
+  const [refundReason, setRefundReason] = useState('');
+  const [emitCreditNote, setEmitCreditNote] = useState(true);
+  const [isProcessingRefund, setIsProcessingRefund] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [refundSuccess, setRefundSuccess] = useState<{ message: string; creditNote?: any } | null>(null);
 
   useEffect(() => {
     loadSale();
@@ -186,6 +205,9 @@ export default function SaleDetail() {
         return <XCircle className="w-6 h-6 text-red-600" />;
       case 'PENDING':
         return <Clock className="w-6 h-6 text-yellow-600" />;
+      case 'REFUNDED':
+      case 'PARTIAL_REFUND':
+        return <RotateCcw className="w-6 h-6 text-orange-600" />;
       default:
         return null;
     }
@@ -199,6 +221,10 @@ export default function SaleDetail() {
         return 'Cancelada';
       case 'PENDING':
         return 'Pendiente';
+      case 'REFUNDED':
+        return 'Devuelta';
+      case 'PARTIAL_REFUND':
+        return 'Devolucion Parcial';
       default:
         return status;
     }
@@ -212,10 +238,126 @@ export default function SaleDetail() {
         return 'bg-red-100 text-red-800 border-red-200';
       case 'PENDING':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'REFUNDED':
+      case 'PARTIAL_REFUND':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
+
+  // Funciones para devoluciones
+  const openRefundModal = () => {
+    if (!sale) return;
+    setRefundItems(
+      sale.items.map((item) => ({
+        saleItemId: item.id,
+        quantity: item.quantity,
+        maxQuantity: item.quantity,
+        productName: item.productName,
+        unitPrice: item.unitPrice,
+        selected: true,
+      }))
+    );
+    setRefundReason('');
+    setRefundError(null);
+    setRefundSuccess(null);
+    setShowRefundModal(true);
+  };
+
+  const closeRefundModal = () => {
+    setShowRefundModal(false);
+    if (refundSuccess) {
+      loadSale();
+    }
+  };
+
+  const handleRefundQuantityChange = (index: number, value: number) => {
+    setRefundItems((prev) =>
+      prev.map((item, i) =>
+        i === index
+          ? { ...item, quantity: Math.min(Math.max(0, value), item.maxQuantity) }
+          : item
+      )
+    );
+  };
+
+  const handleRefundToggleItem = (index: number) => {
+    setRefundItems((prev) =>
+      prev.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              selected: !item.selected,
+              quantity: !item.selected ? item.maxQuantity : 0,
+            }
+          : item
+      )
+    );
+  };
+
+  const calculateRefundTotal = () => {
+    return refundItems
+      .filter((item) => item.selected && item.quantity > 0)
+      .reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  };
+
+  const getSelectedRefundCount = () => {
+    return refundItems.filter((item) => item.selected && item.quantity > 0).length;
+  };
+
+  const processRefund = async () => {
+    if (!sale || !id) return;
+
+    if (!refundReason.trim()) {
+      setRefundError('Debe ingresar el motivo de la devolucion');
+      return;
+    }
+
+    const itemsToRefund = refundItems
+      .filter((item) => item.selected && item.quantity > 0)
+      .map((item) => ({
+        saleItemId: item.saleItemId,
+        quantity: item.quantity,
+      }));
+
+    if (itemsToRefund.length === 0) {
+      setRefundError('Debe seleccionar al menos un item para devolver');
+      return;
+    }
+
+    setIsProcessingRefund(true);
+    setRefundError(null);
+
+    try {
+      const response = await api.post(`/sales/${id}/refund`, {
+        items: itemsToRefund,
+        reason: refundReason.trim(),
+        emitCreditNote,
+      });
+
+      if (response.data.success) {
+        const data = response.data.data;
+        setRefundSuccess({
+          message: data.isFullRefund
+            ? 'Devolucion total procesada correctamente'
+            : 'Devolucion parcial procesada correctamente',
+          creditNote: data.creditNote,
+        });
+      } else {
+        setRefundError(response.data.error || 'Error al procesar devolucion');
+      }
+    } catch (error: any) {
+      console.error('Error procesando devolucion:', error);
+      setRefundError(
+        error.response?.data?.error || error.message || 'Error al procesar devolucion'
+      );
+    } finally {
+      setIsProcessingRefund(false);
+    }
+  };
+
+  const canRefund = sale && sale.status !== 'REFUNDED' && sale.status !== 'CANCELLED';
 
   const getPaymentMethodText = (method: string) => {
     const methods: Record<string, string> = {
@@ -291,9 +433,20 @@ export default function SaleDetail() {
             <p className="text-gray-500">{tenant?.name}</p>
           </div>
         </div>
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${getStatusBadgeClass(sale.status)}`}>
-          {getStatusIcon(sale.status)}
-          <span className="font-semibold">{getStatusText(sale.status)}</span>
+        <div className="flex items-center gap-3">
+          {canRefund && (
+            <button
+              onClick={openRefundModal}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Devolver
+            </button>
+          )}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${getStatusBadgeClass(sale.status)}`}>
+            {getStatusIcon(sale.status)}
+            <span className="font-semibold">{getStatusText(sale.status)}</span>
+          </div>
         </div>
       </div>
 
@@ -634,6 +787,217 @@ export default function SaleDetail() {
               Motivo: {sale.cancelReason}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Modal de Devolución */}
+      {showRefundModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-red-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">Procesar Devolucion</h3>
+                  <p className="text-sm text-gray-500">Venta #{sale.saleNumber}</p>
+                </div>
+              </div>
+              <button
+                onClick={closeRefundModal}
+                className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {refundSuccess ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h4 className="text-xl font-semibold text-green-800 mb-2">
+                    Devolucion Exitosa
+                  </h4>
+                  <p className="text-gray-600 mb-4">{refundSuccess.message}</p>
+
+                  {refundSuccess.creditNote && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left max-w-sm mx-auto">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FileText className="w-5 h-5 text-blue-600" />
+                        <span className="font-medium text-blue-800">Nota de Credito</span>
+                      </div>
+                      <p className="text-sm text-blue-700">
+                        Numero: {refundSuccess.creditNote.voucherNumber}
+                      </p>
+                      <p className="text-sm text-blue-700">CAE: {refundSuccess.creditNote.cae}</p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={closeRefundModal}
+                    className="mt-6 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Botones de selección */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        setRefundItems((prev) =>
+                          prev.map((item) => ({ ...item, selected: true, quantity: item.maxQuantity }))
+                        )
+                      }
+                      className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                    >
+                      Seleccionar Todo
+                    </button>
+                    <button
+                      onClick={() =>
+                        setRefundItems((prev) =>
+                          prev.map((item) => ({ ...item, selected: false, quantity: 0 }))
+                        )
+                      }
+                      className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    >
+                      Deseleccionar
+                    </button>
+                  </div>
+
+                  {/* Items */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b font-medium text-sm text-gray-600">
+                      Items a devolver
+                    </div>
+                    <div className="divide-y max-h-[280px] overflow-y-auto">
+                      {refundItems.map((item, index) => (
+                        <div
+                          key={item.saleItemId}
+                          className={`p-3 flex items-center gap-3 ${
+                            item.selected ? 'bg-orange-50' : 'bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={item.selected}
+                            onChange={() => handleRefundToggleItem(index)}
+                            className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Package className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              <span className="font-medium truncate">{item.productName}</span>
+                            </div>
+                            <p className="text-sm text-gray-500">
+                              {formatCurrency(item.unitPrice)} x {item.maxQuantity}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={item.maxQuantity}
+                              value={item.quantity}
+                              onChange={(e) =>
+                                handleRefundQuantityChange(index, parseInt(e.target.value) || 0)
+                              }
+                              disabled={!item.selected}
+                              className="w-16 px-2 py-1 text-center border rounded-lg disabled:bg-gray-100 disabled:text-gray-400"
+                            />
+                            <span className="text-sm text-gray-500">/ {item.maxQuantity}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Motivo */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Motivo de la devolucion *
+                    </label>
+                    <textarea
+                      value={refundReason}
+                      onChange={(e) => setRefundReason(e.target.value)}
+                      placeholder="Ingrese el motivo..."
+                      rows={2}
+                      className="w-full px-3 py-2 border rounded-lg focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    />
+                  </div>
+
+                  {/* Opciones */}
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={emitCreditNote}
+                        onChange={(e) => setEmitCreditNote(e.target.checked)}
+                        className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                      />
+                      <span className="text-sm">Emitir Nota de Credito AFIP</span>
+                    </label>
+                  </div>
+
+                  {/* Error */}
+                  {refundError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-700">{refundError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {!refundSuccess && (
+              <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
+                <div className="bg-red-100 px-4 py-2 rounded-lg">
+                  <span className="text-sm text-gray-600">Items: </span>
+                  <span className="font-semibold text-red-700">{getSelectedRefundCount()}</span>
+                  <span className="mx-3 text-gray-400">|</span>
+                  <span className="text-sm text-gray-600">Total: </span>
+                  <span className="font-bold text-red-700">
+                    {formatCurrency(calculateRefundTotal())}
+                  </span>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeRefundModal}
+                    disabled={isProcessingRefund}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={processRefund}
+                    disabled={isProcessingRefund || getSelectedRefundCount() === 0}
+                    className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isProcessingRefund ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Procesando...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-4 h-4" />
+                        Procesar Devolucion
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -407,13 +407,75 @@ class AfipService {
   }
 
   /**
+   * Crea una Nota de Crédito A
+   */
+  async createCreditNoteA(
+    tenantId: string,
+    salesPointId: string,
+    originalInvoiceId: string,
+    amount?: number,
+    saleId?: string
+  ): Promise<VoucherResult> {
+    return this.createCreditNote(
+      tenantId,
+      salesPointId,
+      originalInvoiceId,
+      AfipVoucherType.NOTA_CREDITO_A,
+      amount,
+      saleId
+    );
+  }
+
+  /**
    * Crea una Nota de Crédito B
    */
   async createCreditNoteB(
     tenantId: string,
     salesPointId: string,
     originalInvoiceId: string,
-    amount?: number
+    amount?: number,
+    saleId?: string
+  ): Promise<VoucherResult> {
+    return this.createCreditNote(
+      tenantId,
+      salesPointId,
+      originalInvoiceId,
+      AfipVoucherType.NOTA_CREDITO_B,
+      amount,
+      saleId
+    );
+  }
+
+  /**
+   * Crea una Nota de Crédito C
+   */
+  async createCreditNoteC(
+    tenantId: string,
+    salesPointId: string,
+    originalInvoiceId: string,
+    amount?: number,
+    saleId?: string
+  ): Promise<VoucherResult> {
+    return this.createCreditNote(
+      tenantId,
+      salesPointId,
+      originalInvoiceId,
+      AfipVoucherType.NOTA_CREDITO_C,
+      amount,
+      saleId
+    );
+  }
+
+  /**
+   * Método interno para crear notas de crédito
+   */
+  private async createCreditNote(
+    tenantId: string,
+    salesPointId: string,
+    originalInvoiceId: string,
+    voucherType: AfipVoucherType,
+    amount?: number,
+    saleId?: string
   ): Promise<VoucherResult> {
     // Obtener factura original
     const originalInvoice = await prisma.afipInvoice.findUnique({
@@ -426,12 +488,14 @@ class AfipService {
     }
 
     const totalAmount = amount || Number(originalInvoice.totalAmount);
-    const netAmount = Number(originalInvoice.netAmount) * (amount ? amount / Number(originalInvoice.totalAmount) : 1);
-    const taxAmount = Number(originalInvoice.taxAmount) * (amount ? amount / Number(originalInvoice.totalAmount) : 1);
+    const ratio = amount ? amount / Number(originalInvoice.totalAmount) : 1;
+    const netAmount = Number(originalInvoice.netAmount) * ratio;
+    const taxAmount = Number(originalInvoice.taxAmount) * ratio;
 
     return this.createVoucher(tenantId, {
       salesPointId,
-      voucherType: AfipVoucherType.NOTA_CREDITO_B,
+      saleId,
+      voucherType,
       concept: originalInvoice.concept,
       receiverDocType: parseInt(originalInvoice.receiverDocType),
       receiverDocNum: originalInvoice.receiverDocNum,

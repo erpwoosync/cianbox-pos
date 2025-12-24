@@ -102,15 +102,21 @@ class CreateSaleRequest:
 
     def to_dict(self) -> dict:
         """Convierte a diccionario para la API."""
-        return {
+        data = {
             "branchId": self.branch_id,
             "pointOfSaleId": self.point_of_sale_id,
             "items": [item.to_dict() for item in self.items],
             "payments": [payment.to_dict() for payment in self.payments],
-            "customerId": self.customer_id,
             "receiptType": self.receipt_type.value,
-            "notes": self.notes,
         }
+
+        # Solo incluir campos opcionales si tienen valor
+        if self.customer_id:
+            data["customerId"] = self.customer_id
+        if self.notes:
+            data["notes"] = self.notes
+
+        return data
 
 
 @dataclass
@@ -313,3 +319,78 @@ class SalesAPI:
             logger.error(f"Error listando ventas: {e}")
 
         return [], None
+
+    def refund_sale(
+        self,
+        sale_id: str,
+        items: List[dict],
+        reason: str,
+        emit_credit_note: bool = True,
+        sales_point_id: Optional[str] = None,
+    ) -> dict:
+        """
+        Procesa una devolucion de venta.
+
+        Args:
+            sale_id: ID de la venta original
+            items: Lista de items a devolver [{"saleItemId": str, "quantity": float}]
+            reason: Motivo de la devolucion
+            emit_credit_note: Si emitir nota de credito AFIP
+            sales_point_id: Punto de venta para la nota de credito
+
+        Returns:
+            Resultado de la devolucion
+        """
+        logger.info(f"Procesando devolucion de venta {sale_id}")
+
+        try:
+            data = {
+                "items": items,
+                "reason": reason,
+                "emitCreditNote": emit_credit_note,
+            }
+
+            if sales_point_id:
+                data["salesPointId"] = sales_point_id
+
+            response = self.client.post(
+                f"/api/sales/{sale_id}/refund",
+                data=data,
+            )
+
+            if response.success and response.data:
+                logger.info(f"Devolucion procesada exitosamente")
+                return {
+                    "success": True,
+                    "data": response.data,
+                }
+
+            return {
+                "success": False,
+                "error": response.error or "Error al procesar devolucion",
+            }
+
+        except Exception as e:
+            logger.error(f"Error procesando devolucion: {e}")
+            return {"success": False, "error": str(e)}
+
+    def get_refunds(self, sale_id: str) -> List[dict]:
+        """
+        Obtiene las devoluciones de una venta.
+
+        Args:
+            sale_id: ID de la venta
+
+        Returns:
+            Lista de devoluciones
+        """
+        try:
+            response = self.client.get(f"/api/sales/{sale_id}/refunds")
+
+            if response.success and response.data:
+                return response.data
+
+        except Exception as e:
+            logger.error(f"Error obteniendo devoluciones: {e}")
+
+        return []

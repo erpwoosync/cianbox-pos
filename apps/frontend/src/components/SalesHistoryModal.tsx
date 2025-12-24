@@ -17,9 +17,11 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { salesService } from '../services/api';
 import api from '../services/api';
+import RefundModal from './RefundModal';
 
 interface SaleItem {
   id: string;
@@ -129,6 +131,8 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
   COMPLETED: { label: 'Completada', color: 'green', icon: <CheckCircle className="w-4 h-4" /> },
   CANCELLED: { label: 'Anulada', color: 'red', icon: <XCircle className="w-4 h-4" /> },
   PENDING: { label: 'Pendiente', color: 'amber', icon: <Clock className="w-4 h-4" /> },
+  REFUNDED: { label: 'Devuelta', color: 'orange', icon: <RotateCcw className="w-4 h-4" /> },
+  PARTIAL_REFUND: { label: 'Dev. Parcial', color: 'orange', icon: <RotateCcw className="w-4 h-4" /> },
 };
 
 export default function SalesHistoryModal({
@@ -151,6 +155,7 @@ export default function SalesHistoryModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [isInvoicing, setIsInvoicing] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [showRefundModal, setShowRefundModal] = useState(false);
 
   // Cargar ventas
   useEffect(() => {
@@ -910,11 +915,36 @@ export default function SalesHistoryModal({
           <div className="text-sm text-gray-500">
             {!selectedSale && `${filteredSales.length} ventas encontradas`}
           </div>
-          <button onClick={onClose} className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-            Cerrar
-          </button>
+          <div className="flex gap-3">
+            {selectedSale && selectedSale.status !== 'REFUNDED' && selectedSale.status !== 'CANCELLED' && (
+              <button
+                onClick={() => setShowRefundModal(true)}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Devolver
+              </button>
+            )}
+            <button onClick={onClose} className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Modal de Devolucion */}
+      <RefundModal
+        isOpen={showRefundModal}
+        onClose={() => setShowRefundModal(false)}
+        sale={selectedSale}
+        onRefundComplete={() => {
+          setShowRefundModal(false);
+          loadSales();
+          if (selectedSale) {
+            loadSaleDetail(selectedSale.id);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -38,6 +38,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QProgressBar,
     QSpinBox,
+    QToolButton,
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent, QAction, QCloseEvent, QPixmap, QColor
@@ -46,11 +47,14 @@ from loguru import logger
 from src.config import get_settings
 from src.api import get_api_client, PromotionData, CalculationResult
 from src.api.products import ProductsAPI
+from src.api.sales import SalesAPI, CreateSaleRequest, SaleItemData, PaymentData as SalePaymentData
 from src.ui.styles import get_theme
 from src.services import get_sync_service, SyncStatus, SyncResult
 from src.models import Product, Category
-from src.ui.dialogs import CheckoutDialog, CheckoutResult, SizeCurveDialog, CustomerDialog
+from src.ui.dialogs import CheckoutDialog, CheckoutResult, SizeCurveDialog, CustomerDialog, InvoiceDialog, SalesHistoryDialog
+from src.ui.dialogs.checkout_dialog import PaymentData as CheckoutPaymentData
 from src.models import Customer
+from src.utils import get_image_loader
 
 
 class MainWindow(QMainWindow):
@@ -233,12 +237,13 @@ class MainWindow(QMainWindow):
         # Spacer
         layout.addStretch()
 
-        # Boton sincronizar
-        sync_btn = QPushButton("Sincronizar")
-        sync_btn.setFixedSize(100, 36)
-        sync_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        sync_btn.setStyleSheet(f"""
-            QPushButton {{
+        # Boton historial de ventas
+        sales_btn = QToolButton()
+        sales_btn.setText("Ventas")
+        sales_btn.setFixedSize(80, 36)
+        sales_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        sales_btn.setStyleSheet(f"""
+            QToolButton {{
                 background-color: transparent;
                 color: {self.theme.gray_400};
                 border: 1px solid {self.theme.gray_600};
@@ -246,7 +251,30 @@ class MainWindow(QMainWindow):
                 font-size: 12px;
                 font-weight: 500;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
+                background-color: {self.theme.success};
+                border-color: {self.theme.success};
+                color: white;
+            }}
+        """)
+        sales_btn.clicked.connect(self._on_sales_history_click)
+        layout.addWidget(sales_btn)
+
+        # Boton sincronizar
+        sync_btn = QToolButton()
+        sync_btn.setText("Sincronizar")
+        sync_btn.setFixedSize(100, 36)
+        sync_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        sync_btn.setStyleSheet(f"""
+            QToolButton {{
+                background-color: transparent;
+                color: {self.theme.gray_400};
+                border: 1px solid {self.theme.gray_600};
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+            }}
+            QToolButton:hover {{
                 background-color: {self.theme.primary};
                 border-color: {self.theme.primary};
                 color: white;
@@ -306,11 +334,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(user_info)
 
         # Boton cerrar sesion
-        logout_btn = QPushButton("Salir")
+        logout_btn = QToolButton()
+        logout_btn.setText("Salir")
         logout_btn.setFixedSize(80, 36)
         logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         logout_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: transparent;
                 color: {self.theme.gray_400};
                 border: 1px solid {self.theme.gray_600};
@@ -318,7 +347,7 @@ class MainWindow(QMainWindow):
                 font-size: 12px;
                 font-weight: 500;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.danger};
                 border-color: {self.theme.danger};
                 color: white;
@@ -454,7 +483,7 @@ class MainWindow(QMainWindow):
         self.categories_layout.setContentsMargins(0, 0, 0, 0)
         self.categories_layout.setSpacing(4)
 
-        self.category_buttons: Dict[str, QPushButton] = {}
+        self.category_buttons: Dict[str, QToolButton] = {}
 
         # Agregar categoria "Todos" por defecto
         all_cat = {"id": "all", "name": "Todos", "color": None}
@@ -468,16 +497,19 @@ class MainWindow(QMainWindow):
 
         return sidebar
 
-    def _create_category_button(self, category: Dict[str, Any]) -> QPushButton:
+    def _create_category_button(self, category: Dict[str, Any]) -> QToolButton:
         """Crea un boton de categoria."""
-        btn = QPushButton(category.get("name", "Sin nombre"))
+        btn = QToolButton()
+        btn.setText(category.get("name", "Sin nombre"))
         btn.setFixedHeight(42)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setProperty("category_id", category.get("id"))
         btn.setProperty("category_color", category.get("color"))
+        btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: transparent;
                 color: {self.theme.gray_700};
                 border: none;
@@ -487,7 +519,7 @@ class MainWindow(QMainWindow):
                 font-weight: 500;
                 text-align: left;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.gray_200};
             }}
         """)
@@ -537,7 +569,7 @@ class MainWindow(QMainWindow):
             if cat_id == category_id:
                 bg = color if color else self.theme.primary
                 btn.setStyleSheet(f"""
-                    QPushButton {{
+                    QToolButton {{
                         background-color: {bg};
                         color: white;
                         border: none;
@@ -550,7 +582,7 @@ class MainWindow(QMainWindow):
                 """)
             else:
                 btn.setStyleSheet(f"""
-                    QPushButton {{
+                    QToolButton {{
                         background-color: transparent;
                         color: {self.theme.gray_700};
                         border: none;
@@ -560,7 +592,7 @@ class MainWindow(QMainWindow):
                         font-weight: 500;
                         text-align: left;
                     }}
-                    QPushButton:hover {{
+                    QToolButton:hover {{
                         background-color: {self.theme.gray_200};
                     }}
                 """)
@@ -593,15 +625,16 @@ class MainWindow(QMainWindow):
         layout.addWidget(label)
 
         # Contenedor de botones de categorias (botones mas anchos para evitar cortes)
-        self.quick_category_buttons: List[QPushButton] = []
+        self.quick_category_buttons: List[QToolButton] = []
         for i in range(9):  # F1-F9
-            btn = QPushButton(f"F{i+1}")
+            btn = QToolButton()
+            btn.setText(f"F{i+1}")
             btn.setFixedHeight(26)
             btn.setMinimumWidth(70)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setProperty("quick_index", i)
             btn.setStyleSheet(f"""
-                QPushButton {{
+                QToolButton {{
                     background-color: {self.theme.gray_100};
                     color: {self.theme.gray_400};
                     border: 1px solid {self.theme.border_light};
@@ -610,12 +643,12 @@ class MainWindow(QMainWindow):
                     font-weight: 500;
                     padding: 0 6px;
                 }}
-                QPushButton:hover {{
+                QToolButton:hover {{
                     background-color: {self.theme.primary_bg};
                     border-color: {self.theme.primary};
                     color: {self.theme.primary};
                 }}
-                QPushButton:disabled {{
+                QToolButton:disabled {{
                     background-color: {self.theme.gray_50};
                     color: {self.theme.gray_300};
                 }}
@@ -649,7 +682,7 @@ class MainWindow(QMainWindow):
                 # Estilo con color de categoria si existe
                 cat_color = getattr(cat, 'color', None) or self.theme.primary
                 btn.setStyleSheet(f"""
-                    QPushButton {{
+                    QToolButton {{
                         background-color: {self.theme.surface};
                         color: {self.theme.gray_700};
                         border: 1px solid {self.theme.border};
@@ -657,7 +690,7 @@ class MainWindow(QMainWindow):
                         font-size: 10px;
                         font-weight: 500;
                     }}
-                    QPushButton:hover {{
+                    QToolButton:hover {{
                         background-color: {self.theme.primary_bg};
                         border-color: {self.theme.primary};
                         color: {self.theme.primary};
@@ -708,12 +741,13 @@ class MainWindow(QMainWindow):
         header.addStretch()
 
         # Boton para mostrar solo promociones (F6)
-        self.promo_filter_btn = QPushButton("🏷️ Promociones (F6)")
+        self.promo_filter_btn = QToolButton()
+        self.promo_filter_btn.setText("🏷️ Promociones (F6)")
         self.promo_filter_btn.setFixedHeight(28)
         self.promo_filter_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.promo_filter_btn.setCheckable(True)
         self.promo_filter_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.surface};
                 color: {self.theme.gray_600};
                 border: 1px solid {self.theme.border};
@@ -721,11 +755,11 @@ class MainWindow(QMainWindow):
                 padding: 0 12px;
                 font-size: 11px;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.warning_bg};
                 border-color: {self.theme.warning};
             }}
-            QPushButton:checked {{
+            QToolButton:checked {{
                 background-color: {self.theme.warning};
                 color: white;
                 border-color: {self.theme.warning};
@@ -737,11 +771,12 @@ class MainWindow(QMainWindow):
         header.addSpacing(8)
 
         # Boton de consulta de productos (F3)
-        self.lookup_btn = QPushButton("🔍 Consultar (F3)")
+        self.lookup_btn = QToolButton()
+        self.lookup_btn.setText("🔍 Consultar (F3)")
         self.lookup_btn.setFixedHeight(28)
         self.lookup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.lookup_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.surface};
                 color: {self.theme.gray_600};
                 border: 1px solid {self.theme.border};
@@ -749,7 +784,7 @@ class MainWindow(QMainWindow):
                 padding: 0 12px;
                 font-size: 11px;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.info_bg};
                 border-color: {self.theme.info};
             }}
@@ -760,11 +795,12 @@ class MainWindow(QMainWindow):
         header.addSpacing(8)
 
         # Toggle de vista Grid/Lista (F7)
-        self.view_toggle_btn = QPushButton("☰ Lista (F7)")
+        self.view_toggle_btn = QToolButton()
+        self.view_toggle_btn.setText("☰ Lista (F7)")
         self.view_toggle_btn.setFixedHeight(28)
         self.view_toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.view_toggle_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.surface};
                 color: {self.theme.gray_600};
                 border: 1px solid {self.theme.border};
@@ -772,7 +808,7 @@ class MainWindow(QMainWindow):
                 padding: 0 12px;
                 font-size: 11px;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.gray_100};
             }}
         """)
@@ -797,7 +833,7 @@ class MainWindow(QMainWindow):
         self.products_container.setStyleSheet("background: transparent;")
         self.products_grid = QGridLayout(self.products_container)
         self.products_grid.setContentsMargins(0, 0, 0, 0)
-        self.products_grid.setSpacing(12)
+        self.products_grid.setSpacing(4)
 
         scroll.setWidget(self.products_container)
         layout.addWidget(scroll, 1)
@@ -822,14 +858,14 @@ class MainWindow(QMainWindow):
             hover_border_color = promo_color
 
         card = QFrame()
-        card.setFixedSize(145, 165)
+        card.setFixedSize(185, 235)
         card.setCursor(Qt.CursorShape.PointingHandCursor)
         card.setProperty("product_id", product.id)
         card.setStyleSheet(f"""
             QFrame {{
                 background-color: {self.theme.surface};
-                border: 2px solid {border_color};
-                border-radius: 10px;
+                border: 1px solid {border_color};
+                border-radius: 6px;
             }}
             QFrame:hover {{
                 border-color: {hover_border_color};
@@ -838,8 +874,8 @@ class MainWindow(QMainWindow):
         """)
 
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(2)
 
         # Contenedor de imagen con badge
         img_wrapper = QWidget()
@@ -847,21 +883,32 @@ class MainWindow(QMainWindow):
 
         # Imagen placeholder
         img_container = QFrame(img_wrapper)
-        img_container.setGeometry(0, 0, 129, 55)
+        img_container.setGeometry(0, 0, 175, 135)
         img_container.setStyleSheet(f"""
             QFrame {{
                 background-color: {self.theme.gray_100};
-                border-radius: 6px;
+                border-radius: 4px;
                 border: none;
             }}
         """)
         img_layout = QVBoxLayout(img_container)
         img_layout.setContentsMargins(0, 0, 0, 0)
 
-        img_icon = QLabel("[IMG]")
-        img_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        img_icon.setStyleSheet(f"color: {self.theme.gray_400}; font-size: 10px; border: none;")
-        img_layout.addWidget(img_icon)
+        img_label = QLabel()
+        img_label.setFixedSize(165, 130)
+        img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        img_label.setScaledContents(False)
+        img_label.setStyleSheet(f"color: {self.theme.gray_400}; font-size: 10px; border: none;")
+        img_layout.addWidget(img_label)
+
+        # Cargar imagen del producto
+        image_url = product.thumbnail_url or product.image_url
+        if image_url:
+            img_label.setText("")
+            loader = get_image_loader()
+            loader.load_image(image_url, img_label, width=165, height=130, placeholder="[IMG]")
+        else:
+            img_label.setText("[IMG]")
 
         # Badge de promocion (esquina superior derecha)
         if promo:
@@ -883,7 +930,7 @@ class MainWindow(QMainWindow):
             """)
             badge.adjustSize()
             # Posicionar en esquina superior derecha
-            badge.move(129 - badge.width() + 6, -3)
+            badge.move(175 - badge.width() + 6, -3)
 
         # Badge de producto padre (curva de talles) - esquina superior izquierda
         if product.is_parent:
@@ -903,7 +950,30 @@ class MainWindow(QMainWindow):
             parent_badge.adjustSize()
             parent_badge.move(-3, -3)
 
-        img_wrapper.setFixedHeight(55)
+        # Boton quick view (esquina inferior derecha de imagen)
+        if image_url:
+            quick_view_btn = QToolButton(img_wrapper)
+            quick_view_btn.setText("\U0001F50D")  # Lupa emoji
+            quick_view_btn.setFixedSize(18, 18)
+            quick_view_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            quick_view_btn.setStyleSheet(f"""
+                QToolButton {{
+                    background-color: rgba(0, 0, 0, 0.5);
+                    color: white;
+                    border: none;
+                    border-radius: 9px;
+                    font-size: 10px;
+                }}
+                QToolButton:hover {{
+                    background-color: rgba(0, 0, 0, 0.7);
+                }}
+            """)
+            quick_view_btn.move(155, 115)
+            quick_view_btn.clicked.connect(
+                lambda checked, url=image_url, name=product.name: self._show_quick_view(url, name)
+            )
+
+        img_wrapper.setFixedHeight(140)
         layout.addWidget(img_wrapper)
 
         # Nombre del producto
@@ -1001,11 +1071,12 @@ class MainWindow(QMainWindow):
 
         header_layout.addStretch()
 
-        clear_btn = QPushButton("Limpiar")
+        clear_btn = QToolButton()
+        clear_btn.setText("Limpiar")
         clear_btn.setFixedHeight(32)
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: transparent;
                 color: {self.theme.danger};
                 border: 1px solid {self.theme.danger};
@@ -1014,7 +1085,7 @@ class MainWindow(QMainWindow):
                 font-size: 11px;
                 font-weight: 500;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.danger_bg};
             }}
         """)
@@ -1111,21 +1182,23 @@ class MainWindow(QMainWindow):
         actions_layout.setSpacing(8)
 
         # Boton COBRAR
-        checkout_btn = QPushButton("COBRAR (F12)")
+        checkout_btn = QToolButton()
+        checkout_btn.setText("COBRAR (F12)")
         checkout_btn.setFixedHeight(56)
         checkout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         checkout_btn.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        checkout_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         checkout_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.success};
                 color: white;
                 border: none;
                 border-radius: 12px;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.success_dark};
             }}
-            QPushButton:disabled {{
+            QToolButton:disabled {{
                 background-color: {self.theme.gray_300};
             }}
         """)
@@ -1136,11 +1209,13 @@ class MainWindow(QMainWindow):
         secondary_row = QHBoxLayout()
         secondary_row.setSpacing(8)
 
-        discount_btn = QPushButton("Descuento (F4)")
+        discount_btn = QToolButton()
+        discount_btn.setText("Descuento (F4)")
         discount_btn.setFixedHeight(40)
         discount_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        discount_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         discount_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.warning};
                 color: {self.theme.gray_900};
                 border: none;
@@ -1148,19 +1223,21 @@ class MainWindow(QMainWindow):
                 font-size: 12px;
                 font-weight: 600;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.warning_dark};
             }}
         """)
         discount_btn.clicked.connect(self._on_discount)
         secondary_row.addWidget(discount_btn)
 
-        suspend_btn = QPushButton("Suspender (F10)")
+        suspend_btn = QToolButton()
+        suspend_btn.setText("Suspender (F10)")
         suspend_btn.setFixedHeight(40)
         suspend_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         suspend_btn.setToolTip("Guardar venta para continuar despues")
+        suspend_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         suspend_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.surface};
                 color: {self.theme.info};
                 border: 2px solid {self.theme.info};
@@ -1168,7 +1245,7 @@ class MainWindow(QMainWindow):
                 font-size: 12px;
                 font-weight: 600;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.info_bg};
             }}
         """)
@@ -1181,9 +1258,9 @@ class MainWindow(QMainWindow):
         return panel
 
     def _create_customer_panel(self) -> QFrame:
-        """Crea el panel de seleccion de cliente."""
+        """Crea el panel de seleccion de cliente estilo Material Design."""
         panel = QFrame()
-        panel.setFixedHeight(50)
+        panel.setFixedHeight(52)
         panel.setStyleSheet(f"""
             QFrame {{
                 background-color: {self.theme.surface};
@@ -1192,44 +1269,69 @@ class MainWindow(QMainWindow):
         """)
 
         layout = QHBoxLayout(panel)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 8, 12, 8)
+        layout.setSpacing(12)
 
-        # Icono de usuario
-        user_icon = QLabel("")
-        user_icon.setStyleSheet(f"color: {self.theme.gray_500}; font-size: 16px; background: transparent;")
-        layout.addWidget(user_icon)
+        # Contenedor de texto (label flotante + nombre)
+        text_container = QWidget()
+        text_container.setStyleSheet("background: transparent;")
+        text_layout = QVBoxLayout(text_container)
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(2)
+
+        # Label flotante pequeño
+        float_label = QLabel("Cliente")
+        float_label.setStyleSheet(f"""
+            color: {self.theme.gray_500};
+            font-size: 10px;
+            font-weight: 500;
+            background: transparent;
+        """)
+        text_layout.addWidget(float_label)
 
         # Nombre del cliente
         self.customer_label = QLabel("Consumidor Final")
         self.customer_label.setStyleSheet(f"""
             color: {self.theme.text_primary};
-            font-size: 12px;
+            font-size: 14px;
             font-weight: 500;
             background: transparent;
         """)
-        layout.addWidget(self.customer_label, 1)
+        text_layout.addWidget(self.customer_label)
 
-        # Boton cambiar cliente
-        change_btn = QPushButton("Cambiar")
-        change_btn.setFixedSize(70, 30)
-        change_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        change_btn.setStyleSheet(f"""
-            QPushButton {{
+        layout.addWidget(text_container, 1)
+
+        # Boton buscar/editar
+        search_btn = QToolButton()
+        search_btn.setText("🔍")
+        search_btn.setFixedSize(32, 32)
+        search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        search_btn.setToolTip("Seleccionar cliente (F11)")
+        search_btn.setStyleSheet(f"""
+            QToolButton {{
+                background-color: {self.theme.gray_100};
+                color: {self.theme.gray_600};
+                border: none;
+                border-radius: 16px;
+                font-size: 14px;
+                padding: 0;
+            }}
+            QToolButton:hover {{
                 background-color: {self.theme.primary_bg};
                 color: {self.theme.primary};
-                border: 1px solid {self.theme.primary};
-                border-radius: 4px;
-                font-size: 11px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: {self.theme.primary};
-                color: white;
             }}
         """)
-        change_btn.clicked.connect(self._on_select_customer)
-        layout.addWidget(change_btn)
+        search_btn.clicked.connect(self._on_select_customer)
+        layout.addWidget(search_btn)
+
+        # Label con atajo de teclado
+        shortcut_label = QLabel("F11")
+        shortcut_label.setStyleSheet(f"""
+            color: {self.theme.gray_400};
+            font-size: 9px;
+            background: transparent;
+        """)
+        layout.addWidget(shortcut_label)
 
         return panel
 
@@ -1256,7 +1358,7 @@ class MainWindow(QMainWindow):
             self.customer_label.setText(name)
             self.customer_label.setStyleSheet(f"""
                 color: {self.theme.primary};
-                font-size: 12px;
+                font-size: 14px;
                 font-weight: 600;
                 background: transparent;
             """)
@@ -1264,7 +1366,7 @@ class MainWindow(QMainWindow):
             self.customer_label.setText("Consumidor Final")
             self.customer_label.setStyleSheet(f"""
                 color: {self.theme.text_primary};
-                font-size: 12px;
+                font-size: 14px;
                 font-weight: 500;
                 background: transparent;
             """)
@@ -1297,8 +1399,8 @@ class MainWindow(QMainWindow):
         name = QLabel(item["name"])
         name.setStyleSheet(f"""
             color: {self.theme.text_primary};
-            font-size: 12px;
-            font-weight: 500;
+            font-size: 10px;
+            font-weight: 700;
             background: transparent;
         """)
         name.setWordWrap(True)
@@ -1327,6 +1429,7 @@ class MainWindow(QMainWindow):
         price_label.setStyleSheet(f"""
             color: {self.theme.gray_500};
             font-size: 11px;
+            font-weight: 600;
             background: transparent;
         """)
         info_layout.addWidget(price_label)
@@ -1337,7 +1440,7 @@ class MainWindow(QMainWindow):
             promo_label.setStyleSheet(f"""
                 color: {self.theme.success};
                 font-size: 10px;
-                font-weight: 500;
+                font-weight: 800;
                 background: transparent;
             """)
             info_layout.addWidget(promo_label)
@@ -1350,23 +1453,25 @@ class MainWindow(QMainWindow):
         qty_layout = QHBoxLayout(qty_widget)
         qty_layout.setContentsMargins(0, 0, 0, 0)
         qty_layout.setSpacing(4)
+        qty_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         # Boton - (usar unicode minus sign)
-        minus_btn = QPushButton("\u2212")  # Unicode minus sign
-        minus_btn.setFixedSize(26, 26)
+        minus_btn = QToolButton()
+        minus_btn.setText("\u2212")  # Unicode minus sign
+        minus_btn.setFixedSize(15, 15)
         minus_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         minus_btn.setToolTip("Quitar una unidad")
         minus_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.gray_200};
                 color: {self.theme.text_primary};
                 border: none;
-                border-radius: 4px;
-                font-size: 16px;
+                border-radius: 3px;
+                font-size: 11px;
                 font-weight: bold;
                 font-family: Arial, sans-serif;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.gray_300};
             }}
         """)
@@ -1376,16 +1481,17 @@ class MainWindow(QMainWindow):
 
         # Campo de cantidad editable
         qty_input = QLineEdit(str(item["quantity"]))
-        qty_input.setFixedSize(40, 24)
+        qty_input.setFixedSize(28, 18)
         qty_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         qty_input.setStyleSheet(f"""
             QLineEdit {{
                 background-color: {self.theme.surface};
                 color: {self.theme.text_primary};
                 border: 1px solid {self.theme.border};
-                border-radius: 4px;
-                font-size: 12px;
+                border-radius: 3px;
+                font-size: 11px;
                 font-weight: 600;
+                padding: 0;
             }}
             QLineEdit:focus {{
                 border-color: {self.theme.primary};
@@ -1396,21 +1502,22 @@ class MainWindow(QMainWindow):
         qty_layout.addWidget(qty_input)
 
         # Boton + (usar unicode plus sign)
-        plus_btn = QPushButton("\u002B")  # Plus sign
-        plus_btn.setFixedSize(26, 26)
+        plus_btn = QToolButton()
+        plus_btn.setText("\u002B")  # Plus sign
+        plus_btn.setFixedSize(15, 15)
         plus_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         plus_btn.setToolTip("Agregar una unidad")
         plus_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.primary};
                 color: white;
                 border: none;
-                border-radius: 4px;
-                font-size: 16px;
+                border-radius: 3px;
+                font-size: 11px;
                 font-weight: bold;
                 font-family: Arial, sans-serif;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: {self.theme.primary_dark};
             }}
         """)
@@ -1469,21 +1576,22 @@ class MainWindow(QMainWindow):
         layout.addWidget(subtotal_widget)
 
         # Boton eliminar (usar X simple)
-        delete_btn = QPushButton("X")
-        delete_btn.setFixedSize(26, 26)
+        delete_btn = QToolButton()
+        delete_btn.setText("X")
+        delete_btn.setFixedSize(17, 17)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_btn.setToolTip("Eliminar producto del carrito")
         delete_btn.setStyleSheet(f"""
-            QPushButton {{
+            QToolButton {{
                 background-color: {self.theme.danger};
                 color: white;
                 border: none;
-                border-radius: 13px;
-                font-size: 12px;
+                border-radius: 8px;
+                font-size: 9px;
                 font-weight: bold;
                 font-family: Arial, sans-serif;
             }}
-            QPushButton:hover {{
+            QToolButton:hover {{
                 background-color: #DC2626;
             }}
         """)
@@ -1652,6 +1760,11 @@ class MainWindow(QMainWindow):
         """Manejador de click en boton sincronizar."""
         self._start_sync()
 
+    def _on_sales_history_click(self) -> None:
+        """Abre el dialogo de historial de ventas."""
+        dialog = SalesHistoryDialog(parent=self)
+        dialog.exec()
+
     def _focus_search(self) -> None:
         """Pone el focus en el campo de busqueda."""
         self.search_input.setFocus()
@@ -1699,7 +1812,7 @@ class MainWindow(QMainWindow):
 
     def _render_products_grid(self, products: List[Product]) -> None:
         """Renderiza productos en formato grid (cards)."""
-        cols = 5  # Numero de columnas
+        cols = 6  # Numero de columnas
         for i, product in enumerate(products):
             row = i // cols
             col = i % cols
@@ -1924,6 +2037,53 @@ class MainWindow(QMainWindow):
             logger.debug(f"Busqueda: '{query}' - {len(products)} resultados")
         except Exception as e:
             logger.error(f"Error buscando productos: {e}")
+
+    def _show_quick_view(self, image_url: str, product_name: str) -> None:
+        """Muestra vista rapida de la imagen del producto en grande."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel
+        from PyQt6.QtCore import Qt
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(product_name)
+        dialog.setModal(True)
+        dialog.setFixedSize(450, 450)
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background-color: {self.theme.surface};
+            }}
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        # Label para la imagen
+        img_label = QLabel()
+        img_label.setFixedSize(430, 380)
+        img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        img_label.setStyleSheet(f"""
+            background-color: {self.theme.gray_100};
+            border-radius: 8px;
+        """)
+        img_label.setText("Cargando...")
+        layout.addWidget(img_label)
+
+        # Nombre del producto
+        name_label = QLabel(product_name)
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        name_label.setWordWrap(True)
+        name_label.setStyleSheet(f"""
+            color: {self.theme.text_primary};
+            font-size: 14px;
+            font-weight: 600;
+            padding: 5px;
+        """)
+        layout.addWidget(name_label)
+
+        # Cargar imagen grande
+        loader = get_image_loader()
+        loader.load_image(image_url, img_label, width=430, height=380, placeholder="[Sin imagen]")
+
+        dialog.exec()
 
     def _add_to_cart(self, product: Dict[str, Any]) -> None:
         """Agrega un producto al carrito."""
@@ -2400,14 +2560,149 @@ class MainWindow(QMainWindow):
             f"Metodos: {[p.method.value for p in result.payments]}"
         )
 
+        # Enviar venta al backend
+        sale_data = self._send_sale_to_backend(result)
+
         # Limpiar el carrito y cliente
         self.cart_items.clear()
         self.selected_customer = None
         self._update_customer_display()
         self._update_cart_display()
 
-        # TODO: Registrar venta en el backend
-        # TODO: Imprimir ticket
+        # Mostrar dialogo de facturacion si la venta fue exitosa
+        if sale_data and sale_data.get("sale_id"):
+            self._show_invoice_dialog(sale_data)
+
+    def _show_invoice_dialog(self, sale_data: Dict[str, Any]) -> None:
+        """Muestra el dialogo de facturacion electronica."""
+        try:
+            dialog = InvoiceDialog(
+                sale_id=sale_data.get("sale_id", ""),
+                sale_number=sale_data.get("sale_number", ""),
+                total=sale_data.get("total", 0),
+                customer_name=sale_data.get("customer_name"),
+                parent=self,
+            )
+            dialog.exec()
+        except Exception as e:
+            logger.error(f"Error al mostrar dialogo de facturacion: {e}")
+
+    def _send_sale_to_backend(self, checkout_result: CheckoutResult) -> Optional[Dict[str, Any]]:
+        """
+        Envia la venta al backend.
+
+        Returns:
+            Diccionario con sale_id, sale_number y total si es exitoso, None si falla
+        """
+        # Verificar que tenemos terminal con punto de venta
+        if not self.terminal:
+            logger.warning("No hay terminal activa, la venta no se enviara al backend")
+            return None
+
+        point_of_sale_id = self.terminal.get("point_of_sale_id")
+        branch_id = self.terminal.get("branch_id")
+
+        if not point_of_sale_id or not branch_id:
+            logger.warning(
+                f"Terminal sin punto de venta asignado. "
+                f"POS ID: {point_of_sale_id}, Branch ID: {branch_id}"
+            )
+            QMessageBox.warning(
+                self,
+                "Terminal no configurada",
+                "La terminal no tiene un punto de venta asignado.\n"
+                "La venta se registro localmente pero no se envio al servidor.\n\n"
+                "Configure la terminal en el backoffice.",
+            )
+            return None
+
+        try:
+            # Crear items de venta
+            sale_items = []
+            for item in self.cart_items:
+                sale_item = SaleItemData(
+                    product_id=item.get("id"),
+                    product_code=item.get("code"),
+                    product_name=item.get("name", "Producto"),
+                    quantity=float(item.get("quantity", 1)),
+                    unit_price=float(item.get("price", 0)),
+                    discount=float(item.get("discount", 0)),
+                    promotion_id=item.get("promotion_id"),
+                    promotion_name=item.get("promotion_name"),
+                )
+                sale_items.append(sale_item)
+
+            # Crear pagos
+            sale_payments = []
+            for payment in checkout_result.payments:
+                sale_payment = SalePaymentData(
+                    method=payment.method,
+                    amount=float(payment.amount),
+                    card_last_four=payment.card_last_digits,
+                    installments=payment.installments,
+                    reference=payment.reference,
+                )
+                sale_payments.append(sale_payment)
+
+            # Determinar cliente (usar cliente por defecto si no hay seleccionado)
+            customer_id = None
+            customer_name = None
+            if self.selected_customer:
+                customer_id = self.selected_customer.id
+                customer_name = self.selected_customer.name
+            else:
+                # Obtener cliente por defecto (Consumidor Final, cianbox_id = 1)
+                default_customer = self.sync_service.get_default_customer()
+                if default_customer:
+                    customer_id = default_customer.id
+                    customer_name = default_customer.name
+                    logger.debug(f"Usando cliente por defecto: {default_customer.name}")
+
+            # Crear request
+            request = CreateSaleRequest(
+                branch_id=branch_id,
+                point_of_sale_id=point_of_sale_id,
+                items=sale_items,
+                payments=sale_payments,
+                customer_id=customer_id,
+            )
+
+            # Enviar venta
+            sales_api = SalesAPI()
+            sale_result = sales_api.create_sale(request)
+
+            if sale_result.success:
+                logger.info(
+                    f"Venta enviada exitosamente - "
+                    f"ID: {sale_result.sale_id}, "
+                    f"Numero: {sale_result.sale_number}, "
+                    f"Total: ${sale_result.total:,.2f}"
+                )
+                return {
+                    "sale_id": sale_result.sale_id,
+                    "sale_number": sale_result.sale_number,
+                    "total": sale_result.total,
+                    "customer_name": customer_name,
+                }
+            else:
+                logger.error(f"Error al enviar venta: {sale_result.error}")
+                QMessageBox.warning(
+                    self,
+                    "Error al registrar venta",
+                    f"La venta no se pudo enviar al servidor:\n{sale_result.error}\n\n"
+                    "La venta queda pendiente de sincronizacion.",
+                )
+                return None
+
+        except Exception as e:
+            logger.error(f"Error al enviar venta al backend: {e}")
+            QMessageBox.warning(
+                self,
+                "Error de conexion",
+                f"No se pudo conectar con el servidor:\n{str(e)}\n\n"
+                "La venta queda pendiente de sincronizacion.",
+            )
+            return None
 
     def _on_payment_cancelled(self) -> None:
         """Maneja la cancelacion del pago."""
@@ -2468,6 +2763,8 @@ class MainWindow(QMainWindow):
             self._on_quick_category(8)
         elif key == Qt.Key.Key_F10:
             self._on_suspend()
+        elif key == Qt.Key.Key_F11:
+            self._on_select_customer()
         elif key == Qt.Key.Key_F12:
             self._on_checkout()
         elif key == Qt.Key.Key_Escape:
