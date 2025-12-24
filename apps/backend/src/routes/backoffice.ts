@@ -2400,7 +2400,7 @@ router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Respons
 
     const qrBase64 = Buffer.from(JSON.stringify(qrData)).toString('base64');
     const qrUrl = `https://www.afip.gob.ar/fe/qr/?p=${qrBase64}`;
-    const qrImageUrl = `https://chart.googleapis.com/chart?chs=150x150&cht=qr&chl=${encodeURIComponent(qrUrl)}`;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}`;
 
     // Generar HTML de la factura
     const html = `
