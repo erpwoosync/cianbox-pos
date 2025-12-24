@@ -387,6 +387,8 @@ model Category {
   @@unique([tenantId, cianboxCategoryId])
   @@index([tenantId, parentId])
   @@index([tenantId, isQuickAccess, quickAccessOrder])
+  @@index([tenantId, isActive])
+  @@index([tenantId, name])
   @@map("categories")
 }
 
@@ -408,6 +410,8 @@ model Brand {
   products Product[]
 
   @@unique([tenantId, cianboxBrandId])
+  @@index([tenantId, isActive])
+  @@index([tenantId, name])
   @@map("brands")
 }
 
@@ -433,6 +437,7 @@ model PriceList {
   saleItems    SaleItem[]
 
   @@unique([tenantId, cianboxPriceListId])
+  @@index([tenantId, isActive])
   @@map("price_lists")
 }
 
@@ -520,6 +525,10 @@ model Product {
   @@index([tenantId, name])
   @@index([tenantId, parentProductId])
   @@index([tenantId, isParent])
+  @@index([tenantId, isActive])
+  @@index([tenantId, sku])
+  @@index([tenantId, isActive, categoryId])
+  @@index([tenantId, isActive, brandId])
   @@map("products")
 }
 
@@ -852,6 +861,10 @@ model Sale {
   @@index([tenantId, customerId])
   @@index([tenantId, status])
   @@index([cashSessionId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, branchId, status])
+  @@index([tenantId, userId, createdAt])
   @@map("sales")
 }
 

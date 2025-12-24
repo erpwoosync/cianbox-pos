@@ -298,7 +298,12 @@ router.get('/brands/:id', async (req: AuthenticatedRequest, res: Response, next:
 router.get('/products', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.user!.tenantId;
-    const { categoryId, brandId, search, parentsOnly, hideVariants } = req.query;
+    const { categoryId, brandId, search, parentsOnly, hideVariants, page, limit } = req.query;
+
+    // Paginación: por defecto 50 items, máximo 200
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 50));
+    const skip = (pageNum - 1) * limitNum;
 
     const where: {
       tenantId: string;
@@ -336,31 +341,46 @@ router.get('/products', async (req: AuthenticatedRequest, res: Response, next: N
       ];
     }
 
-    const products = await prisma.product.findMany({
-      where,
-      include: {
-        category: { select: { id: true, name: true } },
-        brand: { select: { id: true, name: true } },
-        prices: {
-          include: {
-            priceList: { select: { id: true, name: true } },
+    // Ejecutar count y findMany en paralelo para mejor performance
+    const [total, products] = await Promise.all([
+      prisma.product.count({ where }),
+      prisma.product.findMany({
+        where,
+        include: {
+          category: { select: { id: true, name: true } },
+          brand: { select: { id: true, name: true } },
+          prices: {
+            include: {
+              priceList: { select: { id: true, name: true } },
+            },
+          },
+          stock: {
+            include: {
+              branch: { select: { id: true, name: true } },
+            },
+          },
+          _count: {
+            select: { variants: true },
           },
         },
-        stock: {
-          include: {
-            branch: { select: { id: true, name: true } },
-          },
-        },
-        _count: {
-          select: { variants: true },
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+        orderBy: { name: 'asc' },
+        skip,
+        take: limitNum,
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limitNum);
 
     res.json({
       success: true,
       data: products,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasMore: pageNum < totalPages,
+      },
     });
   } catch (error) {
     next(error);

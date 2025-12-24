@@ -1,7 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { productsApi, categoriesApi, brandsApi, Product, Category, Brand } from '../services/api';
+import { productsApi, categoriesApi, brandsApi, Product, Category, Brand, ProductsResponse } from '../services/api';
 import { Package, RefreshCw, Search, Filter, Eye, ChevronLeft, ChevronRight, Layers, Grid3x3 } from 'lucide-react';
+
+// Hook para debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -12,60 +24,78 @@ export default function Products() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [hideVariants, setHideVariants] = useState(true); // Por defecto ocultar variantes
+  const [hideVariants, setHideVariants] = useState(true);
   const [parentsOnly, setParentsOnly] = useState(false);
   const [page, setPage] = useState(1);
-  const itemsPerPage = 20;
+  const [pagination, setPagination] = useState<ProductsResponse['pagination'] | null>(null);
+  const itemsPerPage = 50;
 
+  // Debounce search para evitar muchas llamadas al backend
+  const debouncedSearch = useDebounce(search, 300);
+
+  // Cargar categorías y marcas solo una vez
   useEffect(() => {
-    loadData();
+    const loadFilters = async () => {
+      try {
+        const [categoriesData, brandsData] = await Promise.all([
+          categoriesApi.getAll(),
+          brandsApi.getAll(),
+        ]);
+        setCategories(categoriesData);
+        setBrands(brandsData);
+      } catch (error) {
+        console.error('Error loading filters:', error);
+      }
+    };
+    loadFilters();
   }, []);
 
-  const loadData = async () => {
+  // Cargar productos cuando cambian los filtros
+  const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const [productsData, categoriesData, brandsData] = await Promise.all([
-        productsApi.getAll(),
-        categoriesApi.getAll(),
-        brandsApi.getAll(),
-      ]);
-      setProducts(productsData);
-      setCategories(categoriesData);
-      setBrands(brandsData);
+      const response = await productsApi.getAll({
+        categoryId: categoryFilter || undefined,
+        brandId: brandFilter || undefined,
+        search: debouncedSearch || undefined,
+        parentsOnly: parentsOnly || undefined,
+        hideVariants: hideVariants || undefined,
+        page,
+        limit: itemsPerPage,
+      });
+      setProducts(response.data);
+      setPagination(response.pagination);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading products:', error);
     } finally {
       setLoading(false);
     }
+  }, [categoryFilter, brandFilter, debouncedSearch, parentsOnly, hideVariants, page]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  // Reset page cuando cambian los filtros
+  useEffect(() => {
+    setPage(1);
+  }, [categoryFilter, brandFilter, debouncedSearch, parentsOnly, hideVariants]);
+
+  // Memoizar el conteo de filtros activos
+  const activeFiltersCount = useMemo(() => {
+    return (categoryFilter ? 1 : 0) + (brandFilter ? 1 : 0) + (parentsOnly ? 1 : 0);
+  }, [categoryFilter, brandFilter, parentsOnly]);
+
+  const handleRefresh = () => {
+    loadProducts();
   };
-
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      product.name.toLowerCase().includes(search.toLowerCase()) ||
-      product.sku.toLowerCase().includes(search.toLowerCase()) ||
-      (product.barcode && product.barcode.includes(search));
-    const matchesCategory = !categoryFilter || product.category?.id === categoryFilter;
-    const matchesBrand = !brandFilter || product.brand?.id === brandFilter;
-
-    // Filtros de productos variables
-    const matchesParentsOnly = !parentsOnly || product.isParent === true;
-    const matchesHideVariants = !hideVariants || !product.parentProductId;
-
-    return matchesSearch && matchesCategory && matchesBrand && matchesParentsOnly && matchesHideVariants;
-  });
-
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const paginatedProducts = filteredProducts.slice(
-    (page - 1) * itemsPerPage,
-    page * itemsPerPage
-  );
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
         <button
-          onClick={loadData}
+          onClick={handleRefresh}
           className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border rounded-lg hover:bg-gray-50"
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
@@ -83,10 +113,7 @@ export default function Products() {
                 type="text"
                 placeholder="Buscar por nombre, SKU o código de barras..."
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               />
             </div>
@@ -100,9 +127,9 @@ export default function Products() {
             >
               <Filter size={18} />
               Filtros
-              {(categoryFilter || brandFilter || parentsOnly) && (
+              {activeFiltersCount > 0 && (
                 <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
-                  {(categoryFilter ? 1 : 0) + (brandFilter ? 1 : 0) + (parentsOnly ? 1 : 0)}
+                  {activeFiltersCount}
                 </span>
               )}
             </button>
@@ -116,10 +143,7 @@ export default function Products() {
                   <input
                     type="checkbox"
                     checked={hideVariants}
-                    onChange={(e) => {
-                      setHideVariants(e.target.checked);
-                      setPage(1);
-                    }}
+                    onChange={(e) => setHideVariants(e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">Ocultar variantes</span>
@@ -131,7 +155,6 @@ export default function Products() {
                     onChange={(e) => {
                       setParentsOnly(e.target.checked);
                       if (e.target.checked) setHideVariants(true);
-                      setPage(1);
                     }}
                     className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
@@ -146,10 +169,7 @@ export default function Products() {
                   </label>
                   <select
                     value={categoryFilter}
-                    onChange={(e) => {
-                      setCategoryFilter(e.target.value);
-                      setPage(1);
-                    }}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                   >
                     <option value="">Todas las categorías</option>
@@ -166,10 +186,7 @@ export default function Products() {
                   </label>
                   <select
                     value={brandFilter}
-                    onChange={(e) => {
-                      setBrandFilter(e.target.value);
-                      setPage(1);
-                    }}
+                    onChange={(e) => setBrandFilter(e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                   >
                     <option value="">Todas las marcas</option>
@@ -190,7 +207,7 @@ export default function Products() {
           <div className="flex items-center justify-center py-12">
             <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : products.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             No se encontraron productos
           </div>
@@ -224,7 +241,7 @@ export default function Products() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {paginatedProducts.map((product) => (
+                  {products.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -301,12 +318,12 @@ export default function Products() {
             </div>
 
             {/* Pagination */}
-            {totalPages > 1 && (
+            {pagination && pagination.totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <p className="text-sm text-gray-500">
                   Mostrando {(page - 1) * itemsPerPage + 1} -{' '}
-                  {Math.min(page * itemsPerPage, filteredProducts.length)} de{' '}
-                  {filteredProducts.length}
+                  {Math.min(page * itemsPerPage, pagination.total)} de{' '}
+                  {pagination.total}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
@@ -317,11 +334,11 @@ export default function Products() {
                     <ChevronLeft size={18} />
                   </button>
                   <span className="text-sm text-gray-600">
-                    Página {page} de {totalPages}
+                    Página {page} de {pagination.totalPages}
                   </span>
                   <button
                     onClick={() => setPage(page + 1)}
-                    disabled={page === totalPages}
+                    disabled={page === pagination.totalPages}
                     className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronRight size={18} />
@@ -334,7 +351,7 @@ export default function Products() {
       </div>
 
       <div className="text-sm text-gray-500">
-        Total: {products.length} productos
+        Total: {pagination?.total || 0} productos
       </div>
     </div>
   );

@@ -115,6 +115,17 @@ export const brandsApi = {
 };
 
 // Products API
+export interface ProductsResponse {
+  data: Product[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
+
 export const productsApi = {
   getAll: async (params?: {
     categoryId?: string;
@@ -122,9 +133,14 @@ export const productsApi = {
     search?: string;
     parentsOnly?: boolean;  // Solo productos padre con variantes
     hideVariants?: boolean; // Ocultar variantes, mostrar padres y simples
-  }) => {
+    page?: number;
+    limit?: number;
+  }): Promise<ProductsResponse> => {
     const response = await api.get('/backoffice/products', { params });
-    return response.data.data;
+    return {
+      data: response.data.data,
+      pagination: response.data.pagination || { page: 1, limit: 50, total: response.data.data.length, totalPages: 1, hasMore: false },
+    };
   },
   getById: async (id: string) => {
     const response = await api.get(`/backoffice/products/${id}`);
