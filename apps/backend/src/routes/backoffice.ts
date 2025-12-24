@@ -2363,6 +2363,7 @@ router.post('/sales/:id/refund', async (req: AuthenticatedRequest, res: Response
         branchId: originalSale.branchId,
         pointOfSaleId: originalSale.pointOfSaleId,
         userId: req.user!.userId,
+        customerId: originalSale.customerId,
         cashSessionId: null,
         saleNumber: `DEV-${originalSale.saleNumber}`,
         saleDate: new Date(),
