@@ -323,7 +323,7 @@ export default function SaleDetail() {
       .filter((item) => item.selected && item.quantity > 0)
       .map((item) => ({
         saleItemId: item.saleItemId,
-        quantity: item.quantity,
+        quantity: Number(item.quantity),
       }));
 
     if (itemsToRefund.length === 0) {
