@@ -6,6 +6,7 @@
 import { Router, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import QRCode from 'qrcode';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError } from '../utils/errors.js';
 import { AfipService } from '../services/afip.service.js';
@@ -2414,7 +2415,13 @@ router.get('/invoices/:id/print', async (req: AuthenticatedRequest, res: Respons
 
     const qrBase64 = Buffer.from(JSON.stringify(qrData)).toString('base64');
     const qrUrl = `https://www.afip.gob.ar/fe/qr/?p=${qrBase64}`;
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}`;
+
+    // Generar QR como data URL base64
+    const qrImageUrl = await QRCode.toDataURL(qrUrl, {
+      width: 150,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+    });
 
     // Generar HTML de la factura
     const html = `
