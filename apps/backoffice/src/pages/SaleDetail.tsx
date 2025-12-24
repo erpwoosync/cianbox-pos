@@ -335,6 +335,7 @@ export default function SaleDetail() {
     setRefundError(null);
 
     try {
+      console.log('Items to refund:', JSON.stringify(itemsToRefund, null, 2));
       console.log('Enviando refund request:', { items: itemsToRefund, reason: refundReason.trim(), emitCreditNote });
 
       const response = await api.post(`/backoffice/sales/${id}/refund`, {
@@ -360,6 +361,7 @@ export default function SaleDetail() {
       }
     } catch (error: any) {
       console.error('Error procesando devolucion:', error);
+      console.error('Response data:', error.response?.data);
       let errorMsg = 'Error al procesar devolucion';
 
       if (error.response?.data?.error) {
