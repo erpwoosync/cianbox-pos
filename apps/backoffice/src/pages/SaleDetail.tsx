@@ -949,7 +949,7 @@ export default function SaleDetail() {
                 <div className="mt-3 pt-3 border-t border-gray-200 flex justify-end">
                   <button
                     onClick={() => {
-                      const token = localStorage.getItem('token');
+                      const token = localStorage.getItem('backoffice_token');
                       window.open(`/api/backoffice/invoices/${invoice.id}/print?token=${token}`, '_blank');
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
