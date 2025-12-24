@@ -2338,7 +2338,14 @@ router.post('/sales/:id/refund', async (req: AuthenticatedRequest, res: Response
         throw new ApiError(400, 'INVALID_QUANTITY', `Cantidad a devolver excede la original`);
       }
 
-      const subtotal = item.quantity * Number(originalItem.unitPrice) * (1 - Number(originalItem.discount) / 100);
+      // El subtotal original ya tiene el descuento aplicado
+      // Calcular proporcionalmente según la cantidad a devolver
+      const originalQuantity = Number(originalItem.quantity);
+      const originalSubtotal = Number(originalItem.subtotal);
+      const subtotal = (item.quantity / originalQuantity) * originalSubtotal;
+
+      console.log(`[Refund] Item: ${originalItem.productName}, qty: ${item.quantity}/${originalQuantity}, originalSubtotal: ${originalSubtotal}, refundSubtotal: ${subtotal}`);
+
       refundTotal += subtotal;
 
       refundItems.push({ originalItem, quantity: item.quantity, subtotal });
