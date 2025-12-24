@@ -31,6 +31,8 @@ interface RefundItem {
   maxQuantity: number;
   productName: string;
   unitPrice: number;
+  discount: number;
+  subtotal: number;
   selected: boolean;
 }
 
@@ -256,6 +258,8 @@ export default function SaleDetail() {
         maxQuantity: item.quantity,
         productName: item.productName,
         unitPrice: item.unitPrice,
+        discount: item.discount,
+        subtotal: item.subtotal,
         selected: true,
       }))
     );
@@ -304,7 +308,11 @@ export default function SaleDetail() {
   const calculateRefundTotal = () => {
     return refundItems
       .filter((item) => item.selected && item.quantity > 0)
-      .reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      .reduce((sum, item) => {
+        // Usar el subtotal proporcional (ya tiene descuento aplicado)
+        const proportionalSubtotal = (item.quantity / item.maxQuantity) * item.subtotal;
+        return sum + proportionalSubtotal;
+      }, 0);
   };
 
   const getSelectedRefundCount = () => {
@@ -917,9 +925,17 @@ export default function SaleDetail() {
                               <Package className="w-4 h-4 text-gray-400 flex-shrink-0" />
                               <span className="font-medium truncate">{item.productName}</span>
                             </div>
-                            <p className="text-sm text-gray-500">
-                              {formatCurrency(item.unitPrice)} x {item.maxQuantity}
-                            </p>
+                            <div className="text-sm text-gray-500">
+                              <span>{formatCurrency(item.unitPrice)} x {item.maxQuantity}</span>
+                              {item.discount > 0 && (
+                                <span className="ml-2 text-green-600">
+                                  (-{formatCurrency(item.discount)})
+                                </span>
+                              )}
+                              <span className="ml-2 font-medium text-gray-700">
+                                = {formatCurrency(item.subtotal)}
+                              </span>
+                            </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <input
