@@ -433,6 +433,77 @@ router.post('/devices/:deviceId/test-payment', authenticate, async (req: Authent
   }
 });
 
+/**
+ * GET /api/mercadopago/test-payment/:orderId/status
+ * Consulta el estado de un pago de prueba (para verificar si fue cancelado)
+ */
+router.get('/test-payment/:orderId/status', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { orderId } = req.params;
+
+    // Buscar la orden en nuestra BD
+    const order = await prisma.mercadoPagoOrder.findFirst({
+      where: {
+        orderId,
+        tenantId,
+      },
+      select: {
+        orderId: true,
+        status: true,
+        externalReference: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: 'Orden no encontrada',
+      });
+    }
+
+    // Consultar el estado actual en Mercado Pago para obtener actualización en tiempo real
+    try {
+      const mpStatus = await mercadoPagoService.getOrderStatus(tenantId, orderId);
+
+      res.json({
+        success: true,
+        data: {
+          orderId: order.orderId,
+          status: mpStatus.status,
+          externalReference: order.externalReference,
+          isTestPayment: order.externalReference?.startsWith('TEST-'),
+          isCancelled: mpStatus.status === 'CANCELED',
+          isFailed: mpStatus.status === 'FAILED',
+          isCompleted: mpStatus.status === 'CANCELED' || mpStatus.status === 'FAILED' || mpStatus.status === 'EXPIRED',
+        },
+      });
+    } catch {
+      // Si falla la consulta a MP, devolver el estado de nuestra BD
+      res.json({
+        success: true,
+        data: {
+          orderId: order.orderId,
+          status: order.status,
+          externalReference: order.externalReference,
+          isTestPayment: order.externalReference?.startsWith('TEST-'),
+          isCancelled: order.status === 'CANCELED',
+          isFailed: order.status === 'FAILED',
+          isCompleted: order.status === 'CANCELED' || order.status === 'FAILED' || order.status === 'EXPIRED',
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error consultando estado de pago de prueba:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al consultar estado',
+    });
+  }
+});
+
 // Rutas de asociación terminal→POS eliminadas - no soportado por API de MP
 // La asociación se hace desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
 

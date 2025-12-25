@@ -824,6 +824,24 @@ export const mercadoPagoApi = {
     return response.data;
   },
 
+  // Consultar estado de un pago de prueba
+  getTestPaymentStatus: async (orderId: string): Promise<{
+    success: boolean;
+    data?: {
+      orderId: string;
+      status: string;
+      externalReference: string;
+      isTestPayment: boolean;
+      isCancelled: boolean;
+      isFailed: boolean;
+      isCompleted: boolean;
+    };
+    error?: string;
+  }> => {
+    const response = await api.get(`/mercadopago/test-payment/${orderId}/status`);
+    return response.data;
+  },
+
   // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
   // Se configura desde el panel web de MP o desde el dispositivo físico:
   // Más opciones > Ajustes > Modo de vinculación

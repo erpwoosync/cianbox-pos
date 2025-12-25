@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi, stockApi } from '../services/api';
-import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, ToggleLeft, ToggleRight, Plus, X, Building2, Zap } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, ToggleLeft, ToggleRight, Plus, X, Building2, Zap, Info } from 'lucide-react';
 
 interface QRStore {
   id: string;
@@ -67,7 +67,7 @@ export default function Integrations() {
   const [isQrConnected, setIsQrConnected] = useState(false);
   const [mpDevices, setMpDevices] = useState<MercadoPagoDevice[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; message: string } | null>(null);
 
   // QR Stores and Cashiers
   const [qrStores, setQrStores] = useState<QRStore[]>([]);
@@ -515,26 +515,90 @@ export default function Integrations() {
     }
   };
 
-  // Enviar pago de prueba de $50 a un dispositivo
+  // Enviar pago de prueba de $50 a un dispositivo y esperar respuesta
   const handleTestPayment = async (deviceId: string) => {
-    if (!confirm('¿Enviar un pago de prueba de $50 al dispositivo?\n\nEsto enviará una solicitud de cobro de $50 pesos al dispositivo para verificar que la conexión funciona correctamente.\n\nDespués de verificar, cancela el pago desde la terminal.')) {
+    if (!confirm('¿Enviar un pago de prueba de $50 al dispositivo?\n\nEsto enviará una solicitud de cobro de $50 pesos al dispositivo para verificar que la conexión funciona correctamente.\n\nDespués de verificar, cancela el pago desde la terminal para confirmar que la comunicación bidireccional funciona.')) {
       return;
     }
 
     setTestingDeviceId(deviceId);
     try {
       const result = await mercadoPagoApi.sendTestPayment(deviceId);
-      if (result.success) {
-        setNotification({
-          type: 'success',
-          message: 'Pago de prueba enviado. Verifica en el dispositivo y cancélalo.',
-        });
-      } else {
+      if (!result.success || !result.data) {
         setNotification({
           type: 'error',
           message: result.error || 'Error al enviar pago de prueba',
         });
+        setTestingDeviceId(null);
+        return;
       }
+
+      const orderId = result.data.orderId;
+      setNotification({
+        type: 'info',
+        message: 'Pago de prueba enviado. Esperando respuesta del dispositivo...',
+      });
+
+      // Polling para verificar cuando se cancele el pago
+      const maxAttempts = 60; // 60 intentos x 2 segundos = 2 minutos máximo
+      let attempts = 0;
+
+      const pollStatus = async (): Promise<void> => {
+        attempts++;
+        try {
+          const statusResult = await mercadoPagoApi.getTestPaymentStatus(orderId);
+
+          if (statusResult.success && statusResult.data) {
+            if (statusResult.data.isCancelled) {
+              setNotification({
+                type: 'success',
+                message: 'Conexión verificada. El pago fue cancelado correctamente desde el dispositivo.',
+              });
+              setTestingDeviceId(null);
+              return;
+            } else if (statusResult.data.isFailed) {
+              setNotification({
+                type: 'warning',
+                message: 'El pago falló en el dispositivo. Verifica la configuración.',
+              });
+              setTestingDeviceId(null);
+              return;
+            } else if (statusResult.data.status === 'PROCESSED') {
+              setNotification({
+                type: 'warning',
+                message: 'El pago de prueba fue procesado. Se esperaba que fuera cancelado.',
+              });
+              setTestingDeviceId(null);
+              return;
+            }
+          }
+
+          // Si no está completado y no excedimos intentos, seguir consultando
+          if (attempts < maxAttempts) {
+            setTimeout(pollStatus, 2000); // Consultar cada 2 segundos
+          } else {
+            setNotification({
+              type: 'warning',
+              message: 'Tiempo de espera agotado. Verifica el estado manualmente en el dispositivo.',
+            });
+            setTestingDeviceId(null);
+          }
+        } catch {
+          if (attempts < maxAttempts) {
+            setTimeout(pollStatus, 2000);
+          } else {
+            setNotification({
+              type: 'error',
+              message: 'Error al verificar el estado del pago de prueba.',
+            });
+            setTestingDeviceId(null);
+          }
+        }
+      };
+
+      // Iniciar polling después de un pequeño delay
+      setTimeout(pollStatus, 2000);
+
     } catch (error: unknown) {
       console.error('Error sending test payment:', error);
       const err = error as { response?: { data?: { error?: string } }; message?: string };
@@ -542,7 +606,6 @@ export default function Integrations() {
         type: 'error',
         message: err.response?.data?.error || err.message || 'Error al enviar pago de prueba',
       });
-    } finally {
       setTestingDeviceId(null);
     }
   };
@@ -807,11 +870,19 @@ export default function Integrations() {
           className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center gap-3 max-w-md animate-in fade-in slide-in-from-top-2 ${
             notification.type === 'success'
               ? 'bg-green-600 text-white'
+              : notification.type === 'warning'
+              ? 'bg-yellow-500 text-white'
+              : notification.type === 'info'
+              ? 'bg-blue-600 text-white'
               : 'bg-red-600 text-white'
           }`}
         >
           {notification.type === 'success' ? (
             <CheckCircle size={20} />
+          ) : notification.type === 'warning' ? (
+            <AlertTriangle size={20} />
+          ) : notification.type === 'info' ? (
+            <Info size={20} />
           ) : (
             <XCircle size={20} />
           )}
