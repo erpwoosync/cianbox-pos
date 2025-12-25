@@ -467,7 +467,7 @@ export default function POS() {
     try {
       const [quickAccessRes, productsRes, posRes, promotionsRes] = await Promise.all([
         categoriesService.getQuickAccess(),
-        productsService.list({ pageSize: 100 }),
+        productsService.list({ pageSize: 50 }),
         pointsOfSaleService.list(),
         promotionsService.getActive(),
       ]);

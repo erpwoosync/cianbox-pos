@@ -3,7 +3,7 @@
  * Permite buscar productos simples y variables, ver stock en todas las sucursales
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search,
   Loader2,
@@ -175,28 +175,50 @@ export default function ProductLookup() {
     }
   }, [selectedBranchId]);
 
-  const handleSearch = useCallback(async (query: string) => {
+  // Ref para debounce
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Limpiar timeout al desmontar
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     setSelectedProduct(null);
     setProductDetail(null);
     setSizeCurve(null);
 
+    // Limpiar timeout anterior
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
     if (query.length < 2) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
-    try {
-      const response = await productsService.search(query, undefined, selectedBranchId || undefined);
-      if (response.success) {
-        setSearchResults(response.data);
+
+    // Debounce de 300ms
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await productsService.search(query, undefined, selectedBranchId || undefined);
+        if (response.success) {
+          setSearchResults(response.data);
+        }
+      } catch (error) {
+        console.error('Error en búsqueda:', error);
+      } finally {
+        setIsSearching(false);
       }
-    } catch (error) {
-      console.error('Error en búsqueda:', error);
-    } finally {
-      setIsSearching(false);
-    }
+    }, 300);
   }, [selectedBranchId]);
 
   const handleSelectProduct = (product: Product) => {
