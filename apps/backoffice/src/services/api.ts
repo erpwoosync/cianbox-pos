@@ -809,6 +809,21 @@ export const mercadoPagoApi = {
     return response.data;
   },
 
+  // Enviar pago de prueba de $50 a un dispositivo Point
+  sendTestPayment: async (deviceId: string): Promise<{
+    success: boolean;
+    data?: {
+      orderId: string;
+      amount: number;
+      externalReference: string;
+      message: string;
+    };
+    error?: string;
+  }> => {
+    const response = await api.post(`/mercadopago/devices/${deviceId}/test-payment`);
+    return response.data;
+  },
+
   // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
   // Se configura desde el panel web de MP o desde el dispositivo físico:
   // Más opciones > Ajustes > Modo de vinculación

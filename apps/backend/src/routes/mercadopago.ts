@@ -395,6 +395,44 @@ router.patch('/devices/:deviceId/operating-mode', authenticate, async (req: Auth
   }
 });
 
+/**
+ * POST /api/mercadopago/devices/:deviceId/test-payment
+ * Envía un pago de prueba de $50 al dispositivo para verificar la conexión
+ */
+router.post('/devices/:deviceId/test-payment', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { deviceId } = req.params;
+
+    // Generar referencia única para el test
+    const externalReference = `TEST-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    const result = await mercadoPagoService.createPointOrder({
+      tenantId,
+      deviceId,
+      amount: 50, // $50 pesos de prueba
+      externalReference,
+      description: 'Pago de prueba - Verificación de conexión',
+    });
+
+    res.json({
+      success: true,
+      data: {
+        orderId: result.orderId,
+        amount: 50,
+        externalReference,
+        message: 'Pago de prueba enviado al dispositivo. Cancélalo desde la terminal.',
+      },
+    });
+  } catch (error) {
+    console.error('Error enviando pago de prueba:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al enviar pago de prueba',
+    });
+  }
+});
+
 // Rutas de asociación terminal→POS eliminadas - no soportado por API de MP
 // La asociación se hace desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
 

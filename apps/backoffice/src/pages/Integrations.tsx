@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi, stockApi } from '../services/api';
-import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, ToggleLeft, ToggleRight, Plus, X, Building2 } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, ToggleLeft, ToggleRight, Plus, X, Building2, Zap } from 'lucide-react';
 
 interface QRStore {
   id: string;
@@ -77,6 +77,7 @@ export default function Integrations() {
   const [systemBranches, setSystemBranches] = useState<SystemBranch[]>([]);
   const [linkingCashier, setLinkingCashier] = useState<number | null>(null);
   const [changingModeDeviceId, setChangingModeDeviceId] = useState<string | null>(null);
+  const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
 
   // Modales para crear store/cashier
   const [showCreateStoreModal, setShowCreateStoreModal] = useState(false);
@@ -514,6 +515,38 @@ export default function Integrations() {
     }
   };
 
+  // Enviar pago de prueba de $50 a un dispositivo
+  const handleTestPayment = async (deviceId: string) => {
+    if (!confirm('¿Enviar un pago de prueba de $50 al dispositivo?\n\nEsto enviará una solicitud de cobro de $50 pesos al dispositivo para verificar que la conexión funciona correctamente.\n\nDespués de verificar, cancela el pago desde la terminal.')) {
+      return;
+    }
+
+    setTestingDeviceId(deviceId);
+    try {
+      const result = await mercadoPagoApi.sendTestPayment(deviceId);
+      if (result.success) {
+        setNotification({
+          type: 'success',
+          message: 'Pago de prueba enviado. Verifica en el dispositivo y cancélalo.',
+        });
+      } else {
+        setNotification({
+          type: 'error',
+          message: result.error || 'Error al enviar pago de prueba',
+        });
+      }
+    } catch (error: unknown) {
+      console.error('Error sending test payment:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({
+        type: 'error',
+        message: err.response?.data?.error || err.message || 'Error al enviar pago de prueba',
+      });
+    } finally {
+      setTestingDeviceId(null);
+    }
+  };
+
   const handleConnect = async (appType: MercadoPagoAppType) => {
     const setConnecting = appType === 'POINT' ? setConnectingPoint : setConnectingQr;
     setConnecting(true);
@@ -914,26 +947,44 @@ export default function Integrations() {
                         </div>
                       )}
 
-                      {/* Botón para cambiar modo */}
-                      <button
-                        onClick={() => handleChangeDeviceMode(device.id, device.operating_mode)}
-                        disabled={isChanging}
-                        className={`mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
-                          isPDV
-                            ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            : 'bg-green-50 text-green-700 hover:bg-green-100'
-                        } disabled:opacity-50`}
-                        title={isPDV ? 'Cambiar a modo Independiente' : 'Cambiar a modo Integrado (PDV)'}
-                      >
-                        {isChanging ? (
-                          <RefreshCw size={16} className="animate-spin" />
-                        ) : isPDV ? (
-                          <ToggleRight size={16} />
-                        ) : (
-                          <ToggleLeft size={16} />
-                        )}
-                        {isPDV ? 'Cambiar a Independiente' : 'Cambiar a PDV'}
-                      </button>
+                      {/* Botones de acción */}
+                      <div className="mt-3 flex gap-2">
+                        {/* Botón de test de pago */}
+                        <button
+                          onClick={() => handleTestPayment(device.id)}
+                          disabled={testingDeviceId === device.id || isChanging}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors bg-yellow-50 text-yellow-700 hover:bg-yellow-100 disabled:opacity-50"
+                          title="Enviar pago de prueba de $50"
+                        >
+                          {testingDeviceId === device.id ? (
+                            <RefreshCw size={16} className="animate-spin" />
+                          ) : (
+                            <Zap size={16} />
+                          )}
+                          Test $50
+                        </button>
+
+                        {/* Botón para cambiar modo */}
+                        <button
+                          onClick={() => handleChangeDeviceMode(device.id, device.operating_mode)}
+                          disabled={isChanging || testingDeviceId === device.id}
+                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                            isPDV
+                              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              : 'bg-green-50 text-green-700 hover:bg-green-100'
+                          } disabled:opacity-50`}
+                          title={isPDV ? 'Cambiar a modo Independiente' : 'Cambiar a modo Integrado (PDV)'}
+                        >
+                          {isChanging ? (
+                            <RefreshCw size={16} className="animate-spin" />
+                          ) : isPDV ? (
+                            <ToggleRight size={16} />
+                          ) : (
+                            <ToggleLeft size={16} />
+                          )}
+                          {isPDV ? 'Independiente' : 'PDV'}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
