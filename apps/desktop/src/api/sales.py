@@ -327,6 +327,7 @@ class SalesAPI:
         reason: str,
         emit_credit_note: bool = True,
         sales_point_id: Optional[str] = None,
+        supervisor_pin: Optional[str] = None,
     ) -> dict:
         """
         Procesa una devolucion de venta.
@@ -337,6 +338,7 @@ class SalesAPI:
             reason: Motivo de la devolucion
             emit_credit_note: Si emitir nota de credito AFIP
             sales_point_id: Punto de venta para la nota de credito
+            supervisor_pin: PIN de supervisor para autorización (si el usuario no tiene permiso)
 
         Returns:
             Resultado de la devolucion
@@ -352,6 +354,9 @@ class SalesAPI:
 
             if sales_point_id:
                 data["salesPointId"] = sales_point_id
+
+            if supervisor_pin:
+                data["supervisorPin"] = supervisor_pin
 
             response = self.client.post(
                 f"/api/sales/{sale_id}/refund",

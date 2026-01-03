@@ -9,6 +9,7 @@ import {
   FileText,
 } from 'lucide-react';
 import api from '../services/api';
+import SupervisorPinModal from './SupervisorPinModal';
 
 interface SaleItem {
   id: string;
@@ -62,6 +63,11 @@ export default function RefundModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ message: string; creditNote?: any } | null>(null);
+
+  // Estado para autorizacion de supervisor
+  const [showSupervisorPin, setShowSupervisorPin] = useState(false);
+  const [supervisorPinError, setSupervisorPinError] = useState<string | null>(null);
+  const [isValidatingPin, setIsValidatingPin] = useState(false);
 
   // Inicializar items cuando cambia la venta
   useEffect(() => {
@@ -130,6 +136,59 @@ export default function RefundModal({
     );
   };
 
+  // Funcion para procesar la devolucion (con o sin PIN de supervisor)
+  const processRefund = async (supervisorPin?: string) => {
+    if (!sale) return;
+
+    const itemsToRefund = refundItems
+      .filter((item) => item.selected && item.quantity > 0)
+      .map((item) => ({
+        saleItemId: item.saleItemId,
+        quantity: item.quantity,
+      }));
+
+    try {
+      const response = await api.post(`/sales/${sale.id}/refund`, {
+        items: itemsToRefund,
+        reason: reason.trim(),
+        emitCreditNote,
+        salesPointId: sale.afipInvoices?.[0]?.salesPointId,
+        ...(supervisorPin && { supervisorPin }),
+      });
+
+      if (response.data.success) {
+        const data = response.data.data;
+        setShowSupervisorPin(false);
+        setSuccess({
+          message: data.isFullRefund
+            ? 'Devolucion total procesada correctamente'
+            : 'Devolucion parcial procesada correctamente',
+          creditNote: data.creditNote,
+        });
+        return true;
+      } else {
+        throw new Error(response.data.error || 'Error al procesar devolucion');
+      }
+    } catch (err: any) {
+      const errorMessage =
+        err.response?.data?.error || err.message || 'Error al procesar devolucion';
+      throw new Error(errorMessage);
+    }
+  };
+
+  // Detectar si es error de autorizacion
+  const isAuthorizationError = (errorMsg: string): boolean => {
+    const authPhrases = [
+      'no tienes permiso',
+      'autorización',
+      'autorizacion',
+      'requiere permiso',
+      'pos:refund',
+    ];
+    const lowerError = errorMsg.toLowerCase();
+    return authPhrases.some((phrase) => lowerError.includes(phrase));
+  };
+
   const handleSubmit = async () => {
     if (!sale) return;
 
@@ -154,32 +213,54 @@ export default function RefundModal({
     setError(null);
 
     try {
-      const response = await api.post(`/sales/${sale.id}/refund`, {
-        items: itemsToRefund,
-        reason: reason.trim(),
-        emitCreditNote,
-        salesPointId: sale.afipInvoices?.[0]?.salesPointId,
-      });
-
-      if (response.data.success) {
-        const data = response.data.data;
-        setSuccess({
-          message: data.isFullRefund
-            ? 'Devolucion total procesada correctamente'
-            : 'Devolucion parcial procesada correctamente',
-          creditNote: data.creditNote,
-        });
-      } else {
-        setError(response.data.error || 'Error al procesar devolucion');
-      }
+      await processRefund();
     } catch (err: any) {
       console.error('Error procesando devolucion:', err);
-      setError(
-        err.response?.data?.error || err.message || 'Error al procesar devolucion'
-      );
+
+      // Verificar si es error de autorizacion
+      if (isAuthorizationError(err.message)) {
+        // Mostrar modal de PIN de supervisor
+        setShowSupervisorPin(true);
+        setSupervisorPinError(null);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Manejar envio de PIN de supervisor
+  const handleSupervisorPinSubmit = async (pin: string) => {
+    setIsValidatingPin(true);
+    setSupervisorPinError(null);
+
+    try {
+      await processRefund(pin);
+    } catch (err: any) {
+      console.error('Error con PIN de supervisor:', err);
+
+      // Si el PIN es invalido, mostrar error en el modal
+      if (
+        err.message.toLowerCase().includes('pin') ||
+        err.message.toLowerCase().includes('supervisor') ||
+        err.message.toLowerCase().includes('invalido') ||
+        err.message.toLowerCase().includes('inválido')
+      ) {
+        setSupervisorPinError(err.message);
+      } else {
+        // Otro error, cerrar modal y mostrar en el form principal
+        setShowSupervisorPin(false);
+        setError(err.message);
+      }
+    } finally {
+      setIsValidatingPin(false);
+    }
+  };
+
+  const handleCloseSupervisorPin = () => {
+    setShowSupervisorPin(false);
+    setSupervisorPinError(null);
   };
 
   const handleClose = () => {
@@ -409,6 +490,16 @@ export default function RefundModal({
           </div>
         )}
       </div>
+
+      {/* Modal de PIN de supervisor */}
+      <SupervisorPinModal
+        isOpen={showSupervisorPin}
+        onClose={handleCloseSupervisorPin}
+        onSubmit={handleSupervisorPinSubmit}
+        message="No tienes permiso para procesar devoluciones. Un supervisor puede autorizar esta operacion."
+        isLoading={isValidatingPin}
+        error={supervisorPinError}
+      />
     </div>
   );
 }

@@ -14,6 +14,30 @@ from loguru import logger
 
 from .client import get_api_client, APIResponse
 from .exceptions import APIError
+import httpx
+
+
+@dataclass
+class TerminalIdentification:
+    """
+    Resultado de identificar una terminal.
+
+    Attributes:
+        registered: Si la terminal está registrada
+        is_active: Si está activa para operar
+        tenant_slug: Slug del tenant (empresa)
+        tenant_name: Nombre del tenant
+        terminal_name: Nombre de la terminal
+        branch_name: Nombre de la sucursal
+        message: Mensaje de estado (si hay error)
+    """
+    registered: bool
+    is_active: bool = False
+    tenant_slug: Optional[str] = None
+    tenant_name: Optional[str] = None
+    terminal_name: Optional[str] = None
+    branch_name: Optional[str] = None
+    message: Optional[str] = None
 
 
 @dataclass
@@ -76,6 +100,13 @@ class TerminalInfo:
         """Obtiene el nombre de lista de precios."""
         if self.point_of_sale and self.point_of_sale.get("priceList"):
             return self.point_of_sale["priceList"].get("name")
+        return None
+
+    @property
+    def pos_id(self) -> Optional[str]:
+        """Obtiene el ID del punto de venta."""
+        if self.point_of_sale:
+            return self.point_of_sale.get("id")
         return None
 
     @property
@@ -238,3 +269,92 @@ def get_terminal_status(device_id: str) -> Optional[str]:
     except Exception as e:
         logger.warning(f"Error consultando estado de terminal: {e}")
         return None
+
+
+def identify_terminal(mac_address: str, api_url: str) -> TerminalIdentification:
+    """
+    Identifica una terminal por MAC address ANTES del login.
+
+    Este endpoint es público y no requiere autenticación.
+    Se usa para determinar a qué tenant pertenece la terminal.
+
+    Args:
+        mac_address: Dirección MAC del dispositivo
+        api_url: URL base de la API
+
+    Returns:
+        TerminalIdentification con los datos del tenant
+    """
+    logger.info(f"Identificando terminal: {mac_address}")
+
+    try:
+        # Usamos httpx directamente porque no tenemos auth todavía
+        with httpx.Client(timeout=10.0) as client:
+            response = client.post(
+                f"{api_url}/api/pos/terminals/identify",
+                json={"macAddress": mac_address},
+            )
+
+            if response.status_code != 200:
+                logger.warning(f"Error identificando terminal: HTTP {response.status_code}")
+                return TerminalIdentification(
+                    registered=False,
+                    message="Error de conexión con el servidor",
+                )
+
+            data = response.json()
+
+            if not data.get("success"):
+                return TerminalIdentification(
+                    registered=False,
+                    message=data.get("error", {}).get("message", "Error desconocido"),
+                )
+
+            result = data.get("data", {})
+
+            if not result.get("registered"):
+                return TerminalIdentification(
+                    registered=False,
+                    message=result.get("message", "Terminal no registrada"),
+                )
+
+            # Terminal registrada
+            tenant = result.get("tenant", {})
+            terminal = result.get("terminal", {})
+            branch = result.get("branch", {})
+
+            identification = TerminalIdentification(
+                registered=True,
+                is_active=result.get("isActive", False),
+                tenant_slug=tenant.get("slug"),
+                tenant_name=tenant.get("name"),
+                terminal_name=terminal.get("name"),
+                branch_name=branch.get("name") if branch else None,
+                message=result.get("message"),
+            )
+
+            if identification.is_active:
+                logger.info(
+                    f"Terminal identificada: {identification.terminal_name} "
+                    f"@ {identification.tenant_name}"
+                )
+            else:
+                logger.warning(
+                    f"Terminal no activa: {identification.terminal_name} "
+                    f"- {identification.message}"
+                )
+
+            return identification
+
+    except httpx.ConnectError:
+        logger.error("No se pudo conectar al servidor")
+        return TerminalIdentification(
+            registered=False,
+            message="No se pudo conectar al servidor. Verifique la conexión.",
+        )
+    except Exception as e:
+        logger.error(f"Error identificando terminal: {e}")
+        return TerminalIdentification(
+            registered=False,
+            message=f"Error: {e}",
+        )

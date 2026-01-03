@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QAbstractItemView,
+    QScrollArea,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
@@ -51,7 +52,7 @@ class CustomerDialog(QDialog):
     def _setup_ui(self) -> None:
         """Configura la interfaz del dialogo."""
         self.setWindowTitle("Seleccionar Cliente")
-        self.setMinimumSize(800, 500)
+        self.setMinimumSize(1000, 650)
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: {self.theme.background};
@@ -147,13 +148,13 @@ class CustomerDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
-        # Tabla de clientes
+        # Tabla de clientes (55%)
         table_container = self._create_table()
-        layout.addWidget(table_container, 2)
+        layout.addWidget(table_container, 55)
 
-        # Panel de detalle
+        # Panel de detalle (45%)
         detail_panel = self._create_detail_panel()
-        layout.addWidget(detail_panel, 1)
+        layout.addWidget(detail_panel, 45)
 
         return content
 
@@ -173,17 +174,26 @@ class CustomerDialog(QDialog):
 
         # Tabla
         self.customers_table = QTableWidget()
-        self.customers_table.setColumnCount(4)
+        self.customers_table.setColumnCount(8)
         self.customers_table.setHorizontalHeaderLabels([
-            "Nombre", "Documento", "Email", "Telefono"
+            "Nombre", "Documento", "Email", "Telefono", "Ciudad", "Tipo", "Credito", "Descuento"
         ])
-        self.customers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.customers_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.customers_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self.customers_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self.customers_table.setColumnWidth(1, 130)
-        self.customers_table.setColumnWidth(2, 180)
-        self.customers_table.setColumnWidth(3, 120)
+
+        # Configurar anchos fijos para scroll horizontal
+        header = self.customers_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.customers_table.setColumnWidth(0, 200)  # Nombre
+        self.customers_table.setColumnWidth(1, 130)  # Documento
+        self.customers_table.setColumnWidth(2, 180)  # Email
+        self.customers_table.setColumnWidth(3, 120)  # Telefono
+        self.customers_table.setColumnWidth(4, 120)  # Ciudad
+        self.customers_table.setColumnWidth(5, 100)  # Tipo
+        self.customers_table.setColumnWidth(6, 80)   # Credito
+        self.customers_table.setColumnWidth(7, 80)   # Descuento
+
+        # Habilitar scroll horizontal
+        self.customers_table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.customers_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         self.customers_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.customers_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -241,23 +251,39 @@ class CustomerDialog(QDialog):
         # Titulo
         title = QLabel("Detalle del Cliente")
         title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        title.setStyleSheet(f"color: {self.theme.text_primary};")
+        title.setStyleSheet(f"color: {self.theme.text_primary}; background: transparent;")
         layout.addWidget(title)
+
+        # ScrollArea para el detalle
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet(f"""
+            QScrollArea {{
+                border: none;
+                background-color: transparent;
+            }}
+            QScrollArea > QWidget > QWidget {{
+                background-color: transparent;
+            }}
+        """)
 
         # Contenedor de detalle
         self.detail_container = QFrame()
+        self.detail_container.setStyleSheet("background: transparent;")
         self.detail_layout = QVBoxLayout(self.detail_container)
-        self.detail_layout.setContentsMargins(0, 0, 0, 0)
-        self.detail_layout.setSpacing(8)
+        self.detail_layout.setContentsMargins(0, 8, 8, 8)
+        self.detail_layout.setSpacing(12)
 
         # Mensaje inicial
         no_selection = QLabel("Selecciona un cliente\npara ver los detalles")
         no_selection.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        no_selection.setStyleSheet(f"color: {self.theme.gray_400}; font-size: 13px;")
+        no_selection.setStyleSheet(f"color: {self.theme.gray_400}; font-size: 13px; background: transparent;")
         self.detail_layout.addWidget(no_selection)
         self.detail_layout.addStretch()
 
-        layout.addWidget(self.detail_container, 1)
+        scroll.setWidget(self.detail_container)
+        layout.addWidget(scroll, 1)
 
         return panel
 
@@ -342,9 +368,9 @@ class CustomerDialog(QDialog):
         return footer
 
     def _load_initial_customers(self) -> None:
-        """Carga clientes iniciales (recientes o primeros)."""
+        """Carga clientes iniciales (todos)."""
         try:
-            customers = self.sync_service.get_local_customers(limit=50)
+            customers = self.sync_service.get_local_customers(limit=500)
             self._update_table(customers)
             self.search_input.setFocus()
         except Exception as e:
@@ -367,9 +393,9 @@ class CustomerDialog(QDialog):
             query = self.search_input.text().strip()
 
             if query:
-                customers = self.sync_service.get_local_customers(search=query, limit=100)
+                customers = self.sync_service.get_local_customers(search=query, limit=500)
             else:
-                customers = self.sync_service.get_local_customers(limit=50)
+                customers = self.sync_service.get_local_customers(limit=500)
 
             self._update_table(customers)
         except Exception as e:
@@ -379,6 +405,14 @@ class CustomerDialog(QDialog):
     def _update_table(self, customers: list) -> None:
         """Actualiza la tabla con los clientes."""
         self.customers_table.setRowCount(len(customers))
+
+        type_labels = {
+            "CONSUMER": "Consumidor",
+            "INDIVIDUAL": "Persona",
+            "BUSINESS": "Empresa",
+            "GOVERNMENT": "Gobierno",
+            "RESELLER": "Reventa",
+        }
 
         for row, customer in enumerate(customers):
             # Nombre
@@ -401,6 +435,28 @@ class CustomerDialog(QDialog):
             phone_item = QTableWidgetItem(phone)
             self.customers_table.setItem(row, 3, phone_item)
 
+            # Ciudad
+            city = customer.city or "-"
+            city_item = QTableWidgetItem(city)
+            self.customers_table.setItem(row, 4, city_item)
+
+            # Tipo
+            customer_type = customer.customer_type or "CONSUMER"
+            type_text = type_labels.get(customer_type, customer_type)
+            type_item = QTableWidgetItem(type_text)
+            self.customers_table.setItem(row, 5, type_item)
+
+            # Credito
+            credit_text = "Si" if customer.has_credit else "No"
+            credit_item = QTableWidgetItem(credit_text)
+            self.customers_table.setItem(row, 6, credit_item)
+
+            # Descuento
+            discount = float(customer.global_discount) if customer.global_discount else 0
+            discount_text = f"{discount}%" if discount > 0 else "-"
+            discount_item = QTableWidgetItem(discount_text)
+            self.customers_table.setItem(row, 7, discount_item)
+
             # Guardar referencia al cliente
             name_item.setData(Qt.ItemDataRole.UserRole, customer)
 
@@ -411,19 +467,29 @@ class CustomerDialog(QDialog):
     def _on_customer_selected(self) -> None:
         """Maneja la seleccion de un cliente."""
         try:
-            selected = self.customers_table.selectedItems()
-            if not selected:
+            row = self.customers_table.currentRow()
+            if row < 0:
+                self.selected_customer = None
+                self.select_btn.setEnabled(False)
                 return
 
-            row = selected[0].row()
-            customer = self.customers_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            item = self.customers_table.item(row, 0)
+            if not item:
+                return
+
+            customer = item.data(Qt.ItemDataRole.UserRole)
 
             if customer:
                 self.selected_customer = customer
                 self.select_btn.setEnabled(True)
                 self._show_customer_detail(customer)
+            else:
+                self.selected_customer = None
+                self.select_btn.setEnabled(False)
         except Exception as e:
             logger.error(f"Error al seleccionar cliente: {e}")
+            self.selected_customer = None
+            self.select_btn.setEnabled(False)
 
     def _show_customer_detail(self, customer: Customer) -> None:
         """Muestra los detalles del cliente."""
@@ -537,19 +603,31 @@ class CustomerDialog(QDialog):
     def _add_detail_row(self, label: str, value: str) -> None:
         """Agrega una fila de detalle."""
         row = QHBoxLayout()
-        row.setSpacing(8)
+        row.setSpacing(12)
+        row.setContentsMargins(0, 4, 0, 4)
 
         lbl = QLabel(label)
-        lbl.setStyleSheet(f"color: {self.theme.gray_500}; font-size: 12px;")
+        lbl.setStyleSheet(f"""
+            color: {self.theme.gray_500};
+            font-size: 12px;
+            background: transparent;
+        """)
         lbl.setFixedWidth(90)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
         row.addWidget(lbl)
 
         val = QLabel(value)
-        val.setStyleSheet(f"color: {self.theme.text_primary}; font-size: 12px;")
+        val.setStyleSheet(f"""
+            color: {self.theme.text_primary};
+            font-size: 13px;
+            font-weight: 500;
+            background: transparent;
+        """)
         val.setWordWrap(True)
         row.addWidget(val, 1)
 
         container = QFrame()
+        container.setStyleSheet("background: transparent;")
         container.setLayout(row)
         self.detail_layout.addWidget(container)
 

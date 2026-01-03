@@ -35,11 +35,18 @@ from PyQt6.QtSvg import QSvgRenderer
 from loguru import logger
 
 from src.config import get_settings
-from src.api import AuthAPI, get_api_client, register_terminal, TerminalNotActiveError
+from src.api import (
+    AuthAPI,
+    get_api_client,
+    register_terminal,
+    TerminalNotActiveError,
+    identify_terminal,
+    TerminalIdentification,
+)
 from src.db import session_scope
 from src.repositories import ConfigRepository
 from src.utils.device import get_device_info
-from src.ui.styles import get_theme
+from src.ui.styles import get_theme, get_login_styles
 
 
 # Iconos SVG inline para evitar dependencias de archivos externos
@@ -145,6 +152,7 @@ class IconLineEdit(QWidget):
     ):
         super().__init__(parent)
         self.theme = get_theme()
+        self.styles = get_login_styles()
         self._is_password = is_password
         self._password_visible = False
         self._has_error = False
@@ -163,36 +171,20 @@ class IconLineEdit(QWidget):
         self._update_container_style()
 
         container_layout = QHBoxLayout(self.container)
-        container_layout.setContentsMargins(14, 0, 14, 0)
-        container_layout.setSpacing(12)
+        container_layout.setContentsMargins(10, 0, 10, 0)
+        container_layout.setSpacing(8)
 
         # Icono izquierdo (usando texto como fallback)
         self.icon_label = QLabel(self._get_icon_char(icon_name))
-        self.icon_label.setFixedSize(20, 20)
+        self.icon_label.setFixedSize(18, 18)
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.icon_label.setStyleSheet(f"""
-            color: {self.theme.gray_400};
-            font-size: 14px;
-            font-family: 'Segoe UI Symbol', 'Segoe UI Emoji', sans-serif;
-        """)
+        self.icon_label.setStyleSheet(self.styles.input_icon())
         container_layout.addWidget(self.icon_label)
 
         # Campo de entrada
         self.line_edit = QLineEdit()
         self.line_edit.setPlaceholderText(placeholder)
-        self.line_edit.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: transparent;
-                border: none;
-                color: {self.theme.text_primary};
-                font-size: 14px;
-                padding: 0;
-                min-height: 28px;
-            }}
-            QLineEdit::placeholder {{
-                color: {self.theme.gray_400};
-            }}
-        """)
+        self.line_edit.setStyleSheet(self.styles.input_field())
         self.line_edit.textChanged.connect(self.textChanged.emit)
         self.line_edit.textChanged.connect(self._on_text_changed)
         container_layout.addWidget(self.line_edit, 1)
@@ -201,20 +193,10 @@ class IconLineEdit(QWidget):
         if self._is_password:
             self.line_edit.setEchoMode(QLineEdit.EchoMode.Password)
             self.toggle_btn = QPushButton()
-            self.toggle_btn.setFixedSize(24, 24)
+            self.toggle_btn.setFixedSize(18, 18)
             self.toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             self.toggle_btn.setText("O")  # Ojo cerrado
-            self.toggle_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: transparent;
-                    border: none;
-                    color: {self.theme.gray_400};
-                    font-size: 12px;
-                }}
-                QPushButton:hover {{
-                    color: {self.theme.gray_600};
-                }}
-            """)
+            self.toggle_btn.setStyleSheet(self.styles.password_toggle())
             self.toggle_btn.clicked.connect(self._toggle_password)
             container_layout.addWidget(self.toggle_btn)
 
@@ -231,19 +213,7 @@ class IconLineEdit(QWidget):
 
     def _update_container_style(self) -> None:
         """Actualiza el estilo del contenedor."""
-        border_color = self.theme.danger if self._has_error else self.theme.border
-        self.container.setStyleSheet(f"""
-            QFrame#inputContainer {{
-                background-color: {self.theme.surface};
-                border: 2px solid {border_color};
-                border-radius: 10px;
-                min-height: 48px;
-                max-height: 48px;
-            }}
-            QFrame#inputContainer:focus-within {{
-                border-color: {self.theme.primary};
-            }}
-        """)
+        self.container.setStyleSheet(self.styles.input_container(self._has_error))
 
     def _toggle_password(self) -> None:
         """Alterna visibilidad del password."""
@@ -286,16 +256,7 @@ class IconLineEdit(QWidget):
         """Establece el estado de error."""
         self._has_error = has_error
         self._update_container_style()
-        if has_error:
-            self.icon_label.setStyleSheet(f"""
-                color: {self.theme.danger};
-                font-size: 14px;
-            """)
-        else:
-            self.icon_label.setStyleSheet(f"""
-                color: {self.theme.gray_400};
-                font-size: 14px;
-            """)
+        self.icon_label.setStyleSheet(self.styles.input_icon(has_error))
 
 
 class LoginWindow(QMainWindow):
@@ -318,6 +279,7 @@ class LoginWindow(QMainWindow):
         self.auth_api = AuthAPI()
         self._is_loading = False
         self._device_info = None
+        self._terminal_id: Optional[TerminalIdentification] = None
         self._spinner = None
 
         # Conectar signal interno
@@ -412,6 +374,7 @@ class LoginWindow(QMainWindow):
         """Crea el encabezado con logo y titulo."""
         # Icono/Logo
         logo_container = QWidget()
+        logo_container.setStyleSheet("background: transparent;")
         logo_layout = QHBoxLayout(logo_container)
         logo_layout.setContentsMargins(0, 0, 0, 0)
         logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -455,6 +418,7 @@ class LoginWindow(QMainWindow):
         app_name.setStyleSheet(f"""
             color: {self.theme.text_primary};
             letter-spacing: -0.5px;
+            background: transparent;
         """)
         layout.addWidget(app_name)
 
@@ -464,39 +428,83 @@ class LoginWindow(QMainWindow):
         subtitle = QLabel("Inicia sesion para continuar")
         subtitle.setFont(QFont("Segoe UI", 13))
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet(f"color: {self.theme.text_secondary};")
+        subtitle.setStyleSheet(f"color: {self.theme.text_secondary}; background: transparent;")
         layout.addWidget(subtitle)
 
     def _create_form(self, layout: QVBoxLayout) -> None:
         """Crea el formulario de login."""
         form_layout = QVBoxLayout()
-        form_layout.setSpacing(16)
+        form_layout.setSpacing(20)
 
-        # Campo Tenant/Empresa
-        self._create_field_label(form_layout, "Empresa")
+        # Contenedor para campo Tenant (se oculta si terminal identificada)
+        self.tenant_container = QWidget()
+        tenant_layout = QVBoxLayout(self.tenant_container)
+        tenant_layout.setContentsMargins(0, 0, 0, 0)
+        tenant_layout.setSpacing(0)
+
         self.tenant_input = IconLineEdit(
             icon_name="building",
-            placeholder="Codigo de tu empresa",
+            placeholder="Empresa (codigo)",
         )
-        form_layout.addWidget(self.tenant_input)
+        tenant_layout.addWidget(self.tenant_input)
+        form_layout.addWidget(self.tenant_container)
 
-        form_layout.addSpacing(4)
+        # Info de terminal identificada (oculta por defecto)
+        self.terminal_info_container = QFrame()
+        self.terminal_info_container.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.theme.success}15;
+                border: 1px solid {self.theme.success}50;
+                border-radius: 10px;
+                padding: 12px;
+            }}
+        """)
+        terminal_info_layout = QVBoxLayout(self.terminal_info_container)
+        terminal_info_layout.setContentsMargins(12, 10, 12, 10)
+        terminal_info_layout.setSpacing(4)
 
-        # Campo Email
-        self._create_field_label(form_layout, "Email")
+        self.terminal_tenant_label = QLabel("Empresa")
+        self.terminal_tenant_label.setStyleSheet(f"""
+            color: {self.theme.success};
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        """)
+        terminal_info_layout.addWidget(self.terminal_tenant_label)
+
+        self.terminal_name_label = QLabel("Terminal")
+        self.terminal_name_label.setStyleSheet(f"""
+            color: {self.theme.text_primary};
+            font-size: 15px;
+            font-weight: 600;
+        """)
+        terminal_info_layout.addWidget(self.terminal_name_label)
+
+        self.terminal_branch_label = QLabel("Sucursal")
+        self.terminal_branch_label.setStyleSheet(f"""
+            color: {self.theme.gray_600};
+            font-size: 12px;
+        """)
+        terminal_info_layout.addWidget(self.terminal_branch_label)
+
+        self.terminal_info_container.hide()
+        form_layout.addWidget(self.terminal_info_container)
+
+        form_layout.addSpacing(8)
+
+        # Campo Email (sin label, solo placeholder)
         self.email_input = IconLineEdit(
             icon_name="user",
-            placeholder="tu@email.com",
+            placeholder="Correo electronico",
         )
         form_layout.addWidget(self.email_input)
 
-        form_layout.addSpacing(4)
+        form_layout.addSpacing(8)
 
-        # Campo Password
-        self._create_field_label(form_layout, "Contrasena")
+        # Campo Password (sin label, solo placeholder)
         self.password_input = IconLineEdit(
             icon_name="lock",
-            placeholder="Tu contrasena",
+            placeholder="Contrasena",
             is_password=True,
         )
         form_layout.addWidget(self.password_input)
@@ -510,7 +518,7 @@ class LoginWindow(QMainWindow):
             color: {self.theme.gray_700};
             font-size: 13px;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         """)
         layout.addWidget(label)
 
@@ -560,7 +568,7 @@ class LoginWindow(QMainWindow):
     def _create_login_button(self, layout: QVBoxLayout) -> None:
         """Crea el boton de login con estado de carga."""
         self.login_button = QPushButton()
-        self.login_button.setFixedHeight(52)
+        self.login_button.setFixedHeight(56)
         self.login_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.login_button.setStyleSheet(f"""
             QPushButton {{
@@ -745,11 +753,74 @@ class LoginWindow(QMainWindow):
             self.device_name_label.parent().setToolTip(tooltip)
 
             logger.debug(f"Dispositivo detectado: {self._device_info.hostname}")
+
+            # Identificar terminal en el backend
+            self._identify_terminal()
+
         except Exception as e:
             logger.error(f"Error detectando dispositivo: {e}")
             self.device_name_label.setText("Error de deteccion")
             self.device_id_label.setText("")
             self.device_id_badge.hide()
+
+    def _identify_terminal(self) -> None:
+        """Identifica la terminal en el backend para auto-detectar tenant."""
+        if not self._device_info or not self._device_info.mac_address:
+            logger.warning("No hay MAC address para identificar terminal")
+            return
+
+        try:
+            self._terminal_id = identify_terminal(
+                mac_address=self._device_info.mac_address,
+                api_url=self.settings.API_URL,
+            )
+
+            if self._terminal_id.registered and self._terminal_id.is_active:
+                # Terminal registrada y activa - ocultar campo empresa
+                self.tenant_container.hide()
+                self.terminal_info_container.show()
+
+                # Mostrar info de la terminal
+                self.terminal_tenant_label.setText(
+                    self._terminal_id.tenant_name or "Empresa"
+                )
+                self.terminal_name_label.setText(
+                    self._terminal_id.terminal_name or "Terminal"
+                )
+                if self._terminal_id.branch_name:
+                    self.terminal_branch_label.setText(
+                        f"Sucursal: {self._terminal_id.branch_name}"
+                    )
+                    self.terminal_branch_label.show()
+                else:
+                    self.terminal_branch_label.hide()
+
+                # Auto-llenar tenant (oculto)
+                self.tenant_input.setText(self._terminal_id.tenant_slug or "")
+
+                logger.info(
+                    f"Terminal identificada: {self._terminal_id.terminal_name} "
+                    f"@ {self._terminal_id.tenant_name}"
+                )
+
+            elif self._terminal_id.registered and not self._terminal_id.is_active:
+                # Terminal registrada pero no activa
+                logger.warning(f"Terminal no activa: {self._terminal_id.message}")
+                # Mostrar mensaje pero permitir login manual
+                self.tenant_container.show()
+                self.terminal_info_container.hide()
+
+            else:
+                # Terminal no registrada
+                logger.info("Terminal no registrada, mostrando campo empresa")
+                self.tenant_container.show()
+                self.terminal_info_container.hide()
+
+        except Exception as e:
+            logger.error(f"Error identificando terminal: {e}")
+            # En caso de error, mostrar campo empresa
+            self.tenant_container.show()
+            self.terminal_info_container.hide()
 
     def _load_saved_credentials(self) -> None:
         """Carga credenciales guardadas."""
@@ -1109,6 +1180,7 @@ class LoginWindow(QMainWindow):
                 "device_id": terminal_info.device_id,
                 "hostname": terminal_info.hostname,
                 "name": terminal_info.name,
+                "point_of_sale_id": terminal_info.pos_id,
                 "pos_code": terminal_info.pos_code,
                 "pos_name": terminal_info.pos_name,
                 "branch_id": terminal_info.branch_id,

@@ -31,6 +31,7 @@ from loguru import logger
 
 from src.ui.styles import get_theme
 from src.api.sales import SalesAPI
+from src.ui.dialogs.supervisor_pin_dialog import SupervisorPinDialog
 
 
 class RefundWorker(QThread):
@@ -46,6 +47,7 @@ class RefundWorker(QThread):
         reason: str,
         emit_credit_note: bool,
         sales_point_id: Optional[str] = None,
+        supervisor_pin: Optional[str] = None,
     ):
         super().__init__()
         self.sale_id = sale_id
@@ -53,6 +55,7 @@ class RefundWorker(QThread):
         self.reason = reason
         self.emit_credit_note = emit_credit_note
         self.sales_point_id = sales_point_id
+        self.supervisor_pin = supervisor_pin
 
     def run(self):
         try:
@@ -63,6 +66,7 @@ class RefundWorker(QThread):
                 reason=self.reason,
                 emit_credit_note=self.emit_credit_note,
                 sales_point_id=self.sales_point_id,
+                supervisor_pin=self.supervisor_pin,
             )
 
             if result.get("success"):
@@ -632,13 +636,30 @@ class RefundDialog(QDialog):
         if afip_invoices:
             sales_point_id = afip_invoices[0].get("salesPointId")
 
+        # Guardar datos del refund para posible reintento con PIN de supervisor
+        self._pending_refund = {
+            "sale_id": self.sale.get("id"),
+            "items": items_to_refund,
+            "reason": reason,
+            "emit_credit_note": self.credit_note_checkbox.isChecked(),
+            "sales_point_id": sales_point_id,
+        }
+
         # Procesar en background
+        self._start_refund_worker()
+
+    def _start_refund_worker(self, supervisor_pin: Optional[str] = None) -> None:
+        """Inicia el worker de devolucion."""
+        if not self._pending_refund:
+            return
+
         self.worker = RefundWorker(
-            sale_id=self.sale.get("id"),
-            items=items_to_refund,
-            reason=reason,
-            emit_credit_note=self.credit_note_checkbox.isChecked(),
-            sales_point_id=sales_point_id,
+            sale_id=self._pending_refund["sale_id"],
+            items=self._pending_refund["items"],
+            reason=self._pending_refund["reason"],
+            emit_credit_note=self._pending_refund["emit_credit_note"],
+            sales_point_id=self._pending_refund["sales_point_id"],
+            supervisor_pin=supervisor_pin,
         )
         self.worker.finished.connect(self._on_refund_success)
         self.worker.error.connect(self._on_refund_error)
@@ -674,6 +695,43 @@ class RefundDialog(QDialog):
         """Maneja error de devolucion."""
         logger.error(f"Error en devolucion: {error}")
 
+        # Detectar error de autorizacion
+        is_auth_error = any(
+            phrase in error.lower()
+            for phrase in [
+                "no tienes permiso",
+                "autorización",
+                "autorizacion",
+                "requiere permiso",
+                "pos:refund",
+            ]
+        )
+
+        if is_auth_error:
+            # Mostrar dialogo de PIN de supervisor
+            logger.info("Error de autorizacion detectado, solicitando PIN de supervisor")
+
+            pin = SupervisorPinDialog.get_supervisor_pin(
+                parent=self,
+                message="No tienes permiso para procesar devoluciones.\n"
+                "Un supervisor puede autorizar esta operación.",
+                operation="Devolución de venta",
+            )
+
+            if pin:
+                # Reintentar con PIN de supervisor
+                logger.info("Reintentando devolucion con PIN de supervisor")
+                self.process_btn.setText("Procesando...")
+                self._start_refund_worker(supervisor_pin=pin)
+                return
+            else:
+                # Usuario cancelo
+                logger.info("Usuario cancelo la autorizacion de supervisor")
+                self.process_btn.setEnabled(True)
+                self.process_btn.setText("Procesar Devolucion")
+                return
+
+        # Error generico
         self.process_btn.setEnabled(True)
         self.process_btn.setText("Procesar Devolucion")
 

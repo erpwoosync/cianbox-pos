@@ -1,0 +1,1153 @@
+{
+  "meta": {
+    "project": "Cianbox POS",
+    "date": "2025-12-18",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "Cianbox POS is a multi-tenant Point of Sale system integrated with the Cianbox ERP, enabling multiple clients to manage sales, payments, inventory, and product synchronization through a centralized web platform.",
+  "core_goals": [
+    "Provide secure and flexible user authentication and authorization with support for email/password and PIN login, supervisor verification, and token refresh.",
+    "Enable comprehensive product management including syncing from ERP, variable products with variants, categories, brands, and stock control per branch.",
+    "Facilitate robust sales management with multiple items, discounts, payment methods, cancellations, and refunds.",
+    "Support diverse payment processing options including cash, card via Mercado Pago, QR, and bank transfers with mixed payment support.",
+    "Offer dynamic promotions management with multiple promotion types, activation periods, and applicability to products or categories.",
+    "Manage cash register operations including shift opening/closing, cash movements, cash counts, and detailed daily reports.",
+    "Maintain a secure multi-tenant architecture with isolated data and configurations per tenant and per-tenant ERP connections."
+  ],
+  "key_features": [
+    "Authentication & Authorization supporting JWT tokens, email/password login, 4-digit PIN login for POS quick entry, password change, and supervisor PIN verification for sensitive operations.",
+    "Product Management with product CRUD, categories, brands, search, variable products with size/color variants, and branch-based stock tracking.",
+    "Sales Management including sale registration with multiple items and payments, discount applications, sale cancellation and refund processing.",
+    "Promotions feature supporting percentage discounts, fixed amounts, buy X get Y combos, second unit discounts, and flash sales with activation date ranges.",
+    "Cash Management handling cash register sessions, deposits, withdrawals with supervisor authorization, shift transfers, cash counting, and daily cash reports.",
+    "POS Terminals Management for registering and activating POS devices by hostname and MAC address, including heartbeat reporting and terminal status updates.",
+    "Multi-tenant support ensuring data isolation, independent tenant configurations, and secure API access based on tenant and user roles."
+  ],
+  "user_flow_summary": [
+    "User logs in using email/password or 4-digit PIN tied to a tenant, receives JWT token for authenticated access.",
+    "Users browse and search products filtered by categories, brands, and branches; can view product details and manage inventory.",
+    "Cashiers register sales including multiple items and choose among multiple payment methods, applying promotions and discounts as available.",
+    "Sensitive operations like sale cancellations or cash withdrawals require supervisor PIN verification for authorization.",
+    "Cash register sessions are opened and closed per shift with deposits and withdrawals tracked; daily cash reports are generated for overview.",
+    "Administrators and supervisors manage POS terminals by registering devices, activating them, and monitoring their status and connectivity via heartbeat.",
+    "Promotions are created, activated, and applied automatically during sales based on product or category eligibility and promotion schedules."
+  ],
+  "validation_criteria": [
+    "User authentication must validate credentials, tokens must be issued and refreshed correctly with proper security measures enforced.",
+    "Product listing, search, and CRUD must handle filters properly and synchronize product data accurately from ERP.",
+    "Sales registration must correctly record items, payments, discounts, and update stock; cancellations and refunds must be validated and authorized.",
+    "Promotions must compute applicable discounts accurately based on promotion type and conditions during cart calculations.",
+    "Cash management must ensure session states are consistent, movements recorded correctly, and supervisor authorization required for restricted actions.",
+    "POS terminals API must properly register, activate, and update terminal status; unauthorized or pending terminals must be restricted from use.",
+    "Multi-tenant data isolation must be maintained throughout the API ensuring users only access their tenant's data based on roles and permissions."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "TypeScript",
+      "Node.js 18+",
+      "Express 4.x",
+      "Prisma 5.x",
+      "PostgreSQL",
+      "JWT",
+      "Zod",
+      "Socket.io",
+      "bcryptjs"
+    ],
+    "features": [
+      {
+        "name": "Authentication API",
+        "description": "User authentication with email/password login, PIN login for POS, token refresh, password change, and supervisor verification",
+        "files": [
+          "apps/backend/src/routes/auth.ts",
+          "apps/backend/src/middleware/auth.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/auth/login": {
+              "post": {
+                "summary": "Login with email and password",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "email",
+                          "password",
+                          "tenantSlug"
+                        ],
+                        "properties": {
+                          "email": {
+                            "type": "string",
+                            "format": "email"
+                          },
+                          "password": {
+                            "type": "string"
+                          },
+                          "tenantSlug": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Login successful, returns token and user data"
+                  },
+                  "401": {
+                    "description": "Invalid credentials"
+                  }
+                }
+              }
+            },
+            "/api/auth/login/pin": {
+              "post": {
+                "summary": "Quick login with 4-digit PIN for POS shift changes",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "pin",
+                          "tenantSlug"
+                        ],
+                        "properties": {
+                          "pin": {
+                            "type": "string",
+                            "minLength": 4,
+                            "maxLength": 4
+                          },
+                          "tenantSlug": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Login successful"
+                  },
+                  "401": {
+                    "description": "Invalid PIN"
+                  }
+                }
+              }
+            },
+            "/api/auth/refresh": {
+              "post": {
+                "summary": "Refresh access token",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "refreshToken"
+                        ],
+                        "properties": {
+                          "refreshToken": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "New token returned"
+                  }
+                }
+              }
+            },
+            "/api/auth/logout": {
+              "post": {
+                "summary": "Close user session",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Session closed"
+                  }
+                }
+              }
+            },
+            "/api/auth/me": {
+              "get": {
+                "summary": "Get current user info",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "User data returned"
+                  }
+                }
+              }
+            },
+            "/api/auth/password": {
+              "put": {
+                "summary": "Change password",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "currentPassword",
+                          "newPassword"
+                        ],
+                        "properties": {
+                          "currentPassword": {
+                            "type": "string"
+                          },
+                          "newPassword": {
+                            "type": "string",
+                            "minLength": 8
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Password changed"
+                  }
+                }
+              }
+            },
+            "/api/auth/verify-supervisor": {
+              "post": {
+                "summary": "Verify supervisor PIN for operation authorization",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "pin",
+                          "requiredPermission"
+                        ],
+                        "properties": {
+                          "pin": {
+                            "type": "string",
+                            "minLength": 4,
+                            "maxLength": 4
+                          },
+                          "requiredPermission": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Supervisor verified"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Products API",
+        "description": "Product catalog management with categories, brands, search, and CRUD operations. Supports variable products (size curves) and stock tracking",
+        "files": [
+          "apps/backend/src/routes/products.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/products": {
+              "get": {
+                "summary": "List products with search and filters",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "parameters": [
+                  {
+                    "name": "search",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "categoryId",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "brandId",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "branchId",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "isActive",
+                    "in": "query",
+                    "schema": {
+                      "type": "boolean"
+                    }
+                  },
+                  {
+                    "name": "page",
+                    "in": "query",
+                    "schema": {
+                      "type": "integer",
+                      "default": 1
+                    }
+                  },
+                  {
+                    "name": "pageSize",
+                    "in": "query",
+                    "schema": {
+                      "type": "integer",
+                      "default": 50
+                    }
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Paginated product list"
+                  }
+                }
+              },
+              "post": {
+                "summary": "Create new product",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "201": {
+                    "description": "Product created"
+                  }
+                }
+              }
+            },
+            "/api/products/search": {
+              "get": {
+                "summary": "Quick search for POS by barcode or name",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "parameters": [
+                  {
+                    "name": "q",
+                    "in": "query",
+                    "required": true,
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "priceListId",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "branchId",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Products found"
+                  }
+                }
+              }
+            },
+            "/api/products/categories": {
+              "get": {
+                "summary": "List categories",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Categories list"
+                  }
+                }
+              }
+            },
+            "/api/products/categories/quick-access": {
+              "get": {
+                "summary": "List quick access categories for POS",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Quick access categories"
+                  }
+                }
+              }
+            },
+            "/api/products/brands": {
+              "get": {
+                "summary": "List brands",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Brands list"
+                  }
+                }
+              }
+            },
+            "/api/products/{id}": {
+              "get": {
+                "summary": "Get product by ID",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "parameters": [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                      "type": "string"
+                    }
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Product details"
+                  },
+                  "404": {
+                    "description": "Product not found"
+                  }
+                }
+              },
+              "put": {
+                "summary": "Update product",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Product updated"
+                  }
+                }
+              },
+              "delete": {
+                "summary": "Deactivate product",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Product deactivated"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Sales API",
+        "description": "Sales registration with items, payments, stock updates, and reports. Supports multiple payment methods including MercadoPago",
+        "files": [
+          "apps/backend/src/routes/sales.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/sales": {
+              "post": {
+                "summary": "Create new sale",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "branchId",
+                          "pointOfSaleId",
+                          "items",
+                          "payments"
+                        ],
+                        "properties": {
+                          "branchId": {
+                            "type": "string"
+                          },
+                          "pointOfSaleId": {
+                            "type": "string"
+                          },
+                          "customerId": {
+                            "type": "string"
+                          },
+                          "receiptType": {
+                            "type": "string",
+                            "enum": [
+                              "TICKET",
+                              "INVOICE_A",
+                              "INVOICE_B",
+                              "INVOICE_C"
+                            ]
+                          },
+                          "items": {
+                            "type": "array"
+                          },
+                          "payments": {
+                            "type": "array"
+                          },
+                          "notes": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "201": {
+                    "description": "Sale created"
+                  }
+                }
+              },
+              "get": {
+                "summary": "List sales with filters",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "parameters": [
+                  {
+                    "name": "branchId",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "pointOfSaleId",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "dateFrom",
+                    "in": "query",
+                    "schema": {
+                      "type": "string",
+                      "format": "date"
+                    }
+                  },
+                  {
+                    "name": "dateTo",
+                    "in": "query",
+                    "schema": {
+                      "type": "string",
+                      "format": "date"
+                    }
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Sales list"
+                  }
+                }
+              }
+            },
+            "/api/sales/{id}": {
+              "get": {
+                "summary": "Get sale by ID",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Sale details"
+                  }
+                }
+              }
+            },
+            "/api/sales/{id}/cancel": {
+              "post": {
+                "summary": "Cancel sale",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "reason"
+                        ],
+                        "properties": {
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Sale cancelled"
+                  }
+                }
+              }
+            },
+            "/api/sales/reports/daily-summary": {
+              "get": {
+                "summary": "Daily sales summary",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Daily summary with totals by payment method"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Promotions API",
+        "description": "Promotions and combos management with various types: percentage, fixed amount, 2x1, second unit discount, flash sales",
+        "files": [
+          "apps/backend/src/routes/promotions.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/promotions": {
+              "get": {
+                "summary": "List promotions",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Promotions list"
+                  }
+                }
+              },
+              "post": {
+                "summary": "Create promotion",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "201": {
+                    "description": "Promotion created"
+                  }
+                }
+              }
+            },
+            "/api/promotions/active": {
+              "get": {
+                "summary": "Get currently active promotions",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Active promotions"
+                  }
+                }
+              }
+            },
+            "/api/promotions/calculate": {
+              "post": {
+                "summary": "Calculate promotions for cart items",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "items"
+                        ],
+                        "properties": {
+                          "items": {
+                            "type": "array"
+                          },
+                          "customerId": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Calculated discounts"
+                  }
+                }
+              }
+            },
+            "/api/promotions/combos": {
+              "get": {
+                "summary": "List combos",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Combos list"
+                  }
+                }
+              },
+              "post": {
+                "summary": "Create combo",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "201": {
+                    "description": "Combo created"
+                  }
+                }
+              }
+            },
+            "/api/promotions/combos/active": {
+              "get": {
+                "summary": "Get active combos",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Active combos"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Cash Management API",
+        "description": "Cash register sessions, movements, counts, and shift transfers. Includes opening/closing shifts, deposits, withdrawals, and daily reports",
+        "files": [
+          "apps/backend/src/routes/cash.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/cash/current": {
+              "get": {
+                "summary": "Get current user's cash session",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Current session or null"
+                  }
+                }
+              }
+            },
+            "/api/cash/open": {
+              "post": {
+                "summary": "Open cash register session",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "pointOfSaleId",
+                          "openingAmount"
+                        ],
+                        "properties": {
+                          "pointOfSaleId": {
+                            "type": "string"
+                          },
+                          "openingAmount": {
+                            "type": "number"
+                          },
+                          "notes": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "201": {
+                    "description": "Session opened"
+                  }
+                }
+              }
+            },
+            "/api/cash/close": {
+              "post": {
+                "summary": "Close cash register session",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Session closed with summary"
+                  }
+                }
+              }
+            },
+            "/api/cash/deposit": {
+              "post": {
+                "summary": "Register cash deposit",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "201": {
+                    "description": "Deposit registered"
+                  }
+                }
+              }
+            },
+            "/api/cash/withdraw": {
+              "post": {
+                "summary": "Register cash withdrawal (requires supervisor authorization)",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "201": {
+                    "description": "Withdrawal registered"
+                  }
+                }
+              }
+            },
+            "/api/cash/transfer": {
+              "post": {
+                "summary": "Transfer shift to another cashier",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Shift transferred"
+                  }
+                }
+              }
+            },
+            "/api/cash/count": {
+              "post": {
+                "summary": "Register cash count",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "201": {
+                    "description": "Count registered"
+                  }
+                }
+              }
+            },
+            "/api/cash/report/daily": {
+              "get": {
+                "summary": "Daily cash report",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Daily report with all sessions"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "POS Terminals API",
+        "description": "POS terminal registration and management. Terminals register with hostname and MAC address, require activation before use",
+        "files": [
+          "apps/backend/src/routes/terminals.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/api/pos/terminals/register": {
+              "post": {
+                "summary": "Register or update POS terminal",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "hostname",
+                          "macAddress"
+                        ],
+                        "properties": {
+                          "hostname": {
+                            "type": "string"
+                          },
+                          "macAddress": {
+                            "type": "string",
+                            "pattern": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+                          },
+                          "osVersion": {
+                            "type": "string"
+                          },
+                          "appVersion": {
+                            "type": "string"
+                          },
+                          "ipAddress": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Terminal registered and active"
+                  },
+                  "403": {
+                    "description": "Terminal pending or blocked"
+                  }
+                }
+              }
+            },
+            "/api/pos/terminals/heartbeat": {
+              "post": {
+                "summary": "Send terminal heartbeat",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "required": [
+                          "deviceId"
+                        ],
+                        "properties": {
+                          "deviceId": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Heartbeat acknowledged"
+                  }
+                }
+              }
+            },
+            "/api/pos/terminals": {
+              "get": {
+                "summary": "List all terminals (backoffice)",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Terminals list with stats"
+                  }
+                }
+              }
+            },
+            "/api/pos/terminals/{id}": {
+              "get": {
+                "summary": "Get terminal details",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Terminal details"
+                  }
+                }
+              },
+              "patch": {
+                "summary": "Update terminal (activate, rename, assign POS)",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "ACTIVE",
+                              "DISABLED",
+                              "BLOCKED"
+                            ]
+                          },
+                          "pointOfSaleId": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Terminal updated"
+                  }
+                }
+              },
+              "delete": {
+                "summary": "Delete terminal",
+                "security": [
+                  {
+                    "bearerAuth": []
+                  }
+                ],
+                "responses": {
+                  "200": {
+                    "description": "Terminal deleted"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

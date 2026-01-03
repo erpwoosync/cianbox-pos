@@ -6,7 +6,7 @@ import { Router, Response, NextFunction } from 'express';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
-import { ApiError, ValidationError, NotFoundError } from '../utils/errors.js';
+import { ApiError, ValidationError, NotFoundError, AuthorizationError } from '../utils/errors.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -769,16 +769,17 @@ const refundSchema = z.object({
   reason: z.string().min(1, 'Debe indicar el motivo de la devolución'),
   emitCreditNote: z.boolean().default(true),
   salesPointId: z.string().optional(), // Para nota de crédito AFIP
+  supervisorPin: z.string().length(4).optional(), // PIN de supervisor para autorización
 });
 
 /**
  * POST /api/sales/:id/refund
  * Procesar devolución parcial o total
+ * Requiere permiso pos:refund o autorización de supervisor con PIN
  */
 router.post(
   '/:id/refund',
   authenticate,
-  authorize('pos:refund'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const validation = refundSchema.safeParse(req.body);
@@ -789,6 +790,45 @@ router.post(
       const data = validation.data;
       const tenantId = req.user!.tenantId;
       const userId = req.user!.userId;
+      const userPermissions = req.user!.permissions || [];
+
+      // Verificar permiso del usuario o autorización de supervisor
+      const hasPermission = userPermissions.includes('pos:refund') || userPermissions.includes('*');
+      let supervisorId: string | null = null;
+      let supervisorName: string | null = null;
+
+      if (!hasPermission) {
+        // Si no tiene permiso, necesita PIN de supervisor
+        if (!data.supervisorPin) {
+          throw new AuthorizationError('No tienes permiso para realizar devoluciones. Solicita autorización de un supervisor.');
+        }
+
+        // Validar PIN de supervisor
+        const supervisor = await prisma.user.findFirst({
+          where: {
+            tenantId,
+            pin: data.supervisorPin,
+            status: 'ACTIVE',
+          },
+          include: {
+            role: true,
+          },
+        });
+
+        if (!supervisor) {
+          throw new AuthorizationError('PIN de supervisor inválido');
+        }
+
+        // Verificar que el supervisor tenga el permiso
+        const supervisorPermissions = supervisor.role.permissions as string[];
+        if (!supervisorPermissions.includes('pos:refund') && !supervisorPermissions.includes('*')) {
+          throw new AuthorizationError('El supervisor no tiene permiso para autorizar devoluciones');
+        }
+
+        supervisorId = supervisor.id;
+        supervisorName = supervisor.name;
+        console.log(`[Refund] Autorizado por supervisor: ${supervisorName} (${supervisor.email})`);
+      }
 
       // Obtener venta original con items y factura
       const originalSale = await prisma.sale.findFirst({
@@ -898,7 +938,9 @@ router.post(
             tax: refundTotal.times(0.21 / 1.21).negated(),
             total: refundTotal.negated(),
             status: 'COMPLETED',
-            notes: `Devolución de venta ${originalSale.saleNumber}: ${data.reason}`,
+            notes: supervisorId
+              ? `Devolución de venta ${originalSale.saleNumber}: ${data.reason} [Autorizado por: ${supervisorName}]`
+              : `Devolución de venta ${originalSale.saleNumber}: ${data.reason}`,
             originalSaleId: originalSale.id,
             items: {
               create: itemsToRefund.map((item) => ({

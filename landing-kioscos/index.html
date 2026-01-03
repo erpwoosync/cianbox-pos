@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Cianbox POS para Kioscos - El sistema de cobro mas rapido y simple para tu kiosco. Funciona sin internet, acepta QR de Mercado Pago. Probalo gratis 14 dias.">
+    <meta name="keywords" content="pos kiosco, sistema cobro kiosco, caja registradora kiosco, software kiosco, mercado pago kiosco">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Cianbox POS - Sistema de cobro para Kioscos">
+    <meta property="og:description" content="Cobra mas rapido, vende mas. El sistema pensado para kioscos que funciona siempre, incluso sin internet.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://cianbox.com/kioscos">
+    <meta property="og:image" content="https://cianbox.com/og-kioscos.jpg">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Cianbox POS - Sistema de cobro para Kioscos">
+    <meta name="twitter:description" content="Cobra mas rapido, vende mas. Funciona sin internet.">
+
+    <title>Cianbox POS para Kioscos - Cobra mas rapido, vende mas</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏪</text></svg>">
+
+    <!-- Preload -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <a href="#" class="logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="8" fill="#22c55e"/>
+                    <path d="M8 10h16v12H8z" fill="white" opacity="0.3"/>
+                    <path d="M10 8h12v4H10z" fill="white"/>
+                    <path d="M12 14h8v2H12zM12 18h5v2H12z" fill="white" opacity="0.7"/>
+                </svg>
+                <span>Cianbox POS</span>
+            </a>
+            <nav class="nav">
+                <a href="#como-funciona">Como funciona</a>
+                <a href="#precios">Precios</a>
+                <a href="#faq">Preguntas</a>
+            </nav>
+            <a href="#cta-final" class="btn btn-header">Probar gratis</a>
+            <button class="menu-toggle" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu">
+        <nav>
+            <a href="#como-funciona">Como funciona</a>
+            <a href="#precios">Precios</a>
+            <a href="#faq">Preguntas</a>
+            <a href="#cta-final" class="btn btn-primary">Probar gratis</a>
+        </nav>
+    </div>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Cobra mas rapido.<br><span class="highlight">Vende mas.</span></h1>
+                <p class="hero-subtitle">Tu kiosco merece un sistema de cobro simple que funcione siempre, incluso sin internet.</p>
+                <div class="hero-ctas">
+                    <a href="#cta-final" class="btn btn-primary btn-large">Probalo gratis 14 dias</a>
+                    <a href="#como-funciona" class="btn btn-secondary btn-large">Ver como funciona</a>
+                </div>
+                <p class="hero-note">Sin tarjeta de credito. Sin compromiso.</p>
+            </div>
+            <div class="hero-image">
+                <!-- Ilustracion SVG: Kiosco con tablet -->
+                <svg viewBox="0 0 400 320" fill="none" xmlns="http://www.w3.org/2000/svg" class="hero-illustration">
+                    <!-- Mostrador -->
+                    <rect x="40" y="180" width="320" height="120" rx="8" fill="#e7e5e4"/>
+                    <rect x="50" y="190" width="300" height="100" rx="4" fill="#d6d3d1"/>
+
+                    <!-- Estantes con productos -->
+                    <rect x="60" y="60" width="120" height="100" rx="4" fill="#fef3c7"/>
+                    <rect x="220" y="60" width="120" height="100" rx="4" fill="#fef3c7"/>
+
+                    <!-- Golosinas (rectangulos de colores) -->
+                    <rect x="70" y="70" width="20" height="35" rx="2" fill="#ef4444"/>
+                    <rect x="95" y="70" width="20" height="35" rx="2" fill="#3b82f6"/>
+                    <rect x="120" y="70" width="20" height="35" rx="2" fill="#22c55e"/>
+                    <rect x="145" y="70" width="25" height="35" rx="2" fill="#f97316"/>
+
+                    <!-- Bebidas -->
+                    <rect x="70" y="115" width="15" height="40" rx="4" fill="#ef4444"/>
+                    <rect x="90" y="115" width="15" height="40" rx="4" fill="#1d4ed8"/>
+                    <rect x="110" y="115" width="15" height="40" rx="4" fill="#15803d"/>
+                    <rect x="130" y="115" width="15" height="40" rx="4" fill="#a855f7"/>
+                    <rect x="150" y="115" width="15" height="40" rx="4" fill="#f59e0b"/>
+
+                    <!-- Mas productos lado derecho -->
+                    <rect x="230" y="70" width="25" height="30" rx="2" fill="#fbbf24"/>
+                    <rect x="260" y="70" width="25" height="30" rx="2" fill="#a3e635"/>
+                    <rect x="290" y="70" width="25" height="30" rx="2" fill="#fb923c"/>
+                    <rect x="230" y="110" width="20" height="45" rx="4" fill="#06b6d4"/>
+                    <rect x="255" y="110" width="20" height="45" rx="4" fill="#ec4899"/>
+                    <rect x="280" y="110" width="20" height="45" rx="4" fill="#8b5cf6"/>
+                    <rect x="305" y="110" width="20" height="45" rx="4" fill="#10b981"/>
+
+                    <!-- Tablet/POS en mostrador -->
+                    <rect x="140" y="200" width="120" height="80" rx="8" fill="#1c1917"/>
+                    <rect x="148" y="208" width="104" height="60" rx="4" fill="#22c55e"/>
+
+                    <!-- Pantalla del POS -->
+                    <rect x="156" y="216" width="88" height="44" rx="2" fill="white"/>
+                    <text x="170" y="235" font-size="10" fill="#1c1917" font-weight="bold">$1.250</text>
+                    <rect x="160" y="242" width="60" height="8" rx="2" fill="#e7e5e4"/>
+                    <rect x="160" y="252" width="40" height="6" rx="1" fill="#22c55e"/>
+
+                    <!-- Codigo de barras escaneandose -->
+                    <g class="scan-animation">
+                        <rect x="290" y="210" width="60" height="40" rx="4" fill="white" stroke="#d6d3d1" stroke-width="2"/>
+                        <line x1="300" y1="218" x2="300" y2="242" stroke="#1c1917" stroke-width="2"/>
+                        <line x1="308" y1="218" x2="308" y2="242" stroke="#1c1917" stroke-width="1"/>
+                        <line x1="314" y1="218" x2="314" y2="242" stroke="#1c1917" stroke-width="3"/>
+                        <line x1="322" y1="218" x2="322" y2="242" stroke="#1c1917" stroke-width="1"/>
+                        <line x1="328" y1="218" x2="328" y2="242" stroke="#1c1917" stroke-width="2"/>
+                        <line x1="336" y1="218" x2="336" y2="242" stroke="#1c1917" stroke-width="1"/>
+                        <line x1="342" y1="218" x2="342" y2="242" stroke="#1c1917" stroke-width="2"/>
+                        <!-- Linea de escaneo -->
+                        <line x1="295" y1="230" x2="355" y2="230" stroke="#ef4444" stroke-width="2" class="scan-line"/>
+                    </g>
+
+                    <!-- QR flotante -->
+                    <g transform="translate(60, 200)">
+                        <rect width="50" height="50" rx="4" fill="white" stroke="#d6d3d1" stroke-width="2"/>
+                        <rect x="8" y="8" width="10" height="10" fill="#1c1917"/>
+                        <rect x="32" y="8" width="10" height="10" fill="#1c1917"/>
+                        <rect x="8" y="32" width="10" height="10" fill="#1c1917"/>
+                        <rect x="20" y="20" width="10" height="10" fill="#1c1917"/>
+                        <rect x="32" y="26" width="4" height="4" fill="#1c1917"/>
+                        <rect x="26" y="32" width="4" height="4" fill="#1c1917"/>
+                        <rect x="38" y="38" width="4" height="4" fill="#1c1917"/>
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </section>
+
+    <!-- Problema -->
+    <section class="problema">
+        <div class="container">
+            <h2 class="section-title">Sabemos lo que te pasa...</h2>
+            <div class="problema-grid">
+                <div class="problema-item">
+                    <div class="problema-icon">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="24" cy="24" r="20" fill="#fef2f2"/>
+                            <circle cx="16" cy="24" r="4" fill="#ef4444"/>
+                            <circle cx="28" cy="24" r="4" fill="#ef4444"/>
+                            <circle cx="40" cy="24" r="4" fill="#ef4444" opacity="0.5"/>
+                            <path d="M10 32 L14 36 L22 28" stroke="#ef4444" stroke-width="2" stroke-linecap="round" fill="none"/>
+                        </svg>
+                    </div>
+                    <h3>Colas en hora pico</h3>
+                    <p>El cliente se impacienta, vos te estresás y a veces se van sin comprar.</p>
+                </div>
+                <div class="problema-item">
+                    <div class="problema-icon">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="24" cy="24" r="20" fill="#fef2f2"/>
+                            <rect x="12" y="14" width="24" height="20" rx="2" fill="none" stroke="#ef4444" stroke-width="2"/>
+                            <line x1="16" y1="20" x2="32" y2="20" stroke="#ef4444" stroke-width="2"/>
+                            <line x1="16" y1="26" x2="28" y2="26" stroke="#ef4444" stroke-width="2"/>
+                            <line x1="16" y1="30" x2="24" y2="30" stroke="#ef4444" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3>Anotar todo a mano</h3>
+                    <p>Libreta, calculadora, papelitos... y despues no sabés cuanto vendiste.</p>
+                </div>
+                <div class="problema-item">
+                    <div class="problema-icon">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="24" cy="24" r="20" fill="#fef2f2"/>
+                            <circle cx="24" cy="20" r="8" fill="none" stroke="#ef4444" stroke-width="2"/>
+                            <path d="M24 28 L24 36" stroke="#ef4444" stroke-width="2"/>
+                            <path d="M20 32 L28 32" stroke="#ef4444" stroke-width="2"/>
+                            <text x="22" y="23" font-size="10" fill="#ef4444">?</text>
+                        </svg>
+                    </div>
+                    <h3>Miedo a la tecnologia</h3>
+                    <p>Probaste otros sistemas y eran complicadisimos. Terminaste volviendo al papel.</p>
+                </div>
+                <div class="problema-item">
+                    <div class="problema-icon">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="24" cy="24" r="20" fill="#fef2f2"/>
+                            <path d="M24 12 L24 20 M24 28 L24 28" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="24" cy="32" r="2" fill="#ef4444"/>
+                            <path d="M14 18 C14 18 18 14 24 14 C30 14 34 18 34 18" stroke="#ef4444" stroke-width="2" stroke-linecap="round" fill="none"/>
+                            <line x1="16" y1="16" x2="14" y2="12" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+                            <line x1="32" y1="16" x2="34" y2="12" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3>Cortes de internet</h3>
+                    <p>Justo cuando mas vendés, se cae la conexion y quedás a ciegas.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solucion -->
+    <section class="solucion">
+        <div class="container">
+            <div class="solucion-badge">La solucion</div>
+            <h2 class="section-title">Cianbox POS: El sistema pensado para kioscos</h2>
+            <p class="solucion-texto">No necesitas ser experto en computacion. Si sabes usar WhatsApp, podes usar Cianbox POS. En 5 minutos ya estas cobrando.</p>
+        </div>
+    </section>
+
+    <!-- Caracteristicas -->
+    <section class="features">
+        <div class="container">
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon feature-icon-speed">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="3" fill="none"/>
+                            <path d="M24 14 L24 24 L32 28" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3>Cobra en 3 segundos</h3>
+                    <p>Escanea el codigo de barras con la camara del celular o tablet. El precio aparece al instante.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon feature-icon-qr">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="8" y="8" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"/>
+                            <rect x="11" y="11" width="8" height="8" fill="currentColor"/>
+                            <rect x="26" y="8" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"/>
+                            <rect x="29" y="11" width="8" height="8" fill="currentColor"/>
+                            <rect x="8" y="26" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"/>
+                            <rect x="11" y="29" width="8" height="8" fill="currentColor"/>
+                            <rect x="26" y="26" width="6" height="6" fill="currentColor"/>
+                            <rect x="34" y="26" width="6" height="6" fill="currentColor"/>
+                            <rect x="26" y="34" width="6" height="6" fill="currentColor"/>
+                            <rect x="34" y="34" width="6" height="6" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <h3>Acepta Mercado Pago sin posnet</h3>
+                    <p>Tu cliente escanea el QR, paga desde su celular y listo. Sin alquiler de posnet, sin comisiones ocultas.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon feature-icon-offline">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 28 C8 28 14 22 24 22 C34 22 40 28 40 28" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"/>
+                            <path d="M14 34 C14 34 18 30 24 30 C30 30 34 34 34 34" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"/>
+                            <circle cx="24" cy="40" r="3" fill="currentColor"/>
+                            <line x1="8" y1="12" x2="40" y2="44" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3>Funciona sin internet</h3>
+                    <p>Se corto la luz del modem? Segui vendiendo normal. Cuando vuelva internet, se sincroniza solo.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon feature-icon-device">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="8" y="8" width="32" height="24" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                            <rect x="12" y="12" width="24" height="16" fill="currentColor" opacity="0.2"/>
+                            <rect x="18" y="36" width="12" height="4" fill="currentColor"/>
+                            <rect x="14" y="40" width="20" height="2" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <h3>Usa lo que ya tenes</h3>
+                    <p>Funciona en tu tablet vieja, en una notebook o en una PC. No necesitas comprar equipos especiales.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon feature-icon-report">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="10" y="8" width="28" height="32" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                            <text x="17" y="28" font-size="14" font-weight="bold" fill="currentColor">$</text>
+                            <line x1="16" y1="34" x2="32" y2="34" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3>Sabe cuanto vendiste hoy</h3>
+                    <p>Al final del dia, un solo numero te dice todo: cuanto entro. Sin graficos complicados.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon feature-icon-sync">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 24 C12 17.4 17.4 12 24 12 C28.4 12 32.2 14.2 34.4 17.6 L38 14 L38 24 L28 24 L31.6 20.4 C30 18.2 27.2 16.8 24 16.8 C19.8 16.8 16.4 19.8 15.6 24" stroke="currentColor" stroke-width="2" fill="none"/>
+                            <path d="M36 24 C36 30.6 30.6 36 24 36 C19.6 36 15.8 33.8 13.6 30.4 L10 34 L10 24 L20 24 L16.4 27.6 C18 29.8 20.8 31.2 24 31.2 C28.2 31.2 31.6 28.2 32.4 24" stroke="currentColor" stroke-width="2" fill="none"/>
+                        </svg>
+                    </div>
+                    <h3>Tu stock siempre al dia</h3>
+                    <p>Se conecta con tu sistema Cianbox. Cada venta descuenta automaticamente del inventario.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Como funciona -->
+    <section class="como-funciona" id="como-funciona">
+        <div class="container">
+            <h2 class="section-title">3 pasos y listo</h2>
+            <div class="pasos-grid">
+                <div class="paso">
+                    <div class="paso-numero">1</div>
+                    <div class="paso-icon">
+                        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Codigo de barras -->
+                            <rect x="15" y="20" width="50" height="40" rx="4" fill="white" stroke="#d6d3d1" stroke-width="2"/>
+                            <line x1="22" y1="28" x2="22" y2="52" stroke="#1c1917" stroke-width="2"/>
+                            <line x1="28" y1="28" x2="28" y2="52" stroke="#1c1917" stroke-width="1"/>
+                            <line x1="33" y1="28" x2="33" y2="52" stroke="#1c1917" stroke-width="3"/>
+                            <line x1="40" y1="28" x2="40" y2="52" stroke="#1c1917" stroke-width="1"/>
+                            <line x1="46" y1="28" x2="46" y2="52" stroke="#1c1917" stroke-width="2"/>
+                            <line x1="52" y1="28" x2="52" y2="52" stroke="#1c1917" stroke-width="1"/>
+                            <line x1="58" y1="28" x2="58" y2="52" stroke="#1c1917" stroke-width="2"/>
+                            <!-- Linea laser -->
+                            <line x1="10" y1="40" x2="70" y2="40" stroke="#ef4444" stroke-width="3"/>
+                            <!-- Rayos -->
+                            <path d="M5 40 L10 40" stroke="#ef4444" stroke-width="2"/>
+                            <path d="M70 40 L75 40" stroke="#ef4444" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3>Escanea</h3>
+                    <p>Apunta la camara al codigo de barras del producto.</p>
+                </div>
+
+                <div class="paso">
+                    <div class="paso-numero">2</div>
+                    <div class="paso-icon">
+                        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Carrito -->
+                            <circle cx="30" cy="60" r="5" fill="#22c55e"/>
+                            <circle cx="55" cy="60" r="5" fill="#22c55e"/>
+                            <path d="M15 20 L22 20 L32 50 L58 50 L65 30 L28 30" stroke="#22c55e" stroke-width="3" fill="none"/>
+                            <!-- Productos en carrito -->
+                            <rect x="35" y="35" width="8" height="12" rx="1" fill="#f97316"/>
+                            <rect x="46" y="38" width="6" height="9" rx="1" fill="#3b82f6"/>
+                            <!-- Signo + -->
+                            <circle cx="60" cy="20" r="10" fill="#22c55e"/>
+                            <line x1="60" y1="15" x2="60" y2="25" stroke="white" stroke-width="2"/>
+                            <line x1="55" y1="20" x2="65" y2="20" stroke="white" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3>Suma</h3>
+                    <p>Agrega todo lo que el cliente lleva. El total se calcula solo.</p>
+                </div>
+
+                <div class="paso">
+                    <div class="paso-numero">3</div>
+                    <div class="paso-icon">
+                        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Billete -->
+                            <rect x="10" y="25" width="35" height="20" rx="2" fill="#22c55e"/>
+                            <circle cx="27" cy="35" r="6" fill="white" opacity="0.5"/>
+                            <text x="24" y="38" font-size="8" fill="#22c55e" font-weight="bold">$</text>
+                            <!-- QR -->
+                            <rect x="50" y="22" width="25" height="25" rx="2" fill="white" stroke="#1c1917" stroke-width="2"/>
+                            <rect x="54" y="26" width="6" height="6" fill="#1c1917"/>
+                            <rect x="65" y="26" width="6" height="6" fill="#1c1917"/>
+                            <rect x="54" y="37" width="6" height="6" fill="#1c1917"/>
+                            <rect x="62" y="33" width="3" height="3" fill="#1c1917"/>
+                            <rect x="68" y="40" width="3" height="3" fill="#1c1917"/>
+                            <!-- Check -->
+                            <circle cx="55" cy="60" r="12" fill="#22c55e"/>
+                            <path d="M49 60 L53 64 L61 56" stroke="white" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3>Cobra</h3>
+                    <p>Efectivo o QR de Mercado Pago. Imprime el ticket si queres.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonios -->
+    <section class="testimonios">
+        <div class="container">
+            <h2 class="section-title">Kiosqueros que ya lo usan</h2>
+            <div class="testimonios-grid">
+                <div class="testimonio-card">
+                    <div class="testimonio-stars">
+                        <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                    </div>
+                    <p class="testimonio-texto">"Antes tardaba un minuto por cliente. Ahora son 15 segundos. En hora pico, eso es oro."</p>
+                    <div class="testimonio-autor">
+                        <div class="testimonio-avatar">CM</div>
+                        <div>
+                            <strong>Carlos M.</strong>
+                            <span>Kiosco "El Rayo", Lanus</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="testimonio-card">
+                    <div class="testimonio-stars">
+                        <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                    </div>
+                    <p class="testimonio-texto">"Lo uso en una tablet de mi hija que no usaba. Ni gaste en equipos."</p>
+                    <div class="testimonio-autor">
+                        <div class="testimonio-avatar">MG</div>
+                        <div>
+                            <strong>Marta G.</strong>
+                            <span>Maxikiosco 24hs, Quilmes</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="testimonio-card">
+                    <div class="testimonio-stars">
+                        <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                    </div>
+                    <p class="testimonio-texto">"Me daba miedo la tecnologia. Mi sobrina me lo configuro en 10 minutos y nunca mas necesite ayuda."</p>
+                    <div class="testimonio-autor">
+                        <div class="testimonio-avatar">RS</div>
+                        <div>
+                            <strong>Roberto S.</strong>
+                            <span>Kiosco de barrio, Avellaneda</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-number">+500</span>
+                    <span class="stat-label">kioscos lo usan</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">12 seg</span>
+                    <span class="stat-label">tiempo de cobro</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">99.9%</span>
+                    <span class="stat-label">disponibilidad</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Precios -->
+    <section class="precios" id="precios">
+        <div class="container">
+            <h2 class="section-title">Precios claros, sin letra chica</h2>
+            <div class="precios-grid">
+                <div class="precio-card">
+                    <div class="precio-header">
+                        <h3>Kiosco</h3>
+                        <p class="precio-ideal">Ideal para kioscos y drugstores</p>
+                    </div>
+                    <div class="precio-valor">
+                        <span class="precio-moneda">$</span>
+                        <span class="precio-numero">4.990</span>
+                        <span class="precio-periodo">/mes</span>
+                    </div>
+                    <ul class="precio-features">
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Hasta 5.000 productos
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            1 punto de venta
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Cobro con QR Mercado Pago
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Modo offline incluido
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Soporte por WhatsApp
+                        </li>
+                    </ul>
+                    <a href="#cta-final" class="btn btn-secondary btn-block">Elegir plan</a>
+                </div>
+
+                <div class="precio-card precio-card-featured">
+                    <div class="precio-badge">Mas elegido</div>
+                    <div class="precio-header">
+                        <h3>Maxikiosco</h3>
+                        <p class="precio-ideal">Ideal para maxikioscos y autoservicios</p>
+                    </div>
+                    <div class="precio-valor">
+                        <span class="precio-moneda">$</span>
+                        <span class="precio-numero">7.990</span>
+                        <span class="precio-periodo">/mes</span>
+                    </div>
+                    <ul class="precio-features">
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Productos ilimitados
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Hasta 3 puntos de venta
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Todo lo del plan Kiosco
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Reportes avanzados
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Soporte prioritario
+                        </li>
+                    </ul>
+                    <a href="#cta-final" class="btn btn-primary btn-block">Elegir plan</a>
+                </div>
+
+                <div class="precio-card">
+                    <div class="precio-header">
+                        <h3>Cadena</h3>
+                        <p class="precio-ideal">Para varias sucursales</p>
+                    </div>
+                    <div class="precio-valor">
+                        <span class="precio-numero precio-consultar">Consultar</span>
+                    </div>
+                    <ul class="precio-features">
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Multiples sucursales
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Panel centralizado
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Integraciones personalizadas
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Soporte dedicado
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            Capacitacion incluida
+                        </li>
+                    </ul>
+                    <a href="#cta-final" class="btn btn-secondary btn-block">Contactar</a>
+                </div>
+            </div>
+            <p class="precios-nota">Sin contratos. Cancela cuando quieras. Precios + IVA.</p>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" id="faq">
+        <div class="container">
+            <h2 class="section-title">Preguntas frecuentes</h2>
+            <div class="faq-grid">
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Necesito comprar algun equipo especial?</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" class="faq-icon"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>No. Funciona en cualquier tablet o computadora que tengas. Si no tenes nada, con un celular Android de $50.000 ya podes arrancar.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Que pasa si se corta internet?</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" class="faq-icon"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Seguis vendiendo normal. El sistema guarda todo local y cuando vuelve internet, sincroniza automaticamente.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Como cargo mis productos?</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" class="faq-icon"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si usas Cianbox, se importan automaticamente. Si no, los podes cargar de a uno escaneando el codigo de barras, o nos mandas tu lista y te los cargamos gratis.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Puedo cobrar con tarjeta?</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" class="faq-icon"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si, a traves del QR de Mercado Pago tu cliente puede pagar con tarjeta desde su celular. Vos no necesitas posnet.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Es dificil de aprender?</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" class="faq-icon"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>No. Si sabes usar WhatsApp, podes usar Cianbox POS. Ademas, te damos un video de 5 minutos que explica todo.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Que soporte tienen?</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" class="faq-icon"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Te respondemos por WhatsApp de lunes a sabados. Problemas urgentes, los resolvemos en menos de 2 horas.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Puedo probarlo antes de pagar?</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" class="faq-icon"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si. Tenes 14 dias gratis para probar todo. Sin poner tarjeta.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Sirve para controlar el stock?</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" class="faq-icon"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si. Cada venta descuenta del inventario. Podes ver que productos se estan por acabar y cuales no se venden.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Final -->
+    <section class="cta-final" id="cta-final">
+        <div class="container">
+            <h2>Empeza a vender mas rapido hoy</h2>
+            <p>14 dias gratis. Sin tarjeta. Sin compromiso.</p>
+            <a href="#" class="btn btn-primary btn-large btn-cta">Crear mi cuenta gratis</a>
+            <p class="cta-note">Configuracion en 10 minutos. Soporte por WhatsApp si necesitas ayuda.</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#" class="logo">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="32" rx="8" fill="#22c55e"/>
+                            <path d="M8 10h16v12H8z" fill="white" opacity="0.3"/>
+                            <path d="M10 8h12v4H10z" fill="white"/>
+                            <path d="M12 14h8v2H12zM12 18h5v2H12z" fill="white" opacity="0.7"/>
+                        </svg>
+                        <span>Cianbox POS</span>
+                    </a>
+                    <p>El sistema de cobro pensado para kioscos argentinos.</p>
+                </div>
+
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <a href="#">Terminos y Condiciones</a>
+                    <a href="#">Politica de Privacidad</a>
+                </div>
+
+                <div class="footer-links">
+                    <h4>Contacto</h4>
+                    <a href="https://wa.me/5411XXXXXXXX" target="_blank">WhatsApp</a>
+                    <a href="mailto:hola@cianbox.com">hola@cianbox.com</a>
+                </div>
+
+                <div class="footer-links">
+                    <h4>Seguinos</h4>
+                    <a href="#" target="_blank">Instagram</a>
+                    <a href="#" target="_blank">Facebook</a>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>2024 Cianbox. Hecho en Argentina.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

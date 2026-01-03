@@ -974,6 +974,28 @@ class SyncService:
 
         return None
 
+    def get_default_customer(self) -> Optional[Customer]:
+        """
+        Obtiene el cliente por defecto (Consumidor Final, cianbox_id = 1).
+
+        Returns:
+            Cliente por defecto o None si no existe
+        """
+        from sqlalchemy import select
+
+        with session_scope() as session:
+            customer = session.execute(
+                select(Customer)
+                .where(Customer.tenant_id == self.tenant_id)
+                .where(Customer.cianbox_id == 1)
+            ).scalar_one_or_none()
+
+            if customer:
+                session.expunge(customer)
+                return customer
+
+        return None
+
     def get_customers_count(self) -> int:
         """
         Obtiene el numero de clientes en cache local.

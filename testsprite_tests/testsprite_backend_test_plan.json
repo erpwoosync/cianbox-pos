@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "login with email and password",
+    "description": "Test the /api/auth/login endpoint to verify that users can successfully log in using valid email, password, and tenantSlug, and receive a JWT token and user data. Also verify that invalid credentials return a 401 error."
+  },
+  {
+    "id": "TC002",
+    "title": "quick login with 4 digit pin for pos",
+    "description": "Test the /api/auth/login/pin endpoint to ensure users can log in quickly using a valid 4-digit PIN and tenantSlug. Verify successful login returns 200 and invalid PIN returns 401."
+  },
+  {
+    "id": "TC003",
+    "title": "refresh access token",
+    "description": "Test the /api/auth/refresh endpoint to verify that providing a valid refreshToken returns a new access token with status 200."
+  },
+  {
+    "id": "TC004",
+    "title": "close user session logout",
+    "description": "Test the /api/auth/logout endpoint to ensure an authenticated user can close their session successfully and receive a 200 response."
+  },
+  {
+    "id": "TC005",
+    "title": "get current user info",
+    "description": "Test the /api/auth/me endpoint to verify that an authenticated user can retrieve their user information with a 200 response."
+  },
+  {
+    "id": "TC006",
+    "title": "change password",
+    "description": "Test the /api/auth/password endpoint to verify that an authenticated user can change their password by providing the currentPassword and a newPassword with minimum length 8, and receive a 200 confirmation."
+  },
+  {
+    "id": "TC007",
+    "title": "verify supervisor pin for authorization",
+    "description": "Test the /api/auth/verify-supervisor endpoint to ensure that supervisor PIN verification works correctly for operation authorization by providing a valid 4-digit pin and requiredPermission, returning 200 on success."
+  },
+  {
+    "id": "TC008",
+    "title": "list products with search and filters",
+    "description": "Test the /api/products GET endpoint to verify product listing with various filters such as search, categoryId, brandId, branchId, isActive, and pagination parameters page and pageSize, returning a paginated product list with status 200."
+  },
+  {
+    "id": "TC009",
+    "title": "create new sale with multiple items and payments",
+    "description": "Test the /api/sales POST endpoint to verify that a new sale can be created with required fields branchId, pointOfSaleId, items, and payments, including optional customerId, receiptType, and notes, returning 201 on success."
+  },
+  {
+    "id": "TC010",
+    "title": "register or update pos terminal",
+    "description": "Test the /api/pos/terminals/register endpoint to verify that a POS terminal can be registered or updated by providing hostname and macAddress (valid MAC address format), with optional osVersion, appVersion, and ipAddress. Verify that active terminals return 200 and pending or blocked terminals return 403."
+  }
+]

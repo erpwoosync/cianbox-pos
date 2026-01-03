@@ -21,6 +21,7 @@ from .invoice_dialog import InvoiceDialog
 from .sales_history_dialog import SalesHistoryDialog
 from .size_curve_dialog import SizeCurveDialog, VariantSelection
 from .variant_selector_dialog import VariantSelectorDialog
+from .supervisor_pin_dialog import SupervisorPinDialog
 
 __all__ = [
     "CheckoutDialog",
@@ -33,4 +34,5 @@ __all__ = [
     "SizeCurveDialog",
     "VariantSelection",
     "VariantSelectorDialog",
+    "SupervisorPinDialog",
 ]
