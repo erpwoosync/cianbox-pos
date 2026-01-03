@@ -51,7 +51,7 @@ from src.api.sales import SalesAPI, CreateSaleRequest, SaleItemData, PaymentData
 from src.ui.styles import get_theme
 from src.services import get_sync_service, SyncStatus, SyncResult
 from src.models import Product, Category
-from src.ui.dialogs import CheckoutDialog, CheckoutResult, SizeCurveDialog, CustomerDialog, InvoiceDialog, SalesHistoryDialog
+from src.ui.dialogs import CheckoutDialog, CheckoutResult, SizeCurveDialog, CustomerDialog, InvoiceDialog, SalesHistoryDialog, ProductRefundDialog
 from src.ui.dialogs.checkout_dialog import PaymentData as CheckoutPaymentData
 from src.models import Customer
 from src.utils import get_image_loader
@@ -259,6 +259,29 @@ class MainWindow(QMainWindow):
         """)
         sales_btn.clicked.connect(self._on_sales_history_click)
         layout.addWidget(sales_btn)
+
+        # Boton devoluciones
+        refund_btn = QToolButton()
+        refund_btn.setText("Devoluciones")
+        refund_btn.setFixedSize(100, 36)
+        refund_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        refund_btn.setStyleSheet(f"""
+            QToolButton {{
+                background-color: transparent;
+                color: {self.theme.gray_400};
+                border: 1px solid {self.theme.gray_600};
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+            }}
+            QToolButton:hover {{
+                background-color: {self.theme.warning};
+                border-color: {self.theme.warning};
+                color: white;
+            }}
+        """)
+        refund_btn.clicked.connect(self._on_refund_click)
+        layout.addWidget(refund_btn)
 
         # Boton sincronizar
         sync_btn = QToolButton()
@@ -1764,6 +1787,13 @@ class MainWindow(QMainWindow):
         """Abre el dialogo de historial de ventas."""
         dialog = SalesHistoryDialog(parent=self)
         dialog.exec()
+
+    def _on_refund_click(self) -> None:
+        """Abre el dialogo de devoluciones orientado a producto."""
+        dialog = ProductRefundDialog(theme=self.theme, parent=self)
+        if dialog.exec():
+            # Si se proceso una devolucion, refrescar datos
+            self._start_sync()
 
     def _focus_search(self) -> None:
         """Pone el focus en el campo de busqueda."""

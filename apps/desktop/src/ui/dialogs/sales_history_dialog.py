@@ -198,7 +198,7 @@ class SalesHistoryDialog(QDialog):
 
         self.date_from = QDateEdit()
         self.date_from.setCalendarPopup(True)
-        self.date_from.setDate(QDate.currentDate())
+        self.date_from.setDate(QDate.currentDate().addDays(-30))  # Ultimos 30 dias
         self.date_from.setStyleSheet(f"""
             QDateEdit {{
                 background-color: white;

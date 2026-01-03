@@ -399,3 +399,48 @@ class SalesAPI:
             logger.error(f"Error obteniendo devoluciones: {e}")
 
         return []
+
+    def get_sales_by_product(
+        self,
+        identifier: str,
+        customer_id: Optional[str] = None,
+        limit: int = 20,
+    ) -> dict:
+        """
+        Busca ventas que contengan un producto especifico.
+        Para flujo de devolucion orientado a producto.
+
+        Args:
+            identifier: ID, barcode, SKU o codigo interno del producto
+            customer_id: Filtrar por cliente (opcional)
+            limit: Limite de resultados
+
+        Returns:
+            Dict con producto y lista de ventas
+        """
+        logger.info(f"Buscando ventas por producto: {identifier}")
+
+        try:
+            params = {"limit": limit}
+            if customer_id:
+                params["customerId"] = customer_id
+
+            response = self.client.get(
+                f"/api/sales/by-product/{identifier}",
+                params=params,
+            )
+
+            if response.success and response.data:
+                return {
+                    "success": True,
+                    "data": response.data,
+                }
+
+            return {
+                "success": False,
+                "error": response.error or "Error al buscar ventas",
+            }
+
+        except Exception as e:
+            logger.error(f"Error buscando ventas por producto: {e}")
+            return {"success": False, "error": str(e)}

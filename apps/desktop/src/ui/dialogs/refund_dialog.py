@@ -249,40 +249,42 @@ class RefundDialog(QDialog):
         return frame
 
     def _create_items_table(self) -> QTableWidget:
-        """Crea la tabla de items."""
+        """Crea la tabla de items optimizada para touch/POS."""
         table = QTableWidget()
         table.setColumnCount(6)
         table.setHorizontalHeaderLabels([
-            "Devolver", "Producto", "Cant. Original", "Cant. Devolver", "P. Unit.", "Subtotal"
+            "", "Producto", "Cant.", "Devolver", "P. Unit.", "Subtotal"
         ])
 
-        # Estilos
+        # Estilos mejorados para touch
         table.setStyleSheet(f"""
             QTableWidget {{
                 background-color: {self.theme.surface};
                 border: 1px solid {self.theme.divider};
                 border-radius: 8px;
                 gridline-color: {self.theme.divider};
+                font-size: 13px;
             }}
             QTableWidget::item {{
-                padding: 8px;
+                padding: 12px 8px;
                 color: {self.theme.text};
             }}
             QHeaderView::section {{
                 background-color: {self.theme.surface_variant};
                 color: {self.theme.text};
-                padding: 10px;
+                padding: 12px 10px;
                 border: none;
                 font-weight: bold;
+                font-size: 12px;
             }}
         """)
 
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(50)  # Alto de filas
+        table.verticalHeader().setDefaultSectionSize(64)  # Filas más altas para touch
 
-        # Configurar columnas
+        # Configurar columnas con mejores anchos
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -291,25 +293,32 @@ class RefundDialog(QDialog):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
 
-        table.setColumnWidth(0, 70)
-        table.setColumnWidth(2, 100)
-        table.setColumnWidth(3, 120)
-        table.setColumnWidth(4, 100)
-        table.setColumnWidth(5, 100)
+        table.setColumnWidth(0, 60)   # Checkbox
+        table.setColumnWidth(2, 70)   # Cantidad original
+        table.setColumnWidth(3, 140)  # Spinbox cantidad a devolver
+        table.setColumnWidth(4, 100)  # Precio
+        table.setColumnWidth(5, 110)  # Subtotal
 
         # Llenar tabla
         table.setRowCount(len(self.sale_items))
         for row, item in enumerate(self.sale_items):
-            # Checkbox
+            # Checkbox grande para touch
             checkbox = QCheckBox()
             checkbox.setChecked(True)
             checkbox.setStyleSheet(f"""
-                QCheckBox {{
-                    spacing: 8px;
-                }}
                 QCheckBox::indicator {{
-                    width: 22px;
-                    height: 22px;
+                    width: 28px;
+                    height: 28px;
+                    border: 2px solid {self.theme.border};
+                    border-radius: 4px;
+                    background-color: {self.theme.background};
+                }}
+                QCheckBox::indicator:checked {{
+                    background-color: {self.theme.primary};
+                    border-color: {self.theme.primary};
+                }}
+                QCheckBox::indicator:hover {{
+                    border-color: {self.theme.primary};
                 }}
             """)
             checkbox.stateChanged.connect(lambda state, r=row: self._on_checkbox_changed(r, state))
@@ -320,51 +329,75 @@ class RefundDialog(QDialog):
             checkbox_layout.setContentsMargins(0, 0, 0, 0)
             table.setCellWidget(row, 0, checkbox_widget)
 
-            # Producto
+            # Producto con fuente más grande
             product_name = item.get("productName", "Producto")
-            table.setItem(row, 1, QTableWidgetItem(product_name))
+            product_item = QTableWidgetItem(product_name)
+            product_item.setFont(QFont(self.theme.font_family, 11))
+            table.setItem(row, 1, product_item)
 
-            # Cantidad original
+            # Cantidad original centrada y bold
             qty = float(item.get("quantity", 1))
             qty_item = QTableWidgetItem(f"{qty:.0f}" if qty == int(qty) else f"{qty:.2f}")
             qty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            qty_item.setFont(QFont(self.theme.font_family, 11, QFont.Weight.Bold))
             table.setItem(row, 2, qty_item)
 
-            # Spinbox cantidad a devolver
+            # Spinbox grande y usable para touch
             spinbox = QDoubleSpinBox()
             spinbox.setMinimum(0)
             spinbox.setMaximum(qty)
             spinbox.setValue(qty)
             spinbox.setDecimals(2 if qty != int(qty) else 0)
             spinbox.setSingleStep(1)
-            spinbox.setMinimumHeight(36)
+            spinbox.setMinimumHeight(44)
             spinbox.setStyleSheet(f"""
                 QDoubleSpinBox {{
                     background-color: {self.theme.background};
                     color: {self.theme.text};
-                    border: 1px solid {self.theme.divider};
-                    border-radius: 4px;
-                    padding: 6px 8px;
+                    border: 2px solid {self.theme.border};
+                    border-radius: 6px;
+                    padding: 8px 10px;
                     font-size: 14px;
+                    font-weight: bold;
+                }}
+                QDoubleSpinBox:focus {{
+                    border-color: {self.theme.primary};
+                }}
+                QDoubleSpinBox:disabled {{
+                    background-color: {self.theme.gray_200};
+                    color: {self.theme.text_secondary};
                 }}
                 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
-                    width: 20px;
+                    width: 28px;
+                    border: none;
+                    background-color: {self.theme.surface_variant};
+                }}
+                QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{
+                    background-color: {self.theme.primary};
                 }}
             """)
             spinbox.valueChanged.connect(self._update_totals)
             self.quantity_spinboxes[item.get("id")] = spinbox
-            table.setCellWidget(row, 3, spinbox)
+
+            # Wrapper para centrar spinbox
+            spinbox_widget = QWidget()
+            spinbox_layout = QHBoxLayout(spinbox_widget)
+            spinbox_layout.addWidget(spinbox)
+            spinbox_layout.setContentsMargins(4, 0, 4, 0)
+            table.setCellWidget(row, 3, spinbox_widget)
 
             # Precio unitario
             unit_price = float(item.get("unitPrice", 0))
             price_item = QTableWidgetItem(f"${unit_price:,.2f}")
             price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            price_item.setFont(QFont(self.theme.font_family, 11))
             table.setItem(row, 4, price_item)
 
-            # Subtotal (se actualiza dinamicamente)
+            # Subtotal bold
             subtotal = qty * unit_price
             subtotal_item = QTableWidgetItem(f"${subtotal:,.2f}")
             subtotal_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            subtotal_item.setFont(QFont(self.theme.font_family, 11, QFont.Weight.Bold))
             table.setItem(row, 5, subtotal_item)
 
         return table

@@ -21,6 +21,7 @@ import {
   Layers,
   User,
   Receipt,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
@@ -40,6 +41,7 @@ import TalleSelectorModal from '../components/TalleSelectorModal';
 import CustomerSelectorModal from '../components/CustomerSelectorModal';
 import InvoiceModal from '../components/InvoiceModal';
 import SalesHistoryModal from '../components/SalesHistoryModal';
+import ProductRefundModal from '../components/ProductRefundModal';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 import { offlineSyncService } from '../services/offlineSync';
 
@@ -280,6 +282,9 @@ export default function POS() {
 
   // Estado de historial de ventas
   const [showSalesHistoryModal, setShowSalesHistoryModal] = useState(false);
+
+  // Estado de devoluciones (flujo orientado a producto)
+  const [showProductRefundModal, setShowProductRefundModal] = useState(false);
 
   // Estado de cliente (derivado del ticket actual)
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -1483,6 +1488,16 @@ export default function POS() {
             <span className="hidden sm:inline">Ventas</span>
           </button>
 
+          {/* Boton devoluciones */}
+          <button
+            onClick={() => setShowProductRefundModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+            title="Procesar devolución de producto"
+          >
+            <RotateCcw className="w-5 h-5" />
+            <span className="hidden sm:inline">Devoluciones</span>
+          </button>
+
           <div className="text-right flex items-center gap-4">
             {/* Indicador de conexión y sincronización */}
             {!isOnline ? (
@@ -2219,6 +2234,16 @@ export default function POS() {
         isOpen={showSalesHistoryModal}
         onClose={() => setShowSalesHistoryModal(false)}
         pointOfSaleId={selectedPOS?.id}
+      />
+
+      {/* Modal devoluciones orientado a producto */}
+      <ProductRefundModal
+        isOpen={showProductRefundModal}
+        onClose={() => setShowProductRefundModal(false)}
+        onRefundComplete={() => {
+          setShowProductRefundModal(false);
+          // Opcional: refrescar datos si es necesario
+        }}
       />
     </div>
   );

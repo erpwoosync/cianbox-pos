@@ -668,6 +668,120 @@ router.post(
 );
 
 /**
+ * GET /api/sales/by-product/:identifier
+ * Buscar ventas que contengan un producto específico
+ * identifier puede ser: productId, barcode, sku, internalCode
+ * Para flujo de devolución orientado a producto
+ */
+router.get(
+  '/by-product/:identifier',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const identifier = req.params.identifier;
+      const customerId = req.query.customerId as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      // Buscar producto por identifier (puede ser id, barcode, sku o internal_code)
+      const product = await prisma.product.findFirst({
+        where: {
+          tenantId,
+          OR: [
+            { id: identifier },
+            { barcode: identifier },
+            { sku: identifier },
+            { internalCode: identifier },
+          ],
+        },
+      });
+
+      if (!product) {
+        throw new NotFoundError('Producto');
+      }
+
+      // Buscar ventas que contengan este producto
+      const whereClause: Record<string, unknown> = {
+        tenantId,
+        status: { in: ['COMPLETED', 'PARTIAL_REFUND'] }, // Solo ventas que se pueden devolver
+        items: {
+          some: {
+            productId: product.id,
+          },
+        },
+      };
+
+      // Si se especifica cliente, filtrar por cliente
+      if (customerId) {
+        whereClause.customerId = customerId;
+      }
+
+      const sales = await prisma.sale.findMany({
+        where: whereClause,
+        include: {
+          customer: { select: { id: true, name: true } },
+          branch: { select: { id: true, code: true, name: true } },
+          pointOfSale: { select: { id: true, code: true, name: true } },
+          user: { select: { id: true, name: true } },
+          items: {
+            where: { productId: product.id },
+            include: {
+              refundItems: {
+                select: { quantity: true },
+              },
+            },
+          },
+        },
+        orderBy: { saleDate: 'desc' },
+        take: limit,
+      });
+
+      // Calcular cantidades disponibles para devolución
+      const salesWithAvailable = sales.map((sale) => {
+        const itemsWithAvailable = sale.items.map((item: typeof sale.items[0]) => {
+          const refundedQty = item.refundItems.reduce(
+            (sum: number, r: { quantity: any }) => sum + Math.abs(Number(r.quantity)),
+            0
+          );
+          const availableQty = Number(item.quantity) - refundedQty;
+          return {
+            ...item,
+            refundedQuantity: refundedQty,
+            availableQuantity: availableQty,
+          };
+        });
+
+        return {
+          ...sale,
+          items: itemsWithAvailable,
+        };
+      });
+
+      // Filtrar ventas que tienen cantidad disponible
+      const salesWithAvailableRefund = salesWithAvailable.filter((sale) =>
+        sale.items.some((item: { availableQuantity: number }) => item.availableQuantity > 0)
+      );
+
+      res.json({
+        success: true,
+        data: {
+          product: {
+            id: product.id,
+            name: product.name,
+            sku: product.sku,
+            barcode: product.barcode,
+            internalCode: product.internalCode,
+          },
+          sales: salesWithAvailableRefund,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/sales/daily-summary
  * Resumen de ventas del día
  */
