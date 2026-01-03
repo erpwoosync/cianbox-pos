@@ -85,6 +85,7 @@ interface Sale {
   tax: number;
   total: number;
   createdAt: string;
+  originalSaleId?: string; // Si tiene valor, es una devolucion
   customer?: {
     id: string;
     name: string;
@@ -916,7 +917,7 @@ export default function SalesHistoryModal({
             {!selectedSale && `${filteredSales.length} ventas encontradas`}
           </div>
           <div className="flex gap-3">
-            {selectedSale && selectedSale.status !== 'REFUNDED' && selectedSale.status !== 'CANCELLED' && (
+            {selectedSale && selectedSale.status !== 'REFUNDED' && selectedSale.status !== 'CANCELLED' && !selectedSale.originalSaleId && (
               <button
                 onClick={() => setShowRefundModal(true)}
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2"

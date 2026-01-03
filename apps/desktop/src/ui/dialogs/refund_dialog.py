@@ -100,8 +100,8 @@ class RefundDialog(QDialog):
         # Configurar dialogo
         self.setWindowTitle(f"Devolucion - Venta #{sale.get('saleNumber', '')}")
         self.setModal(True)
-        self.setMinimumSize(700, 500)
-        self.resize(750, 550)
+        self.setMinimumSize(750, 650)
+        self.resize(800, 720)
 
         self._setup_ui()
 
@@ -280,6 +280,7 @@ class RefundDialog(QDialog):
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(50)  # Alto de filas
 
         # Configurar columnas
         header = table.horizontalHeader()
@@ -302,6 +303,15 @@ class RefundDialog(QDialog):
             # Checkbox
             checkbox = QCheckBox()
             checkbox.setChecked(True)
+            checkbox.setStyleSheet(f"""
+                QCheckBox {{
+                    spacing: 8px;
+                }}
+                QCheckBox::indicator {{
+                    width: 22px;
+                    height: 22px;
+                }}
+            """)
             checkbox.stateChanged.connect(lambda state, r=row: self._on_checkbox_changed(r, state))
             checkbox_widget = QWidget()
             checkbox_layout = QHBoxLayout(checkbox_widget)
@@ -327,13 +337,18 @@ class RefundDialog(QDialog):
             spinbox.setValue(qty)
             spinbox.setDecimals(2 if qty != int(qty) else 0)
             spinbox.setSingleStep(1)
+            spinbox.setMinimumHeight(36)
             spinbox.setStyleSheet(f"""
                 QDoubleSpinBox {{
                     background-color: {self.theme.background};
                     color: {self.theme.text};
                     border: 1px solid {self.theme.divider};
                     border-radius: 4px;
-                    padding: 4px;
+                    padding: 6px 8px;
+                    font-size: 14px;
+                }}
+                QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+                    width: 20px;
                 }}
             """)
             spinbox.valueChanged.connect(self._update_totals)
@@ -665,11 +680,11 @@ class RefundDialog(QDialog):
         self.worker.error.connect(self._on_refund_error)
         self.worker.start()
 
-    def _on_refund_success(self, result: dict) -> None:
+    def _on_refund_success(self, data: dict) -> None:
         """Maneja exito de devolucion."""
         logger.info("Devolucion procesada exitosamente")
 
-        data = result.get("data", {})
+        # El worker ya emite data directamente, no hay que extraerlo
         refund_amount = data.get("refundAmount", 0)
         credit_note = data.get("creditNote")
         is_full_refund = data.get("isFullRefund", False)
@@ -688,7 +703,7 @@ class RefundDialog(QDialog):
             message,
         )
 
-        self.refund_processed.emit(result)
+        self.refund_processed.emit(data)
         self.accept()
 
     def _on_refund_error(self, error: str) -> None:

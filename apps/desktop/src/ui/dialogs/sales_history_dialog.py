@@ -559,9 +559,12 @@ class SalesHistoryDialog(QDialog):
                 has_invoice = len(afip_invoices) > 0
                 self.reprint_btn.setEnabled(has_invoice)
 
-                # Habilitar devolucion solo si la venta no esta devuelta
+                # Habilitar devolucion solo si:
+                # - La venta no esta devuelta ni anulada
+                # - No es una devolucion (tiene originalSaleId)
                 status = self.selected_sale.get("status", "")
-                can_refund = status not in ["REFUNDED", "CANCELLED"]
+                is_refund = self.selected_sale.get("originalSaleId") is not None
+                can_refund = status not in ["REFUNDED", "CANCELLED"] and not is_refund
                 self.refund_btn.setEnabled(can_refund)
             else:
                 self.selected_sale = None
