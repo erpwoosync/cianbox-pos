@@ -1090,6 +1090,17 @@ enum CashRegisterStatus {
   SUSPENDED
 }
 
+enum CashMode {
+  REQUIRED    // Obligatorio abrir caja antes de vender
+  OPTIONAL    // Puede vender sin caja abierta
+  AUTO        // Abre caja automaticamente en primera venta
+}
+
+enum HandoverMode {
+  CLOSE_OPEN  // Cierra y abre nueva sesion
+  TRANSFER    // Transfiere directamente al siguiente cajero
+}
+
 // ==============================================
 // TURNOS DE CAJA (NUEVO SISTEMA)
 // ==============================================
