@@ -37,25 +37,27 @@ from loguru import logger
 from src.api.sales import SalesAPI
 from src.ui.dialogs.supervisor_pin_dialog import SupervisorPinDialog
 
+# Importacion condicional para evitar import circular
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.services.sync_service import SyncService
+
 
 class SearchWorker(QThread):
-    """Worker para buscar ventas por producto."""
+    """Worker para buscar ventas por producto en cache local."""
 
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
 
-    def __init__(self, api: SalesAPI, identifier: str, customer_id: Optional[str] = None):
+    def __init__(self, sync_service: "SyncService", identifier: str):
         super().__init__()
-        self.api = api
+        self.sync_service = sync_service
         self.identifier = identifier
-        self.customer_id = customer_id
 
     def run(self):
         try:
-            result = self.api.get_sales_by_product(
-                self.identifier,
-                customer_id=self.customer_id,
-            )
+            # Buscar en cache local (SQLite)
+            result = self.sync_service.search_sales_by_product(self.identifier)
             if result.get("success"):
                 self.finished.emit(result.get("data", {}))
             else:
@@ -120,10 +122,11 @@ class ProductRefundDialog(QDialog):
 
     refund_completed = pyqtSignal(dict)
 
-    def __init__(self, theme, parent=None):
+    def __init__(self, theme, sync_service: "SyncService", parent=None):
         super().__init__(parent)
         self.theme = theme
-        self.sales_api = SalesAPI()
+        self.sync_service = sync_service
+        self.sales_api = SalesAPI()  # Para procesar devoluciones
         self._search_timer: Optional[QTimer] = None
         self._search_worker: Optional[SearchWorker] = None
         self._refund_worker: Optional[RefundWorker] = None
@@ -471,7 +474,7 @@ class ProductRefundDialog(QDialog):
         # Titulo
         title = QLabel("Detalle de Devolucion")
         title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        title.setStyleSheet(f"color: {self.theme.text_primary};")
+        title.setStyleSheet(f"color: {self.theme.text_primary}; border: none;")
         layout.addWidget(title)
 
         # Contenedor de detalle (se muestra al seleccionar venta)
@@ -495,7 +498,7 @@ class ProductRefundDialog(QDialog):
         sale_info_layout.setSpacing(8)
 
         self.sale_info_label = QLabel()
-        self.sale_info_label.setStyleSheet(f"color: {self.theme.text_primary}; font-size: 13px;")
+        self.sale_info_label.setStyleSheet(f"color: {self.theme.text_primary}; font-size: 13px; border: none;")
         self.sale_info_label.setWordWrap(True)
         sale_info_layout.addWidget(self.sale_info_label)
 
@@ -516,7 +519,7 @@ class ProductRefundDialog(QDialog):
 
         qty_label = QLabel("Cantidad a devolver:")
         qty_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        qty_label.setStyleSheet(f"color: {self.theme.text_primary};")
+        qty_label.setStyleSheet(f"color: {self.theme.text_primary}; border: none;")
         qty_layout.addWidget(qty_label)
 
         qty_row = QHBoxLayout()
@@ -547,7 +550,7 @@ class ProductRefundDialog(QDialog):
         qty_row.addWidget(self.qty_spinbox)
 
         self.available_label = QLabel("de X disponibles")
-        self.available_label.setStyleSheet(f"color: {self.theme.text_secondary}; font-size: 13px;")
+        self.available_label.setStyleSheet(f"color: {self.theme.text_secondary}; font-size: 13px; border: none;")
         qty_row.addWidget(self.available_label)
 
         qty_row.addStretch()
@@ -556,7 +559,7 @@ class ProductRefundDialog(QDialog):
         # Monto a devolver
         self.refund_amount_label = QLabel("Monto: $0.00")
         self.refund_amount_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        self.refund_amount_label.setStyleSheet(f"color: {self.theme.primary};")
+        self.refund_amount_label.setStyleSheet(f"color: {self.theme.primary}; border: none;")
         qty_layout.addWidget(self.refund_amount_label)
 
         detail_layout.addWidget(qty_frame)
@@ -564,7 +567,7 @@ class ProductRefundDialog(QDialog):
         # Motivo
         reason_label = QLabel("Motivo de la devolucion:")
         reason_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        reason_label.setStyleSheet(f"color: {self.theme.text_primary};")
+        reason_label.setStyleSheet(f"color: {self.theme.text_primary}; border: none;")
         detail_layout.addWidget(reason_label)
 
         self.reason_input = QTextEdit()
@@ -589,10 +592,8 @@ class ProductRefundDialog(QDialog):
         # Mensaje cuando no hay seleccion
         self.no_selection_label = QLabel("Seleccione una venta de la lista\npara ver los detalles")
         self.no_selection_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.no_selection_label.setStyleSheet(f"color: {self.theme.gray_400}; font-size: 13px;")
+        self.no_selection_label.setStyleSheet(f"color: {self.theme.gray_400}; font-size: 13px; border: none;")
         layout.addWidget(self.no_selection_label, 1)
-
-        layout.addStretch()
 
         return panel
 
@@ -682,7 +683,8 @@ class ProductRefundDialog(QDialog):
             self._search_worker.terminate()
             self._search_worker.wait()
 
-        self._search_worker = SearchWorker(self.sales_api, query)
+        # Buscar en cache local usando sync_service
+        self._search_worker = SearchWorker(self.sync_service, query)
         self._search_worker.finished.connect(self._on_search_success)
         self._search_worker.error.connect(self._on_search_error)
         self._search_worker.start()

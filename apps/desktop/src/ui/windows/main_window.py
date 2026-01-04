@@ -1790,7 +1790,11 @@ class MainWindow(QMainWindow):
 
     def _on_refund_click(self) -> None:
         """Abre el dialogo de devoluciones orientado a producto."""
-        dialog = ProductRefundDialog(theme=self.theme, parent=self)
+        dialog = ProductRefundDialog(
+            theme=self.theme,
+            sync_service=self.sync_service,
+            parent=self,
+        )
         if dialog.exec():
             # Si se proceso una devolucion, refrescar datos
             self._start_sync()

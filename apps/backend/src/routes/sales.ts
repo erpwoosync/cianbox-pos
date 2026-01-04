@@ -543,8 +543,8 @@ router.get(
       const customerId = req.query.customerId as string | undefined;
       const limit = parseInt(req.query.limit as string) || 20;
 
-      // Buscar producto por identifier (puede ser id, barcode, sku o internal_code)
-      const product = await prisma.product.findFirst({
+      // Buscar producto por identifier (puede ser id, barcode, sku, internal_code o nombre parcial)
+      let product = await prisma.product.findFirst({
         where: {
           tenantId,
           OR: [
@@ -555,6 +555,17 @@ router.get(
           ],
         },
       });
+
+      // Si no se encuentra por código exacto, buscar por nombre (para devoluciones)
+      if (!product) {
+        product = await prisma.product.findFirst({
+          where: {
+            tenantId,
+            name: { contains: identifier, mode: 'insensitive' },
+          },
+          orderBy: { name: 'asc' },
+        });
+      }
 
       if (!product) {
         throw new NotFoundError('Producto');
