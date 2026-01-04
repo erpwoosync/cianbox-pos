@@ -12,32 +12,6 @@ Este documento define la homologacion de nombres de campos entre el sistema POS 
 
 ---
 
-## ANALISIS DE CAMPOS EXISTENTES
-
-### Backend (Prisma) - YA EXISTE:
-- `cianboxSaleId` (Sale:831) - ID de Cianbox post-sync
-- `unitPriceNet` (SaleItem:907) - Precio SIN IVA
-- `cianboxProductId`, `cianboxCustomerId`, `cianboxBranchId` - Todos existen
-- `cianboxCategoryId`, `cianboxBrandId`, `cianboxPriceListId` - Todos existen
-- `fiscalNumber` (Sale:819) - Para CAE
-- `afipInvoices` relacion - Sale tiene relacion a AfipInvoice con cae/caeExpiration
-- `receiptType` enum - NDP_X, NDC_X, INVOICE_A/B/C, CREDIT_NOTE_A/B/C
-
-### Desktop (SQLite) - YA EXISTE:
-- `unit_price_net` (SaleItem:123) - Precio SIN IVA
-- `fiscal_number` (Sale:65) - CAE
-- `receipt_type` (Sale:62) - Tipo comprobante
-- `cianbox_id` en Customer, Product, Category, Brand
-
-### CAMPOS FALTANTES:
-| Campo | Donde | Prioridad | Uso |
-|-------|-------|-----------|-----|
-| `cianbox_sale_id` | Desktop Sale | Media | Tracking de sync a Cianbox |
-| `currencyId` | Backend Sale | Baja | Multi-moneda (solo si se necesita) |
-| `exchangeRate` | Backend Sale | Baja | Cotizacion (solo si se necesita) |
-
----
-
 ## 1. TABLA VENTAS (Sales Header)
 
 ### Mapeo Completo
@@ -70,11 +44,18 @@ Este documento define la homologacion de nombres de campos entre el sistema POS 
 | `notes` | `notes` | `observaciones` | Notas |
 | `originalSaleId` | - | `id_venta_original` | Para devoluciones |
 
-### Estado Actual
+### Campos Nuevos Requeridos en POS
 
-> **BUENAS NOTICIAS:** El POS ya tiene casi todos los campos necesarios para integracion con Cianbox.
-> Los campos de CAE estan en la relacion `afipInvoices` (modelo AfipInvoice).
-> Solo falta agregar `cianbox_sale_id` al modelo SQLite del desktop para tracking.
+Para homologar con Cianbox, agregar estos campos al POS:
+
+```prisma
+// En schema.prisma - modelo Sale
+cae             String?    // CAE de AFIP
+caeExpiration   DateTime?  // Vencimiento CAE
+currencyId      Int        @default(1)  // ID moneda (1=ARS, 2=USD)
+exchangeRate    Decimal    @default(1)  @db.Decimal(12, 6) // Cotizacion
+paymentCondition Int       @default(1)  // 1=Contado, 2=CtaCte
+```
 
 ---
 
@@ -221,36 +202,42 @@ const taxRate = (alicuota - 1) * 100;  // 1.21 -> 21
 
 ## 6. CAMBIOS REQUERIDOS EN EL POS
 
-> **NOTA:** La mayoria de campos ya existen. Solo se requieren cambios menores.
-
-### 6.1 Backend (Prisma Schema) - YA EXISTE TODO
+### 6.1 Backend (Prisma Schema)
 
 ```prisma
 model Sale {
-  // YA EXISTE:
-  cianboxSaleId   Int?        // ID si se sincronizó con Cianbox (linea 831)
-  fiscalNumber    String?     // Número fiscal/CAE (linea 819)
+  // Campos existentes...
 
-  // Relacion a AfipInvoice para datos fiscales completos
-  afipInvoices    AfipInvoice[]  // cae, caeExpiration estan aqui
+  // NUEVOS - Para homologacion con Cianbox
+  cianboxSaleId   Int?       // ID asignado por Cianbox al sincronizar
+  cae             String?    // CAE de AFIP (mover de AfipInvoice)
+  caeExpiration   DateTime?  // Vencimiento CAE
+  currencyId      Int        @default(1)  // 1=ARS
+  exchangeRate    Decimal    @default(1)  @db.Decimal(12, 6)
+  paymentCondition String    @default("CASH") // CASH, CREDIT
 }
 
 model SaleItem {
-  // YA EXISTE:
-  unitPriceNet    Decimal?  @db.Decimal(12, 2) // (linea 907)
+  // Campos existentes...
+
+  // NUEVO - Para calcular gravado desde unitPrice
+  unitPriceNet    Decimal?  @db.Decimal(12, 2) // Precio neto SIN IVA
 }
 ```
 
-### 6.2 Desktop (SQLAlchemy) - AGREGAR SOLO 1 CAMPO
+### 6.2 Desktop (SQLAlchemy Models)
 
 ```python
 class Sale(BaseModel):
-    # EXISTENTES:
-    fiscal_number   # CAE (linea 65)
-    receipt_type    # Tipo comprobante (linea 62)
+    # Existentes...
 
-    # NUEVO - Para tracking de sync a Cianbox:
+    # NUEVOS
     cianbox_sale_id: Mapped[Optional[int]] = mapped_column(Integer)
+    cae: Mapped[Optional[str]] = mapped_column(String(50))
+    cae_expiration: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    currency_id: Mapped[int] = mapped_column(Integer, default=1)
+    exchange_rate: Mapped[Decimal] = mapped_column(Numeric(12, 6), default=Decimal("1"))
+    payment_condition: Mapped[str] = mapped_column(String(20), default="CASH")
 ```
 
 ---
@@ -396,22 +383,12 @@ function convertSaleToCianbox(sale: Sale, items: SaleItem[], payments: Payment[]
 
 ## 9. PROXIMOS PASOS
 
-### Ya Implementado:
-- [x] `cianboxSaleId` en Sale (backend)
-- [x] `unitPriceNet` en SaleItem (backend)
-- [x] Todos los `cianboxXxxId` para entidades (Product, Customer, Branch, etc.)
-- [x] `receiptType` con NDP_X, NDC_X, INVOICE_*, CREDIT_NOTE_*
-- [x] Relacion Sale -> AfipInvoice con CAE completo
-
-### Pendiente (opcional):
-1. [ ] Agregar `cianbox_sale_id` al modelo SQLite desktop (para tracking)
-2. [ ] Crear servicio de sincronizacion POS -> Cianbox (cuando API este disponible)
-3. [ ] Implementar cola de reintentos para ventas fallidas
-4. [ ] Tests de integracion con API Cianbox
-
-### Migraciones Requeridas:
-- **Backend:** Ninguna - todos los campos ya existen
-- **Desktop:** Solo agregar 1 campo: `cianbox_sale_id INTEGER` a tabla `sales`
+1. [ ] Agregar campos nuevos al schema Prisma
+2. [ ] Crear migracion de base de datos
+3. [ ] Agregar campos al modelo SQLite desktop
+4. [ ] Crear servicio de sincronizacion a Cianbox
+5. [ ] Implementar cola de reintentos para ventas fallidas
+6. [ ] Tests de integracion con API Cianbox (cuando este disponible)
 
 ---
 

@@ -889,4 +889,96 @@ export const categoriesService = {
   },
 };
 
+// ==============================================
+// SERVICIOS DE GIFT CARDS
+// ==============================================
+
+export interface GiftCardBalance {
+  code: string;
+  balance: number;
+  currency: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'USED';
+  expiresAt?: string;
+  isValid: boolean;
+  message?: string;
+}
+
+export interface GiftCardRedemption {
+  transactionId: string;
+  code: string;
+  amountRedeemed: number;
+  remainingBalance: number;
+  redeemedAt: string;
+}
+
+export const giftCardsService = {
+  /**
+   * Consultar saldo de una gift card
+   */
+  checkBalance: async (code: string): Promise<ApiResponse<GiftCardBalance>> => {
+    const response = await api.post('/gift-cards/balance', { code });
+    return response.data;
+  },
+
+  /**
+   * Canjear una gift card (aplicar a una venta)
+   */
+  redeem: async (data: {
+    code: string;
+    amount: number;
+    saleId?: string;
+    pointOfSaleId?: string;
+  }): Promise<ApiResponse<GiftCardRedemption>> => {
+    const response = await api.post('/gift-cards/redeem', data);
+    return response.data;
+  },
+
+  /**
+   * Validar si una gift card puede usarse
+   */
+  validate: async (code: string, amount: number): Promise<ApiResponse<{
+    isValid: boolean;
+    maxAmount: number;
+    message?: string;
+  }>> => {
+    const response = await api.post('/gift-cards/validate', { code, amount });
+    return response.data;
+  },
+
+  /**
+   * Emitir una nueva gift card (para backoffice)
+   */
+  issue: async (data: {
+    amount: number;
+    expiresAt?: string;
+    customerId?: string;
+    notes?: string;
+  }): Promise<ApiResponse<{
+    code: string;
+    balance: number;
+    expiresAt?: string;
+    qrCode?: string;
+  }>> => {
+    const response = await api.post('/gift-cards/issue', data);
+    return response.data;
+  },
+
+  /**
+   * Obtener historial de transacciones de una gift card
+   */
+  getHistory: async (code: string): Promise<ApiResponse<Array<{
+    id: string;
+    type: 'ISSUE' | 'REDEEM' | 'RELOAD' | 'EXPIRE';
+    amount: number;
+    balanceBefore: number;
+    balanceAfter: number;
+    createdAt: string;
+    saleId?: string;
+    notes?: string;
+  }>>> => {
+    const response = await api.get(`/gift-cards/${code}/history`);
+    return response.data;
+  },
+};
+
 export default api;

@@ -129,6 +129,9 @@ model Tenant {
   posTerminals      PosTerminal[]
   afipConfig        AfipConfig?          // Configuración AFIP (1:1)
   printTemplates    PrintTemplate[]      // Plantillas de impresión
+  cashConfigs       CashRegisterConfig[] // Configuraciones de caja
+  giftCards         GiftCard[]           // Gift cards
+  treasuryPendings  TreasuryPending[]    // Retiros pendientes tesoreria
 
   @@map("tenants")
 }
@@ -183,6 +186,14 @@ model User {
 
   // Terminales POS
   terminalLogins       PosTerminal[]   @relation("TerminalLastLogin")
+
+  // Gift Cards
+  generatedGiftCards   GiftCard[]      @relation("GiftCardGenerator")
+  activatedGiftCards   GiftCard[]      @relation("GiftCardActivator")
+  giftCardTransactions GiftCardTransaction[] @relation("GiftCardTransaction")
+
+  // Treasury
+  confirmedTreasury    TreasuryPending[] @relation("TreasuryConfirmedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId, branchId])
@@ -347,6 +358,7 @@ model PointOfSale {
   sessions      UserSession[]
   terminals     PosTerminal[]
   afipSalesPoints AfipSalesPoint[]     // Puntos de venta AFIP vinculados
+  cashConfig    CashRegisterConfig?    // Configuracion de caja
 
   @@unique([tenantId, branchId, code])
   @@map("points_of_sale")
@@ -854,6 +866,7 @@ model Sale {
   payments         Payment[]
   mercadoPagoOrder MercadoPagoOrder?
   afipInvoices     AfipInvoice[]        // Comprobantes fiscales asociados
+  giftCardTransactions GiftCardTransaction[] // Transacciones de gift cards
 
   @@unique([tenantId, saleNumber])
   @@index([tenantId, saleDate])
@@ -1090,6 +1103,48 @@ enum CashRegisterStatus {
   SUSPENDED
 }
 
+enum CashMode {
+  REQUIRED    // Obligatorio abrir caja antes de vender
+  OPTIONAL    // Puede vender sin caja abierta
+  AUTO        // Abre caja automaticamente en primera venta
+}
+
+enum HandoverMode {
+  CLOSE_OPEN  // Cierra y abre nueva sesion
+  TRANSFER    // Transfiere directamente al siguiente cajero
+}
+
+// Configuracion de caja por punto de venta
+model CashRegisterConfig {
+  id                     String       @id @default(cuid())
+  pointOfSaleId          String       @unique
+  pointOfSale            PointOfSale  @relation(fields: [pointOfSaleId], references: [id])
+
+  cashMode               CashMode     @default(REQUIRED)
+  handoverMode           HandoverMode @default(CLOSE_OPEN)
+
+  currencies             Json         @default("[\"ARS\"]")  // Monedas habilitadas
+  defaultCurrency        String       @default("ARS")
+
+  requireCountOnClose    Boolean      @default(true)
+  requireCountOnOpen     Boolean      @default(false)
+  maxDifferenceAllowed   Decimal      @default(0) @db.Decimal(10, 2)
+
+  allowPartialWithdrawal Boolean      @default(true)
+  requireWithdrawalAuth  Boolean      @default(false)
+
+  denominations          Json         @default("{}")  // Denominaciones por moneda
+
+  tenantId               String
+  tenant                 Tenant       @relation(fields: [tenantId], references: [id])
+
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@index([tenantId])
+  @@map("cash_register_configs")
+}
+
 // ==============================================
 // TURNOS DE CAJA (NUEVO SISTEMA)
 // ==============================================
@@ -1137,6 +1192,12 @@ model CashSession {
   withdrawalsTotal Decimal           @default(0) @db.Decimal(12, 2) // Total retiros
   depositsTotal    Decimal           @default(0) @db.Decimal(12, 2) // Total ingresos
 
+  // === MULTI-MONEDA ===
+  openingAmounts   Json?             // { "ARS": 5000, "USD": 100 }
+  closingAmounts   Json?             // { "ARS": 25000, "USD": 150 }
+  expectedAmounts  Json?             // { "ARS": 24500, "USD": 160 } (calculado)
+  differences      Json?             // { "ARS": 500, "USD": -10 }
+
   // === ESTADO ===
   status           CashSessionStatus @default(OPEN)
 
@@ -1160,6 +1221,7 @@ model CashSession {
   movements        CashMovement[]
   counts           CashCount[]
   sales            Sale[]
+  treasuryPendings TreasuryPending[]
 
   @@unique([tenantId, sessionNumber])
   @@index([tenantId, branchId, openedAt])
@@ -1203,6 +1265,7 @@ model CashMovement {
   cashSession      CashSession         @relation(fields: [cashSessionId], references: [id], onDelete: Cascade)
   authorizedBy     User?               @relation("MovementAuthorizedBy", fields: [authorizedByUserId], references: [id])
   createdBy        User                @relation("MovementCreatedBy", fields: [createdByUserId], references: [id])
+  treasuryPending  TreasuryPending?
 
   @@index([cashSessionId])
   @@index([createdAt])
@@ -1247,7 +1310,11 @@ model CashCount {
   cashSessionId   String
   type            CashCountType   @default(PARTIAL)
 
-  // === CONTEO POR DENOMINACIÓN (Pesos Argentinos) ===
+  // === MULTI-MONEDA ===
+  currency        String          @default("ARS")
+  denominationCounts Json?        // { "10000": 2, "5000": 5, ... } para cualquier moneda
+
+  // === CONTEO POR DENOMINACIÓN (Pesos Argentinos - legacy) ===
   // Billetes
   bills_10000     Int             @default(0)
   bills_5000      Int             @default(0)
@@ -1315,6 +1382,134 @@ enum CashCountType {
 enum DifferenceType {
   SURPLUS         // Sobrante
   SHORTAGE        // Faltante
+}
+
+// ==============================================
+// GIFT CARDS (TARJETAS DE REGALO)
+// ==============================================
+
+enum GiftCardStatus {
+  INACTIVE      // Generada pero no activada
+  ACTIVE        // Lista para usar
+  DEPLETED      // Saldo agotado
+  EXPIRED       // Vencida
+  CANCELLED     // Cancelada
+}
+
+enum GiftCardTxType {
+  ACTIVATION    // Activacion inicial
+  REDEMPTION    // Uso en venta
+  REFUND        // Devolucion de saldo
+  ADJUSTMENT    // Ajuste manual
+  CANCELLATION  // Cancelacion
+}
+
+model GiftCard {
+  id              String          @id @default(cuid())
+  code            String          @unique  // Codigo unico de 16 caracteres
+
+  // Valores
+  initialAmount   Decimal         @db.Decimal(10, 2)
+  currentBalance  Decimal         @db.Decimal(10, 2)
+  currency        String          @default("ARS")
+
+  // Estado
+  status          GiftCardStatus  @default(INACTIVE)
+
+  // Vigencia
+  expiresAt       DateTime?
+  activatedAt     DateTime?
+
+  // Relaciones
+  tenantId        String
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+
+  // Trazabilidad
+  generatedById   String?
+  generatedBy     User?           @relation("GiftCardGenerator", fields: [generatedById], references: [id])
+  activatedById   String?
+  activatedBy     User?           @relation("GiftCardActivator", fields: [activatedById], references: [id])
+
+  transactions    GiftCardTransaction[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([code])
+  @@index([status])
+  @@map("gift_cards")
+}
+
+model GiftCardTransaction {
+  id            String         @id @default(cuid())
+  giftCardId    String
+  giftCard      GiftCard       @relation(fields: [giftCardId], references: [id])
+
+  type          GiftCardTxType
+  amount        Decimal        @db.Decimal(10, 2)
+  balanceAfter  Decimal        @db.Decimal(10, 2)
+
+  // Referencias
+  saleId        String?
+  sale          Sale?          @relation(fields: [saleId], references: [id])
+  userId        String
+  user          User           @relation("GiftCardTransaction", fields: [userId], references: [id])
+
+  notes         String?
+  createdAt     DateTime       @default(now())
+
+  @@index([giftCardId])
+  @@index([saleId])
+  @@map("gift_card_transactions")
+}
+
+// ==============================================
+// TESORERIA (RETIROS PENDIENTES)
+// ==============================================
+
+enum TreasuryStatus {
+  PENDING     // Esperando confirmacion
+  CONFIRMED   // Recibido y confirmado
+  PARTIAL     // Confirmado con diferencia
+  REJECTED    // Rechazado
+}
+
+model TreasuryPending {
+  id                String          @id @default(cuid())
+
+  // Origen
+  cashMovementId    String          @unique
+  cashMovement      CashMovement    @relation(fields: [cashMovementId], references: [id])
+  cashSessionId     String
+  cashSession       CashSession     @relation(fields: [cashSessionId], references: [id])
+
+  // Montos
+  amount            Decimal         @db.Decimal(10, 2)
+  currency          String          @default("ARS")
+
+  // Estado
+  status            TreasuryStatus  @default(PENDING)
+
+  // Confirmacion
+  confirmedAt       DateTime?
+  confirmedById     String?
+  confirmedBy       User?           @relation("TreasuryConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedAmount   Decimal?        @db.Decimal(10, 2)
+  differenceNotes   String?
+
+  // Comprobante
+  receiptNumber     String?
+
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id])
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("treasury_pending")
 }
 
 // ==============================================

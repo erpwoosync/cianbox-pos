@@ -30,6 +30,8 @@ const Terminals = lazy(() => import('./pages/Terminals'));
 const Customers = lazy(() => import('./pages/Customers'));
 const CustomerDetail = lazy(() => import('./pages/CustomerDetail'));
 const AfipConfig = lazy(() => import('./pages/AfipConfig'));
+const Treasury = lazy(() => import('./pages/Treasury'));
+const GiftCards = lazy(() => import('./pages/GiftCards'));
 
 // Loading spinner para Suspense
 function PageLoader() {
@@ -90,6 +92,8 @@ export default function App() {
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/:id" element={<CustomerDetail />} />
                   <Route path="/afip" element={<AfipConfig />} />
+                  <Route path="/treasury" element={<Treasury />} />
+                  <Route path="/gift-cards" element={<GiftCards />} />
                 </Routes>
               </Suspense>
             </Layout>

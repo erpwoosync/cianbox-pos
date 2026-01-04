@@ -42,6 +42,8 @@ import CustomerSelectorModal from '../components/CustomerSelectorModal';
 import InvoiceModal from '../components/InvoiceModal';
 import SalesHistoryModal from '../components/SalesHistoryModal';
 import ProductRefundModal from '../components/ProductRefundModal';
+import GiftCardPaymentSection, { AppliedGiftCard } from '../components/GiftCardPaymentSection';
+import CashRequiredOverlay from '../components/CashRequiredOverlay';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 import { offlineSyncService } from '../services/offlineSync';
 
@@ -177,7 +179,7 @@ interface PointOfSale {
   mpDeviceName?: string;
 }
 
-type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR' | 'TRANSFER';
+type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR' | 'TRANSFER' | 'GIFT_CARD';
 
 interface SaleData {
   branchId: string;
@@ -205,6 +207,7 @@ interface SaleData {
     cardBrand?: string;
     cardLastFour?: string;
     installments?: number;
+    giftCardCode?: string;
   }>;
 }
 
@@ -327,6 +330,14 @@ export default function POS() {
   const [cashMovementType, setCashMovementType] = useState<'deposit' | 'withdraw'>('deposit');
   const [showCashCountModal, setShowCashCountModal] = useState(false);
   const [cashCountMode, setCashCountMode] = useState<'partial' | 'closing'>('partial');
+  // Configuracion de caja: 'REQUIRED' = obligatorio, 'OPTIONAL' = opcional, 'AUTO' = automatico
+  // Por ahora hardcodeado a 'OPTIONAL', se puede configurar desde backend/backoffice
+  const [cashMode] = useState<'REQUIRED' | 'OPTIONAL' | 'AUTO'>('OPTIONAL');
+  const cashRequired = cashMode === 'REQUIRED' && !cashSession;
+
+  // Estado de gift cards
+  const [appliedGiftCards, setAppliedGiftCards] = useState<AppliedGiftCard[]>([]);
+  const giftCardAmount = appliedGiftCards.reduce((sum, gc) => sum + gc.amountApplied, 0);
 
   // Estado de promociones
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
@@ -912,6 +923,7 @@ export default function POS() {
   const subtotal = cart.reduce((sum: number, item: CartItem) => sum + item.subtotal, 0);
   const totalDiscount = cart.reduce((sum: number, item: CartItem) => sum + item.discount, 0);
   const total = subtotal;
+  const totalAfterGiftCards = total - giftCardAmount; // Monto pendiente despues de gift cards
   const itemCount = cart.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
 
   // Agrupar descuentos por promoción
@@ -981,9 +993,10 @@ export default function POS() {
     }
   };
 
-  // Calcular vuelto
+  // Calcular vuelto (considerando gift cards aplicadas)
   const tenderedAmount = parseFloat(amountTendered) || 0;
-  const change = tenderedAmount - total;
+  const amountToPay = total - giftCardAmount; // Monto pendiente despues de gift cards
+  const change = tenderedAmount - amountToPay;
 
   // Sincronizar ventas pendientes
   const syncPendingSales = async () => {
@@ -1201,6 +1214,7 @@ export default function POS() {
         }
         setShowPayment(false);
         setAmountTendered('');
+        setAppliedGiftCards([]);
         const mpType = isQR ? 'Mercado Pago QR' : 'Mercado Pago Point';
         alert(`Venta #${response.data.saleNumber} registrada correctamente con ${mpType}`);
 
@@ -1241,6 +1255,34 @@ export default function POS() {
 
     setIsProcessing(true);
     try {
+      // Construir array de pagos incluyendo gift cards
+      const payments: Array<{
+        method: PaymentMethod | 'GIFT_CARD';
+        amount: number;
+        amountTendered?: number;
+        giftCardCode?: string;
+      }> = [];
+
+      // Agregar pagos con gift cards
+      for (const gc of appliedGiftCards) {
+        payments.push({
+          method: 'GIFT_CARD',
+          amount: gc.amountApplied,
+          giftCardCode: gc.code,
+        });
+      }
+
+      // Agregar pago principal si hay monto pendiente
+      const pendingAmount = total - giftCardAmount;
+      if (pendingAmount > 0) {
+        payments.push({
+          method: selectedPaymentMethod,
+          amount: Number(pendingAmount),
+          amountTendered:
+            selectedPaymentMethod === 'CASH' ? Number(tenderedAmount) : undefined,
+        });
+      }
+
       const saleData = {
         branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         pointOfSaleId: selectedPOS.id,
@@ -1261,14 +1303,7 @@ export default function POS() {
           priceListId: selectedPOS.priceList?.id || undefined,
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
         })),
-        payments: [
-          {
-            method: selectedPaymentMethod,
-            amount: Number(total),
-            amountTendered:
-              selectedPaymentMethod === 'CASH' ? Number(tenderedAmount) : undefined,
-          },
-        ],
+        payments,
       };
 
       // Si está offline, encolar la venta
@@ -1289,6 +1324,7 @@ export default function POS() {
         }
         setShowPayment(false);
         setAmountTendered('');
+        setAppliedGiftCards([]);
         alert('Venta guardada. Se sincronizará cuando vuelva la conexión.');
         return;
       }
@@ -1303,6 +1339,7 @@ export default function POS() {
         }
         setShowPayment(false);
         setAmountTendered('');
+        setAppliedGiftCards([]);
 
         // Mostrar modal de facturación con datos de la venta completada
         setCompletedSaleData({
@@ -2041,6 +2078,26 @@ export default function POS() {
                 </div>
               )}
 
+              {/* Seccion de Gift Cards */}
+              <GiftCardPaymentSection
+                totalAmount={total}
+                giftCardAmount={giftCardAmount}
+                appliedGiftCards={appliedGiftCards}
+                onApplyGiftCard={(gc) => setAppliedGiftCards(prev => [...prev, gc])}
+                onRemoveGiftCard={(code) => setAppliedGiftCards(prev => prev.filter(gc => gc.code !== code))}
+                disabled={isProcessing}
+              />
+
+              {/* Mostrar monto pendiente si hay gift cards aplicadas */}
+              {giftCardAmount > 0 && (
+                <div className="flex justify-between items-center p-2 bg-purple-50 rounded-lg">
+                  <span className="text-sm text-purple-700">Pendiente a pagar:</span>
+                  <span className="font-bold text-lg text-purple-900">
+                    ${totalAfterGiftCards.toFixed(2)}
+                  </span>
+                </div>
+              )}
+
               {/* Input de monto (solo efectivo) */}
               {selectedPaymentMethod === 'CASH' && (
                 <div>
@@ -2051,9 +2108,9 @@ export default function POS() {
                     onChange={(e) => setAmountTendered(e.target.value)}
                     placeholder="0.00"
                     className="input text-xl text-right"
-                    min={total}
+                    min={amountToPay}
                   />
-                  {tenderedAmount >= total && (
+                  {tenderedAmount >= amountToPay && (
                     <p className="text-right text-green-600 font-semibold mt-1">
                       Vuelto: ${change.toFixed(2)}
                     </p>
@@ -2074,7 +2131,7 @@ export default function POS() {
                   onClick={processSale}
                   disabled={
                     isProcessing ||
-                    (selectedPaymentMethod === 'CASH' && tenderedAmount < total)
+                    (selectedPaymentMethod === 'CASH' && amountToPay > 0 && tenderedAmount < amountToPay)
                   }
                   className="flex-1 btn btn-success py-3 disabled:opacity-50"
                 >
@@ -2245,6 +2302,15 @@ export default function POS() {
           // Opcional: refrescar datos si es necesario
         }}
       />
+
+      {/* Overlay de caja requerida */}
+      {cashRequired && (
+        <CashRequiredOverlay
+          onOpenCash={() => setShowCashOpenModal(true)}
+          userName={user?.name}
+          posName={selectedPOS?.name}
+        />
+      )}
     </div>
   );
 }
