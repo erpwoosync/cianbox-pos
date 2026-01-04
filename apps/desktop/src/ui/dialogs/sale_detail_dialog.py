@@ -209,13 +209,19 @@ class SaleDetailDialog(QDialog):
                 spinner.setMinimum(1)
                 spinner.setMaximum(available)
                 spinner.setValue(1)
+                spinner.setMinimumHeight(32)
                 spinner.setStyleSheet(f"""
                     QSpinBox {{
                         background-color: {self.theme.background};
                         border: 1px solid {self.theme.border};
                         border-radius: 4px;
-                        padding: 4px;
-                        min-width: 50px;
+                        padding: 4px 8px;
+                        min-width: 60px;
+                        min-height: 28px;
+                        font-size: 14px;
+                    }}
+                    QSpinBox::up-button, QSpinBox::down-button {{
+                        width: 20px;
                     }}
                 """)
                 self._spinners[item_id] = spinner

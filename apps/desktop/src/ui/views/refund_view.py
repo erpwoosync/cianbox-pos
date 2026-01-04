@@ -181,17 +181,19 @@ class RefundView(QWidget):
 
         # Tabla de resultados - muestra ventas
         self.results_table = QTableWidget()
-        self.results_table.setColumnCount(4)
+        self.results_table.setColumnCount(5)
         self.results_table.setHorizontalHeaderLabels([
-            "Fecha", "Venta #", "Cliente", "Total"
+            "Fecha", "Comprobante", "Tipo", "Cliente", "Total"
         ])
         self.results_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.results_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.results_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self.results_table.setColumnWidth(0, 100)
+        self.results_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.results_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.results_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self.results_table.setColumnWidth(0, 90)
         self.results_table.setColumnWidth(1, 100)
-        self.results_table.setColumnWidth(3, 120)
+        self.results_table.setColumnWidth(2, 70)
+        self.results_table.setColumnWidth(4, 120)
         self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.results_table.setAlternatingRowColors(True)
@@ -322,6 +324,20 @@ class RefundView(QWidget):
         self.results_table.setRowCount(0)
         self.detail_btn.setEnabled(False)
 
+        # Mapeo de tipos de comprobante
+        receipt_map = {
+            "TICKET": "NDP X",
+            "NDP_X": "NDP X",
+            "NDC_X": "NDC X",
+            "INVOICE_A": "Fact. A",
+            "INVOICE_B": "Fact. B",
+            "INVOICE_C": "Fact. C",
+            "CREDIT_NOTE_A": "NC A",
+            "CREDIT_NOTE_B": "NC B",
+            "CREDIT_NOTE_C": "NC C",
+            "RECEIPT": "Recibo",
+        }
+
         for sale in sales:
             row = self.results_table.rowCount()
             self.results_table.insertRow(row)
@@ -330,18 +346,28 @@ class RefundView(QWidget):
             date_str = sale.get("saleDate", "")[:10]
             self.results_table.setItem(row, 0, QTableWidgetItem(date_str))
 
-            # Numero de venta
+            # Numero de venta/comprobante
             sale_num = sale.get("saleNumber", "N/A")
             self.results_table.setItem(row, 1, QTableWidgetItem(str(sale_num)))
+
+            # Tipo de comprobante
+            receipt_type = sale.get("receiptType", "NDP_X")
+            type_text = receipt_map.get(receipt_type, receipt_type or "NDP X")
+            type_item = QTableWidgetItem(type_text)
+            if receipt_type and receipt_type.startswith("INVOICE"):
+                type_item.setForeground(Qt.GlobalColor.darkGreen)
+            elif receipt_type and (receipt_type.startswith("CREDIT_NOTE") or receipt_type == "NDC_X"):
+                type_item.setForeground(Qt.GlobalColor.darkRed)
+            self.results_table.setItem(row, 2, type_item)
 
             # Cliente
             customer = sale.get("customer")
             customer_name = customer.get("name", "Consumidor Final") if customer else "Consumidor Final"
-            self.results_table.setItem(row, 2, QTableWidgetItem(customer_name))
+            self.results_table.setItem(row, 3, QTableWidgetItem(customer_name))
 
             # Total
             total = Decimal(str(sale.get("total", 0)))
-            self.results_table.setItem(row, 3, QTableWidgetItem(f"${total:,.2f}"))
+            self.results_table.setItem(row, 4, QTableWidgetItem(f"${total:,.2f}"))
 
     def _show_sale_detail(self, sale: Dict) -> None:
         """Muestra el detalle completo de la venta."""

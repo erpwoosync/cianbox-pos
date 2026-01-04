@@ -1311,12 +1311,14 @@ class SyncService:
             logger.info(f"Producto encontrado: {product.name} (ID: {product.id})")
 
             # Buscar ventas con este producto (con eager loading de items)
+            # Excluir devoluciones (NDC_X, CREDIT_NOTE_*) - no se puede devolver una devolución
             sales = session.query(Sale).options(
                 joinedload(Sale.items)
             ).join(SaleItem).filter(
                 Sale.tenant_id == self.tenant_id,
                 Sale.status.in_(["COMPLETED", "PARTIAL_REFUND"]),
                 SaleItem.product_id == product.id,
+                ~Sale.receipt_type.in_(["NDC_X", "CREDIT_NOTE_A", "CREDIT_NOTE_B", "CREDIT_NOTE_C"]),
             ).order_by(Sale.sale_date.desc()).limit(limit).all()
 
             logger.info(f"Ventas encontradas: {len(sales)}")
@@ -1354,6 +1356,7 @@ class SyncService:
                         "id": sale.id,
                         "saleNumber": sale.sale_number,
                         "saleDate": sale.sale_date.isoformat(),
+                        "receiptType": sale.receipt_type,
                         "customer": {"id": sale.customer_id, "name": sale.customer_name} if sale.customer_id else None,
                         "branch": {"name": sale.branch_name},
                         "pointOfSale": {"name": sale.point_of_sale_name},
