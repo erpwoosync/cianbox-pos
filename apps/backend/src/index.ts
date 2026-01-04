@@ -26,6 +26,7 @@ import mercadoPagoRoutes, { webhookRouter as mpWebhookRouter } from './routes/me
 import cashRoutes from './routes/cash.js';
 import cashConfigRoutes from './routes/cash-config.js';
 import giftCardsRoutes from './routes/gift-cards.js';
+import treasuryRoutes from './routes/treasury.js';
 import cianboxWebhookRoutes from './routes/webhooks.js';
 import terminalsRoutes from './routes/terminals.js';
 import customersRoutes from './routes/customers.js';
@@ -117,6 +118,7 @@ app.get('/api', (_req, res) => {
       cash: '/api/cash',
       cashConfig: '/api/cash-config',
       giftCards: '/api/gift-cards',
+      treasury: '/api/treasury',
       terminals: '/api/pos/terminals',
       webhooks: '/api/webhooks',
       cianboxwebhooks: '/api/cianboxwebhooks',
@@ -136,6 +138,7 @@ app.use('/api/mercadopago', mercadoPagoRoutes); // Mercado Pago Point integratio
 app.use('/api/cash', cashRoutes); // Gestión de turnos de caja y arqueos
 app.use('/api/cash-config', cashConfigRoutes); // Configuración de caja por POS
 app.use('/api/gift-cards', giftCardsRoutes); // Gestión de gift cards
+app.use('/api/treasury', treasuryRoutes); // Tesorería - retiros pendientes
 app.use('/api/pos/terminals', terminalsRoutes); // Gestión de terminales POS
 app.use('/api/backoffice/terminals', terminalsRoutes); // Alias para backoffice
 app.use('/api/webhooks', mpWebhookRouter); // Webhooks Mercado Pago (público, sin auth)
