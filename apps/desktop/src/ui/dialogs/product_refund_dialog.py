@@ -560,13 +560,17 @@ class ProductRefundDialog(QDialog):
         qty_row.addStretch()
         qty_layout.addLayout(qty_row)
 
-        # Monto a devolver
-        self.refund_amount_label = QLabel("Monto: $0.00")
-        self.refund_amount_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        self.refund_amount_label.setStyleSheet(f"color: {self.theme.primary}; border: none;")
-        qty_layout.addWidget(self.refund_amount_label)
-
         detail_layout.addWidget(qty_frame)
+
+        # Monto a devolver (fuera del frame para mejor visibilidad)
+        self.refund_amount_label = QLabel("Monto a devolver: $0.00")
+        self.refund_amount_label.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        self.refund_amount_label.setStyleSheet(f"""
+            color: {self.theme.primary};
+            border: none;
+            padding: 12px 0;
+        """)
+        detail_layout.addWidget(self.refund_amount_label)
 
         # Motivo
         reason_label = QLabel("Motivo de la devolucion:")
@@ -842,7 +846,7 @@ class ProductRefundDialog(QDialog):
         unit_price = subtotal / original_qty if original_qty else 0
         refund_amount = unit_price * qty
 
-        self.refund_amount_label.setText(f"Monto: ${refund_amount:,.2f}")
+        self.refund_amount_label.setText(f"Monto a devolver: ${refund_amount:,.2f}")
 
     def _clear_search(self) -> None:
         """Limpia la busqueda y vuelve al estado inicial."""

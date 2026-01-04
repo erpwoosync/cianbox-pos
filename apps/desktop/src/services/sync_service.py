@@ -1284,9 +1284,13 @@ class SyncService:
             Dict con producto y lista de ventas
         """
         from sqlalchemy import or_, and_
+        from sqlalchemy.orm import joinedload
+
+        logger.info(f"Buscando ventas por producto: '{query}'")
 
         with session_scope() as session:
             # Primero buscar el producto
+            logger.debug(f"Buscando producto con query: {query}")
             product = session.query(Product).filter(
                 Product.tenant_id == self.tenant_id,
                 or_(
@@ -1299,14 +1303,21 @@ class SyncService:
             ).first()
 
             if not product:
+                logger.warning(f"Producto no encontrado: {query}")
                 return {"success": False, "error": "Producto no encontrado"}
 
-            # Buscar ventas con este producto
-            sales = session.query(Sale).join(SaleItem).filter(
+            logger.info(f"Producto encontrado: {product.name} (ID: {product.id})")
+
+            # Buscar ventas con este producto (con eager loading de items)
+            sales = session.query(Sale).options(
+                joinedload(Sale.items)
+            ).join(SaleItem).filter(
                 Sale.tenant_id == self.tenant_id,
                 Sale.status.in_(["COMPLETED", "PARTIAL_REFUND"]),
                 SaleItem.product_id == product.id,
             ).order_by(Sale.sale_date.desc()).limit(limit).all()
+
+            logger.info(f"Ventas encontradas: {len(sales)}")
 
             # Construir respuesta
             result_sales = []
