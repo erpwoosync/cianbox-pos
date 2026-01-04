@@ -46,8 +46,9 @@ if TYPE_CHECKING:
 class SearchWorker(QThread):
     """Worker para buscar ventas por producto en cache local."""
 
-    finished = pyqtSignal(dict)
-    error = pyqtSignal(str)
+    # Usar nombres diferentes a las señales nativas de QThread
+    search_complete = pyqtSignal(dict)
+    search_error = pyqtSignal(str)
 
     def __init__(self, sync_service: "SyncService", identifier: str):
         super().__init__()
@@ -61,14 +62,14 @@ class SearchWorker(QThread):
             result = self.sync_service.search_sales_by_product(self.identifier)
             logger.info(f"SearchWorker: Resultado success={result.get('success')}")
             if result.get("success"):
-                self.finished.emit(result.get("data", {}))
+                self.search_complete.emit(result.get("data", {}))
             else:
                 error_msg = result.get("error", "Error desconocido")
                 logger.warning(f"SearchWorker: {error_msg}")
-                self.error.emit(error_msg)
+                self.search_error.emit(error_msg)
         except Exception as e:
             logger.error(f"Error en SearchWorker: {e}")
-            self.error.emit(str(e))
+            self.search_error.emit(str(e))
 
 
 class RefundWorker(QThread):
@@ -693,8 +694,15 @@ class ProductRefundDialog(QDialog):
 
         # Buscar en cache local usando sync_service
         self._search_worker = SearchWorker(self.sync_service, query)
-        self._search_worker.finished.connect(self._on_search_success)
-        self._search_worker.error.connect(self._on_search_error)
+        # Usar UniqueConnection para evitar conexiones duplicadas
+        self._search_worker.search_complete.connect(
+            self._on_search_success,
+            Qt.ConnectionType.UniqueConnection
+        )
+        self._search_worker.search_error.connect(
+            self._on_search_error,
+            Qt.ConnectionType.UniqueConnection
+        )
         self._search_worker.start()
 
     def _on_search_success(self, data: dict) -> None:
