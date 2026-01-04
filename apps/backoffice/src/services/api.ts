@@ -1546,4 +1546,145 @@ export const afipApi = {
   },
 };
 
+// =============================================
+// TREASURY (Tesorería)
+// =============================================
+
+export type TreasuryStatus = 'PENDING' | 'CONFIRMED' | 'PARTIAL' | 'REJECTED';
+
+export interface TreasuryPending {
+  id: string;
+  amount: number;
+  currency: string;
+  status: TreasuryStatus;
+  createdAt: string;
+  cashMovement: {
+    id: string;
+    type: string;
+    amount: number;
+    reason: string;
+    createdAt: string;
+  };
+  cashSession: {
+    id: string;
+    openedAt?: string;
+    closedAt?: string;
+    pointOfSale: { id: string; name: string };
+    user: { id: string; name: string; email: string };
+  };
+  confirmedAt?: string;
+  confirmedBy?: { id: string; name: string; email: string };
+  confirmedAmount?: number | null;
+  differenceNotes?: string;
+  receiptNumber?: string;
+}
+
+export interface TreasurySummary {
+  currency: string;
+  pending: { count: number; amount: number };
+  confirmed: { count: number; expectedAmount: number; confirmedAmount: number };
+  partial: { count: number; expectedAmount: number; confirmedAmount: number };
+  rejected: { count: number; amount: number };
+  totals: { totalExpected: number; totalReceived: number; totalDifference: number };
+}
+
+export const treasuryApi = {
+  getPending: async (params?: {
+    status?: TreasuryStatus;
+    currency?: string;
+    branchId?: string;
+    fromDate?: string;
+    toDate?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ pending: TreasuryPending[]; total: number }> => {
+    const response = await api.get('/treasury/pending', { params });
+    return { pending: response.data.pending, total: response.data.total };
+  },
+
+  getPendingById: async (id: string): Promise<TreasuryPending> => {
+    const response = await api.get(`/treasury/pending/${id}`);
+    return response.data.pending;
+  },
+
+  confirm: async (id: string, data: { receivedAmount: number; notes?: string }) => {
+    const response = await api.post(`/treasury/pending/${id}/confirm`, data);
+    return response.data;
+  },
+
+  reject: async (id: string, data: { reason: string }) => {
+    const response = await api.post(`/treasury/pending/${id}/reject`, data);
+    return response.data;
+  },
+
+  getSummary: async (params?: { fromDate?: string; toDate?: string; currency?: string }): Promise<TreasurySummary> => {
+    const response = await api.get('/treasury/summary', { params });
+    return response.data.summary;
+  },
+};
+
+// =============================================
+// GIFT CARDS (Tarjetas de Regalo)
+// =============================================
+
+export type GiftCardStatus = 'INACTIVE' | 'ACTIVE' | 'DEPLETED' | 'EXPIRED' | 'CANCELLED';
+
+export interface GiftCard {
+  id: string;
+  code: string;
+  initialAmount: number;
+  currentBalance: number;
+  currency: string;
+  status: GiftCardStatus;
+  expiresAt?: string;
+  activatedAt?: string;
+  isExpired?: boolean;
+  generatedBy?: { id: string; name: string };
+  activatedBy?: { id: string; name: string };
+  createdAt: string;
+}
+
+export interface GiftCardTransaction {
+  id: string;
+  type: 'ACTIVATION' | 'REDEMPTION' | 'REFUND' | 'CANCELLATION';
+  amount: number;
+  balanceAfter: number;
+  notes?: string;
+  user?: { id: string; name: string };
+  sale?: { id: string; saleNumber: string };
+  createdAt: string;
+}
+
+export const giftCardsApi = {
+  generate: async (data: { quantity: number; amount: number; currency?: string; expiresAt?: string }): Promise<GiftCard[]> => {
+    const response = await api.post('/gift-cards/generate', data);
+    return response.data.giftCards;
+  },
+
+  getAll: async (params?: {
+    status?: GiftCardStatus;
+    currency?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ giftCards: GiftCard[]; total: number }> => {
+    const response = await api.get('/gift-cards', { params });
+    return { giftCards: response.data.giftCards, total: response.data.total };
+  },
+
+  getTransactions: async (id: string): Promise<{ giftCard: GiftCard; transactions: GiftCardTransaction[] }> => {
+    const response = await api.get(`/gift-cards/${id}/transactions`);
+    return { giftCard: response.data.giftCard, transactions: response.data.transactions };
+  },
+
+  checkBalance: async (code: string): Promise<GiftCard> => {
+    const response = await api.post('/gift-cards/balance', { code });
+    return response.data.giftCard;
+  },
+
+  cancel: async (code: string, reason?: string): Promise<{ success: boolean; giftCard: { id: string; code: string; status: string } }> => {
+    const response = await api.post('/gift-cards/cancel', { code, reason });
+    return response.data;
+  },
+};
+
 export default api;

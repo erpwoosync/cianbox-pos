@@ -32,6 +32,8 @@ import {
   Receipt,
   FileText,
   LucideIcon,
+  Vault,
+  CreditCard,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -81,6 +83,8 @@ const menuGroups: MenuGroup[] = [
       { path: '/customers', label: 'Clientes', icon: UserCircle },
       { path: '/orphan-payments', label: 'Pagos Huérfanos', icon: AlertTriangle },
       { path: '/cash-sessions', label: 'Caja', icon: Banknote },
+      { path: '/treasury', label: 'Tesorería', icon: Vault },
+      { path: '/gift-cards', label: 'Gift Cards', icon: CreditCard },
     ],
   },
   {
