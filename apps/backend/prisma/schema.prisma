@@ -130,6 +130,7 @@ model Tenant {
   afipConfig        AfipConfig?          // Configuración AFIP (1:1)
   printTemplates    PrintTemplate[]      // Plantillas de impresión
   cashConfigs       CashRegisterConfig[] // Configuraciones de caja
+  giftCards         GiftCard[]           // Gift cards
 
   @@map("tenants")
 }
@@ -184,6 +185,11 @@ model User {
 
   // Terminales POS
   terminalLogins       PosTerminal[]   @relation("TerminalLastLogin")
+
+  // Gift Cards
+  generatedGiftCards   GiftCard[]      @relation("GiftCardGenerator")
+  activatedGiftCards   GiftCard[]      @relation("GiftCardActivator")
+  giftCardTransactions GiftCardTransaction[] @relation("GiftCardTransaction")
 
   @@unique([tenantId, email])
   @@index([tenantId, branchId])
@@ -856,6 +862,7 @@ model Sale {
   payments         Payment[]
   mercadoPagoOrder MercadoPagoOrder?
   afipInvoices     AfipInvoice[]        // Comprobantes fiscales asociados
+  giftCardTransactions GiftCardTransaction[] // Transacciones de gift cards
 
   @@unique([tenantId, saleNumber])
   @@index([tenantId, saleDate])
@@ -1369,6 +1376,86 @@ enum CashCountType {
 enum DifferenceType {
   SURPLUS         // Sobrante
   SHORTAGE        // Faltante
+}
+
+// ==============================================
+// GIFT CARDS (TARJETAS DE REGALO)
+// ==============================================
+
+enum GiftCardStatus {
+  INACTIVE      // Generada pero no activada
+  ACTIVE        // Lista para usar
+  DEPLETED      // Saldo agotado
+  EXPIRED       // Vencida
+  CANCELLED     // Cancelada
+}
+
+enum GiftCardTxType {
+  ACTIVATION    // Activacion inicial
+  REDEMPTION    // Uso en venta
+  REFUND        // Devolucion de saldo
+  ADJUSTMENT    // Ajuste manual
+  CANCELLATION  // Cancelacion
+}
+
+model GiftCard {
+  id              String          @id @default(cuid())
+  code            String          @unique  // Codigo unico de 16 caracteres
+
+  // Valores
+  initialAmount   Decimal         @db.Decimal(10, 2)
+  currentBalance  Decimal         @db.Decimal(10, 2)
+  currency        String          @default("ARS")
+
+  // Estado
+  status          GiftCardStatus  @default(INACTIVE)
+
+  // Vigencia
+  expiresAt       DateTime?
+  activatedAt     DateTime?
+
+  // Relaciones
+  tenantId        String
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+
+  // Trazabilidad
+  generatedById   String?
+  generatedBy     User?           @relation("GiftCardGenerator", fields: [generatedById], references: [id])
+  activatedById   String?
+  activatedBy     User?           @relation("GiftCardActivator", fields: [activatedById], references: [id])
+
+  transactions    GiftCardTransaction[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([code])
+  @@index([status])
+  @@map("gift_cards")
+}
+
+model GiftCardTransaction {
+  id            String         @id @default(cuid())
+  giftCardId    String
+  giftCard      GiftCard       @relation(fields: [giftCardId], references: [id])
+
+  type          GiftCardTxType
+  amount        Decimal        @db.Decimal(10, 2)
+  balanceAfter  Decimal        @db.Decimal(10, 2)
+
+  // Referencias
+  saleId        String?
+  sale          Sale?          @relation(fields: [saleId], references: [id])
+  userId        String
+  user          User           @relation("GiftCardTransaction", fields: [userId], references: [id])
+
+  notes         String?
+  createdAt     DateTime       @default(now())
+
+  @@index([giftCardId])
+  @@index([saleId])
+  @@map("gift_card_transactions")
 }
 
 // ==============================================
