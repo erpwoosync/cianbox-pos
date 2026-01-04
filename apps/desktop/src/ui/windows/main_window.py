@@ -50,7 +50,7 @@ from src.api import get_api_client, PromotionData, CalculationResult
 from src.api.products import ProductsAPI
 from src.api.sales import SalesAPI, CreateSaleRequest, SaleItemData, PaymentData as SalePaymentData
 from src.ui.styles import get_theme
-from src.services import get_sync_service, SyncStatus, SyncResult
+from src.services import get_sync_service, SyncStatus, SyncResult, get_cash_session_manager
 from src.models import Product, Category
 from src.ui.dialogs import CheckoutDialog, CheckoutResult, SizeCurveDialog, CustomerDialog, InvoiceDialog, SalesHistoryDialog, ProductRefundDialog
 from src.ui.dialogs.checkout_dialog import PaymentData as CheckoutPaymentData
@@ -122,6 +122,10 @@ class MainWindow(QMainWindow):
         branch_id = user.get("branch_id")
         self.sync_service = get_sync_service(tenant_id, branch_id)
 
+        # Manager de sesion de caja
+        self.cash_session_manager = get_cash_session_manager()
+        self.cash_session_manager.session_changed.connect(self._on_cash_session_changed)
+
         # Log de terminal
         if terminal:
             logger.info(
@@ -139,6 +143,9 @@ class MainWindow(QMainWindow):
 
         # Iniciar sincronizacion de datos
         QTimer.singleShot(100, self._start_initial_sync)
+
+        # Verificar sesion de caja
+        QTimer.singleShot(150, self._check_initial_cash_session)
 
         # Focus en el buscador al iniciar
         QTimer.singleShot(200, self._focus_search)
@@ -2694,6 +2701,25 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Carrito vacio", "Agrega productos al carrito antes de cobrar.")
             return
 
+        # Verificar si se puede realizar la venta (sesion de caja)
+        can_sell, error_message = self.cash_session_manager.can_make_sale()
+        if not can_sell:
+            reply = QMessageBox.question(
+                self,
+                "Turno de caja requerido",
+                f"{error_message}\n\nDeseas abrir un turno de caja ahora?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._open_cash_session_dialog()
+                # Verificar nuevamente despues de abrir
+                can_sell, _ = self.cash_session_manager.can_make_sale()
+                if not can_sell:
+                    return
+            else:
+                return
+
         # Calcular totales con descuentos de promociones
         subtotal_before_discount = sum(item["price"] * item["quantity"] for item in self.cart_items)
         discount = sum(item.get("discount", 0) for item in self.cart_items)
@@ -2945,6 +2971,137 @@ class MainWindow(QMainWindow):
                 super().keyPressEvent(event)
         else:
             super().keyPressEvent(event)
+
+    # =========================================================================
+    # GESTION DE CAJA
+    # =========================================================================
+
+    def _check_initial_cash_session(self) -> None:
+        """Verifica la sesion de caja al iniciar."""
+        self.cash_session_manager.check_initial_session()
+
+    def _on_cash_session_changed(self, session) -> None:
+        """
+        Maneja el cambio de sesion de caja.
+
+        Args:
+            session: CashSession o None
+        """
+        self._update_cash_indicator()
+
+    def _update_cash_indicator(self) -> None:
+        """Actualiza el indicador de caja en el statusbar."""
+        text, color_type, tooltip = self.cash_session_manager.get_session_display_text()
+
+        # Colores segun tipo
+        colors = {
+            "success": (self.theme.success, self.theme.success_bg),
+            "warning": (self.theme.warning, self.theme.warning_bg),
+            "info": (self.theme.info, self.theme.info_bg),
+            "danger": (self.theme.danger, self.theme.danger_bg),
+        }
+
+        fg_color, bg_color = colors.get(color_type, (self.theme.gray_500, self.theme.gray_100))
+
+        if self.cash_session_manager.is_session_open:
+            # Sesion abierta - mostrar sin icono de alerta
+            self.cash_label.setText(text)
+            self.cash_label.setStyleSheet(f"""
+                color: {fg_color};
+                font-weight: 600;
+                padding: 2px 8px;
+                background-color: {bg_color};
+                border-radius: 4px;
+            """)
+        else:
+            # Sin sesion - mostrar con icono de alerta
+            self.cash_label.setText(f"! {text}")
+            self.cash_label.setStyleSheet(f"""
+                color: {fg_color};
+                font-weight: 600;
+                padding: 2px 8px;
+                background-color: {bg_color};
+                border-radius: 4px;
+            """)
+
+        self.cash_label.setToolTip(tooltip)
+
+    def _open_cash_session_dialog(self, mode: str = "open") -> None:
+        """
+        Abre el dialogo de sesion de caja.
+
+        Args:
+            mode: "open" para abrir turno, "close" para cerrar
+        """
+        from src.ui.dialogs import CashSessionDialog
+
+        # Obtener punto de venta de la terminal
+        point_of_sale_id = None
+        point_of_sale_name = None
+
+        if self.terminal:
+            point_of_sale_id = self.terminal.get("pointOfSaleId")
+            point_of_sale_name = self.terminal.get("pointOfSaleName")
+
+        dialog = CashSessionDialog(
+            mode=mode,
+            point_of_sale_id=point_of_sale_id,
+            point_of_sale_name=point_of_sale_name,
+            current_session=self.cash_session_manager.current_session,
+            parent=self,
+        )
+
+        if mode == "open":
+            dialog.session_opened.connect(self._on_session_opened)
+        else:
+            dialog.session_closed.connect(self._on_session_closed)
+
+        dialog.exec()
+
+    def _on_session_opened(self, session) -> None:
+        """Maneja la apertura de sesion."""
+        logger.info(f"Sesion de caja abierta: {session.session_number}")
+        self._update_cash_indicator()
+
+    def _on_session_closed(self, summary) -> None:
+        """Maneja el cierre de sesion."""
+        logger.info(f"Sesion de caja cerrada - Diferencia: ${summary.difference:,.2f}")
+        self._update_cash_indicator()
+
+    def _open_cash_movement_dialog(self) -> None:
+        """Abre el dialogo de movimientos de caja."""
+        from src.ui.dialogs import QuickCashMovementDialog
+
+        if not self.cash_session_manager.is_session_open:
+            QMessageBox.warning(
+                self,
+                "Turno no abierto",
+                "No hay un turno de caja abierto.\n"
+                "Abra un turno para registrar movimientos."
+            )
+            return
+
+        dialog = QuickCashMovementDialog(
+            validate_supervisor=self._validate_supervisor_pin,
+            parent=self,
+        )
+        dialog.exec()
+
+    def _validate_supervisor_pin(self, pin: str) -> tuple[bool, str]:
+        """
+        Valida el PIN de un supervisor.
+
+        Args:
+            pin: PIN ingresado
+
+        Returns:
+            Tupla (valido, user_id)
+        """
+        # TODO: Implementar validacion real contra API
+        # Por ahora, aceptar cualquier PIN de 4+ digitos
+        if len(pin) >= 4:
+            return True, f"supervisor_{pin}"
+        return False, None
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Maneja el cierre de la ventana."""

@@ -372,6 +372,7 @@ class CheckoutDialog(QDialog):
             (PaymentMethod.DEBIT_CARD, "Debito", self.theme.info),
             (PaymentMethod.CREDIT_CARD, "Credito", self.theme.primary),
             (PaymentMethod.QR, "QR / MP", self.theme.secondary),
+            (PaymentMethod.GIFTCARD, "Gift Card", "#9b59b6"),  # Morado para GC
         ]
 
         for method, name, color in methods:
@@ -405,6 +406,10 @@ class CheckoutDialog(QDialog):
         # Panel de QR
         qr_panel = self._create_qr_panel()
         self.payment_stack.addWidget(qr_panel)
+
+        # Panel de Gift Card
+        giftcard_panel = self._create_giftcard_panel()
+        self.payment_stack.addWidget(giftcard_panel)
 
         layout.addWidget(self.payment_stack, 1)
 
@@ -930,6 +935,200 @@ class CheckoutDialog(QDialog):
 
         return panel
 
+    def _create_giftcard_panel(self) -> QWidget:
+        """Crea el panel de pago con Gift Card."""
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 16, 0, 0)
+        layout.setSpacing(20)
+
+        # Titulo
+        title = QLabel("Pago con Gift Card")
+        title.setFont(QFont("Segoe UI", 14, QFont.Weight.Medium))
+        title.setStyleSheet(f"color: {self.theme.text_primary};")
+        layout.addWidget(title)
+
+        # Frame de ingreso de codigo
+        input_frame = QFrame()
+        input_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.theme.gray_50};
+                border: 1px solid {self.theme.border};
+                border-radius: 12px;
+            }}
+        """)
+        input_layout = QVBoxLayout(input_frame)
+        input_layout.setContentsMargins(20, 16, 20, 16)
+        input_layout.setSpacing(12)
+
+        code_label = QLabel("Codigo de Gift Card")
+        code_label.setStyleSheet(f"color: {self.theme.gray_600}; font-size: 12px;")
+        input_layout.addWidget(code_label)
+
+        code_input_layout = QHBoxLayout()
+        code_input_layout.setSpacing(8)
+
+        self.giftcard_code_input = QLineEdit()
+        self.giftcard_code_input.setPlaceholderText("Ingrese o escanee el codigo")
+        self.giftcard_code_input.setFixedHeight(44)
+        self.giftcard_code_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {self.theme.surface};
+                border: 1px solid {self.theme.border};
+                border-radius: 6px;
+                padding: 0 12px;
+                font-size: 14px;
+            }}
+            QLineEdit:focus {{
+                border-color: #9b59b6;
+            }}
+        """)
+        self.giftcard_code_input.returnPressed.connect(self._check_giftcard_balance)
+        code_input_layout.addWidget(self.giftcard_code_input)
+
+        check_btn = QPushButton("Consultar")
+        check_btn.setFixedSize(90, 44)
+        check_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        check_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #9b59b6;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: #8e44ad;
+            }}
+        """)
+        check_btn.clicked.connect(self._check_giftcard_balance)
+        code_input_layout.addWidget(check_btn)
+
+        input_layout.addLayout(code_input_layout)
+        layout.addWidget(input_frame)
+
+        # Frame de info de gift card (oculto inicialmente)
+        self.giftcard_info_frame = QFrame()
+        self.giftcard_info_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: #f3e5f5;
+                border: 2px solid #9b59b6;
+                border-radius: 12px;
+            }}
+        """)
+        self.giftcard_info_frame.hide()
+
+        info_layout = QVBoxLayout(self.giftcard_info_frame)
+        info_layout.setContentsMargins(20, 16, 20, 16)
+        info_layout.setSpacing(8)
+
+        # Saldo
+        balance_row = QHBoxLayout()
+        balance_label = QLabel("Saldo disponible:")
+        balance_label.setStyleSheet(f"color: {self.theme.text_secondary};")
+        balance_row.addWidget(balance_label)
+
+        self.giftcard_balance_label = QLabel("$0.00")
+        self.giftcard_balance_label.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        self.giftcard_balance_label.setStyleSheet("color: #9b59b6;")
+        self.giftcard_balance_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        balance_row.addWidget(self.giftcard_balance_label)
+        info_layout.addLayout(balance_row)
+
+        # Monto a aplicar
+        apply_row = QHBoxLayout()
+        apply_label = QLabel("Aplicar al pago:")
+        apply_label.setStyleSheet(f"color: {self.theme.text_secondary};")
+        apply_row.addWidget(apply_label)
+
+        self.giftcard_apply_label = QLabel("$0.00")
+        self.giftcard_apply_label.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        self.giftcard_apply_label.setStyleSheet(f"color: {self.theme.success};")
+        self.giftcard_apply_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        apply_row.addWidget(self.giftcard_apply_label)
+        info_layout.addLayout(apply_row)
+
+        layout.addWidget(self.giftcard_info_frame)
+
+        # Monto a cobrar
+        self.giftcard_amount_display = QLabel(f"${self.total:,.2f}")
+        self.giftcard_amount_display.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold))
+        self.giftcard_amount_display.setStyleSheet("color: #9b59b6;")
+        self.giftcard_amount_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.giftcard_amount_display)
+
+        # Instrucciones
+        instructions = QLabel(
+            "Ingrese el codigo de la gift card y presione Consultar.\n"
+            "El saldo disponible se aplicara automaticamente al pago."
+        )
+        instructions.setStyleSheet(f"color: {self.theme.gray_500}; font-size: 12px;")
+        instructions.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(instructions)
+
+        layout.addStretch()
+
+        # Atributos para tracking
+        self._giftcard_code: str = ""
+        self._giftcard_balance: float = 0.0
+        self._giftcard_amount_to_apply: float = 0.0
+
+        return panel
+
+    def _check_giftcard_balance(self) -> None:
+        """Consulta el saldo de la gift card ingresada."""
+        from src.api.cash import get_gift_card_api
+
+        code = self.giftcard_code_input.text().strip()
+        if not code:
+            QMessageBox.warning(self, "Error", "Ingrese el codigo de la gift card")
+            return
+
+        api = get_gift_card_api()
+        gift_card, error = api.check_balance(code)
+
+        if error:
+            QMessageBox.warning(self, "Gift Card", f"No se pudo consultar la gift card:\n{error}")
+            self.giftcard_info_frame.hide()
+            self._giftcard_code = ""
+            self._giftcard_balance = 0.0
+            self._giftcard_amount_to_apply = 0.0
+            self.confirm_btn.setEnabled(False)
+            return
+
+        if gift_card.status != "ACTIVE":
+            QMessageBox.warning(
+                self,
+                "Gift Card",
+                f"Esta gift card no esta activa.\nEstado: {gift_card.status}"
+            )
+            self.giftcard_info_frame.hide()
+            self.confirm_btn.setEnabled(False)
+            return
+
+        if gift_card.current_balance <= 0:
+            QMessageBox.warning(self, "Gift Card", "Esta gift card no tiene saldo disponible")
+            self.giftcard_info_frame.hide()
+            self.confirm_btn.setEnabled(False)
+            return
+
+        # Guardar datos
+        self._giftcard_code = code
+        self._giftcard_balance = gift_card.current_balance
+
+        # Calcular monto a aplicar (menor entre saldo y restante)
+        self._giftcard_amount_to_apply = min(gift_card.current_balance, self.remaining_amount)
+
+        # Mostrar info
+        self.giftcard_balance_label.setText(f"${gift_card.current_balance:,.2f}")
+        self.giftcard_apply_label.setText(f"${self._giftcard_amount_to_apply:,.2f}")
+        self.giftcard_info_frame.show()
+
+        # Habilitar confirmar si hay monto a aplicar
+        self.confirm_btn.setEnabled(self._giftcard_amount_to_apply > 0)
+
+        logger.info(f"Gift card consultada: saldo ${gift_card.current_balance}, aplicar ${self._giftcard_amount_to_apply}")
+
     def _select_method(self, method: PaymentMethod) -> None:
         """Selecciona un metodo de pago."""
         self.current_method = method
@@ -971,6 +1170,7 @@ class CheckoutDialog(QDialog):
             PaymentMethod.DEBIT_CARD: 1,
             PaymentMethod.CREDIT_CARD: 2,
             PaymentMethod.QR: 3,
+            PaymentMethod.GIFTCARD: 4,
         }
         self.payment_stack.setCurrentIndex(index_map.get(method, 0))
 
@@ -1124,6 +1324,18 @@ class CheckoutDialog(QDialog):
             )
             change = 0.0
 
+        elif self.current_method == PaymentMethod.GIFTCARD:
+            if not hasattr(self, '_giftcard_amount_to_apply') or self._giftcard_amount_to_apply <= 0:
+                QMessageBox.warning(self, "Error", "Consulte primero una gift card valida")
+                return
+
+            payment = PaymentData(
+                method=PaymentMethod.GIFTCARD,
+                amount=self._giftcard_amount_to_apply,
+                reference=self._giftcard_code,  # Guardar codigo como referencia
+            )
+            change = 0.0
+
         else:
             return
 
@@ -1196,6 +1408,8 @@ class CheckoutDialog(QDialog):
                 self._on_confirm()
         elif key == Qt.Key.Key_F1:
             self._select_method(PaymentMethod.CASH)
+        elif key == Qt.Key.Key_F5:
+            self._select_method(PaymentMethod.GIFTCARD)
         elif key == Qt.Key.Key_F2:
             self._select_method(PaymentMethod.DEBIT_CARD)
         elif key == Qt.Key.Key_F3:

@@ -63,6 +63,20 @@ from .terminals import (
     get_terminal_status,
     identify_terminal,
 )
+from .cash import (
+    CashAPI,
+    CashSession,
+    CashSessionStatus,
+    CashMovement,
+    CashMovementType,
+    CashMovementReason,
+    CashCount,
+    SessionSummary,
+    GiftCardAPI,
+    GiftCardInfo,
+    get_cash_api,
+    get_gift_card_api,
+)
 
 __all__ = [
     "APIClient",
@@ -104,4 +118,17 @@ __all__ = [
     "send_heartbeat",
     "get_terminal_status",
     "identify_terminal",
+    # Caja
+    "CashAPI",
+    "CashSession",
+    "CashSessionStatus",
+    "CashMovement",
+    "CashMovementType",
+    "CashMovementReason",
+    "CashCount",
+    "SessionSummary",
+    "GiftCardAPI",
+    "GiftCardInfo",
+    "get_cash_api",
+    "get_gift_card_api",
 ]

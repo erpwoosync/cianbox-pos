@@ -41,6 +41,12 @@ from .print_service import (
     reset_print_service,
 )
 
+from .cash_session_manager import (
+    CashSessionManager,
+    get_cash_session_manager,
+    reset_cash_session_manager,
+)
+
 __all__ = [
     # Sincronizacion
     "SyncService",
@@ -61,4 +67,8 @@ __all__ = [
     "TicketType",
     "get_print_service",
     "reset_print_service",
+    # Sesion de Caja
+    "CashSessionManager",
+    "get_cash_session_manager",
+    "reset_cash_session_manager",
 ]
