@@ -283,6 +283,7 @@ class SalesAPI:
         date_to: Optional[str] = None,
         page: int = 1,
         page_size: int = 50,
+        include_items: bool = False,
     ) -> tuple[List[dict], Optional[dict]]:
         """
         Lista ventas con filtros.
@@ -293,6 +294,7 @@ class SalesAPI:
             date_to: Fecha hasta (YYYY-MM-DD)
             page: Pagina
             page_size: Tamano de pagina
+            include_items: Incluir items completos (para sync)
 
         Returns:
             Tupla de (lista de ventas, paginacion)
@@ -308,6 +310,8 @@ class SalesAPI:
             params["dateFrom"] = date_from
         if date_to:
             params["dateTo"] = date_to
+        if include_items:
+            params["includeItems"] = "true"
 
         try:
             response = self.client.get("/api/sales", params=params)

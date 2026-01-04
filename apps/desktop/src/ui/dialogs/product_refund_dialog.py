@@ -56,12 +56,16 @@ class SearchWorker(QThread):
 
     def run(self):
         try:
+            logger.info(f"SearchWorker: Buscando '{self.identifier}' en cache local")
             # Buscar en cache local (SQLite)
             result = self.sync_service.search_sales_by_product(self.identifier)
+            logger.info(f"SearchWorker: Resultado success={result.get('success')}")
             if result.get("success"):
                 self.finished.emit(result.get("data", {}))
             else:
-                self.error.emit(result.get("error", "Error desconocido"))
+                error_msg = result.get("error", "Error desconocido")
+                logger.warning(f"SearchWorker: {error_msg}")
+                self.error.emit(error_msg)
         except Exception as e:
             logger.error(f"Error en SearchWorker: {e}")
             self.error.emit(str(e))

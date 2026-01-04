@@ -1056,6 +1056,7 @@ class SyncService:
                 date_from=date_from,
                 page=page,
                 page_size=page_size,
+                include_items=True,  # Incluir items para cache de devoluciones
             )
 
             if not sales:

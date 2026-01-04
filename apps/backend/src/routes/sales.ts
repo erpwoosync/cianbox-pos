@@ -109,6 +109,7 @@ const saleQuerySchema = z.object({
   dateTo: z.string().optional(),
   page: z.string().default('1'),
   pageSize: z.string().default('50'),
+  includeItems: z.string().optional(), // 'true' para incluir items completos (para sync)
 });
 
 /**
@@ -486,24 +487,39 @@ router.get(
         }
       }
 
+      // Construir include dinamico
+      const includeItems = params.includeItems === 'true';
+      const includeConfig: Record<string, unknown> = {
+        customer: { select: { id: true, name: true } },
+        branch: { select: { id: true, code: true, name: true } },
+        pointOfSale: { select: { id: true, code: true, name: true } },
+        user: { select: { id: true, name: true } },
+        afipInvoices: {
+          select: {
+            id: true,
+            voucherType: true,
+            number: true,
+            salesPoint: { select: { number: true } }
+          }
+        },
+      };
+
+      if (includeItems) {
+        // Incluir items completos con sus refunds (para sync de devoluciones)
+        includeConfig.items = {
+          include: {
+            refundItems: { select: { id: true, quantity: true } },
+          },
+        };
+      } else {
+        // Solo contar items y pagos
+        includeConfig._count = { select: { items: true, payments: true } };
+      }
+
       const [sales, total] = await Promise.all([
         prisma.sale.findMany({
           where,
-          include: {
-            customer: { select: { id: true, name: true } },
-            branch: { select: { id: true, code: true, name: true } },
-            pointOfSale: { select: { id: true, code: true, name: true } },
-            user: { select: { id: true, name: true } },
-            afipInvoices: {
-              select: {
-                id: true,
-                voucherType: true,
-                number: true,
-                salesPoint: { select: { number: true } }
-              }
-            },
-            _count: { select: { items: true, payments: true } },
-          },
+          include: includeConfig,
           skip,
           take,
           orderBy: { saleDate: 'desc' },
