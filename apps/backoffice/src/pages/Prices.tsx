@@ -28,11 +28,11 @@ export default function Prices() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [productsData, priceListsData] = await Promise.all([
+      const [productsResponse, priceListsData] = await Promise.all([
         productsApi.getAll({ hideVariants: true }), // Solo productos simples y padres
         pricesApi.getPriceLists(),
       ]);
-      setProducts(productsData);
+      setProducts(productsResponse.data);
       setPriceLists(priceListsData);
     } catch (error) {
       console.error('Error loading data:', error);

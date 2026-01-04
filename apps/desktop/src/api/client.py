@@ -39,10 +39,11 @@ class APIResponse:
 
     Attributes:
         success: Si la operacion fue exitosa
-        data: Datos de la respuesta
+        data: Datos de la respuesta (campo 'data' del JSON)
         error: Mensaje de error
         pagination: Datos de paginacion
         status_code: Codigo HTTP
+        raw_data: Respuesta JSON completa (para endpoints que no usan 'data')
     """
 
     def __init__(
@@ -52,12 +53,14 @@ class APIResponse:
         error: Optional[str] = None,
         pagination: Optional[Dict] = None,
         status_code: int = 200,
+        raw_data: Any = None,
     ):
         self.success = success
         self.data = data
         self.error = error
         self.pagination = pagination
         self.status_code = status_code
+        self.raw_data = raw_data
 
     @property
     def is_error(self) -> bool:
@@ -304,6 +307,7 @@ class APIClient:
                     error=result.get("error"),
                     pagination=result.get("pagination"),
                     status_code=response.status_code,
+                    raw_data=result,  # Respuesta completa para endpoints que no usan 'data'
                 )
 
             except (httpx.TimeoutException, httpx.NetworkError) as e:

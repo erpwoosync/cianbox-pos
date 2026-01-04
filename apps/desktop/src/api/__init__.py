@@ -56,10 +56,12 @@ from .exceptions import (
 )
 from .terminals import (
     TerminalInfo,
+    TerminalIdentification,
     TerminalNotActiveError,
     register_terminal,
     send_heartbeat,
     get_terminal_status,
+    identify_terminal,
 )
 
 __all__ = [
@@ -96,8 +98,10 @@ __all__ = [
     "ServerError",
     # Terminals
     "TerminalInfo",
+    "TerminalIdentification",
     "TerminalNotActiveError",
     "register_terminal",
     "send_heartbeat",
     "get_terminal_status",
+    "identify_terminal",
 ]

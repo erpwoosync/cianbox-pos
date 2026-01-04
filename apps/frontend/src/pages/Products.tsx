@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Package,
   Search,
@@ -44,7 +44,7 @@ export default function Products() {
   const loadData = async () => {
     try {
       const [productsRes, categoriesRes] = await Promise.all([
-        productsService.list({ pageSize: 100 }),
+        productsService.list({ pageSize: 50 }),
         productsService.getCategories(),
       ]);
 
@@ -61,18 +61,21 @@ export default function Products() {
     }
   };
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      searchQuery === '' ||
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.barcode?.toLowerCase().includes(searchQuery.toLowerCase());
+  // Memoizar filtrado para evitar recálculos innecesarios
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      const matchesSearch =
+        searchQuery === '' ||
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.barcode?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesCategory =
-      selectedCategory === '' || product.category?.id === selectedCategory;
+      const matchesCategory =
+        selectedCategory === '' || product.category?.id === selectedCategory;
 
-    return matchesSearch && matchesCategory;
-  });
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
 
   return (
     <div className="space-y-6">

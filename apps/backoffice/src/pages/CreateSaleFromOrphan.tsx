@@ -40,7 +40,7 @@ export default function CreateSaleFromOrphan() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [ordersData, productsData] = await Promise.all([
+      const [ordersData, productsResponse] = await Promise.all([
         orphanOrdersApi.getAll(),
         productsApi.getAll(),
       ]);
@@ -52,7 +52,7 @@ export default function CreateSaleFromOrphan() {
       }
 
       setOrder(foundOrder);
-      setProducts(productsData);
+      setProducts(productsResponse.data);
     } catch (err) {
       console.error('Error loading data:', err);
       const axiosError = err as { response?: { data?: { message?: string }; status?: number } };

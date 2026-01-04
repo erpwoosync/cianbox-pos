@@ -30,11 +30,11 @@ export default function Stock() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [productsData, branchesData] = await Promise.all([
+      const [productsResponse, branchesData] = await Promise.all([
         productsApi.getAll({ hideVariants: true }), // Solo productos simples y padres
         stockApi.getBranches(),
       ]);
-      setProducts(productsData);
+      setProducts(productsResponse.data);
       setBranches(branchesData);
     } catch (error) {
       console.error('Error loading data:', error);

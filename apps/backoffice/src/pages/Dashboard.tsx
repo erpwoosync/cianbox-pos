@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { dashboardApi } from '../services/api';
 import {
@@ -65,15 +65,41 @@ interface DashboardStats {
   recentSales: RecentSale[];
 }
 
+// Funciones de formato estables (fuera del componente para evitar recreación)
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 0,
+  }).format(value);
+};
+
+const formatDate = (dateStr: string) => {
+  return new Date(dateStr).toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const statusStyles: Record<string, string> = {
+  COMPLETED: 'bg-green-100 text-green-700',
+  PENDING: 'bg-yellow-100 text-yellow-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+};
+
+const statusLabels: Record<string, string> = {
+  COMPLETED: 'Completada',
+  PENDING: 'Pendiente',
+  CANCELLED: 'Cancelada',
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     setLoading(true);
     try {
       const data = await dashboardApi.getStats();
@@ -83,38 +109,23 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      COMPLETED: 'bg-green-100 text-green-700',
-      PENDING: 'bg-yellow-100 text-yellow-700',
-      CANCELLED: 'bg-red-100 text-red-700',
-    };
-    const labels: Record<string, string> = {
-      COMPLETED: 'Completada',
-      PENDING: 'Pendiente',
-      CANCELLED: 'Cancelada',
-    };
-    return { style: styles[status] || 'bg-gray-100 text-gray-700', label: labels[status] || status };
-  };
+  // Memoizar datos procesados de ventas recientes
+  const recentSalesData = useMemo(() => {
+    if (!stats?.recentSales) return [];
+    return stats.recentSales.map(sale => ({
+      ...sale,
+      badgeStyle: statusStyles[sale.status] || 'bg-gray-100 text-gray-700',
+      badgeLabel: statusLabels[sale.status] || sale.status,
+      formattedTotal: formatCurrency(sale.total),
+      formattedDate: formatDate(sale.createdAt),
+    }));
+  }, [stats?.recentSales]);
 
   if (loading) {
     return (
@@ -313,7 +324,7 @@ export default function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-900">Últimas Ventas</h2>
             <Link to="/sales" className="text-sm text-blue-600 hover:underline">Ver todas</Link>
           </div>
-          {stats?.recentSales && stats.recentSales.length > 0 ? (
+          {recentSalesData.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -326,30 +337,27 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {stats.recentSales.map((sale) => {
-                    const badge = getStatusBadge(sale.status);
-                    return (
-                      <tr key={sale.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">
-                          <Link to={`/sales/${sale.id}`} className="font-mono text-sm text-blue-600 hover:underline">
-                            {sale.saleNumber}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{sale.customerName}</td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">
-                          {formatCurrency(sale.total)}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`px-2 py-1 text-xs rounded-full ${badge.style}`}>
-                            {badge.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm text-gray-500">
-                          {formatDate(sale.createdAt)}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {recentSalesData.map((sale) => (
+                    <tr key={sale.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <Link to={`/sales/${sale.id}`} className="font-mono text-sm text-blue-600 hover:underline">
+                          {sale.saleNumber}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{sale.customerName}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">
+                        {sale.formattedTotal}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-1 text-xs rounded-full ${sale.badgeStyle}`}>
+                          {sale.badgeLabel}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-500">
+                        {sale.formattedDate}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

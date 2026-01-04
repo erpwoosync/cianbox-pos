@@ -2,7 +2,7 @@ name: Deploy Backend
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/afip-facturacion-electronica]
     paths:
       - 'apps/backend/**'
       - '.github/workflows/deploy-backend.yml'

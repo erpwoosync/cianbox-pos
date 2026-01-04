@@ -1,5 +1,6 @@
 import { PrismaClient, MercadoPagoAppType } from '@prisma/client';
 import { randomUUID, createHmac } from 'crypto';
+import { normalizeLocation } from '../utils/mp-location';
 
 const prisma = new PrismaClient();
 
@@ -1047,6 +1048,90 @@ class MercadoPagoService {
     return device;
   }
 
+  /**
+   * NOTA: La asociación terminal→POS NO se puede hacer vía API.
+   * Se debe configurar desde el dispositivo físico:
+   * Más opciones > Ajustes > Modo de vinculación
+   *
+   * Este método queda comentado porque la API de MP no lo soporta.
+   * Solo es posible:
+   * - Consultar terminales con GET /terminals/v1/list
+   * - Cambiar operating_mode con PATCH /terminals/v1/setup
+   */
+
+  /**
+   * Lista stores para Point (usa la misma estructura que QR)
+   */
+  async listPointStores(tenantId: string): Promise<Array<{ id: string; name: string; external_id: string }>> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
+
+    const config = await this.getConfig(tenantId, 'POINT');
+    if (!config?.mpUserId) {
+      throw new Error('No se encontró el user_id de Mercado Pago');
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/users/${config.mpUserId}/stores/search`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      console.error('Error listando stores MP Point:', error);
+      throw new Error('Error al obtener sucursales de Mercado Pago');
+    }
+
+    const data = await response.json() as { results?: Array<{ id: string; name: string; external_id: string }> };
+    return data.results || [];
+  }
+
+  /**
+   * Lista POS para Point (usa la misma estructura que QR)
+   */
+  async listPointPOS(tenantId: string, storeId?: string): Promise<Array<{
+    id: number;
+    name: string;
+    external_id: string;
+    store_id: string;
+  }>> {
+    const accessToken = await this.getValidAccessToken(tenantId, 'POINT');
+
+    let url = `${this.baseUrl}/pos?`;
+    if (storeId) {
+      url += `store_id=${storeId}&`;
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Error listando POS MP Point:', errorData);
+      throw new Error('Error al obtener POS de Mercado Pago');
+    }
+
+    interface MPPosResult {
+      id: number;
+      name: string;
+      external_id: string;
+      store_id: string;
+    }
+
+    const data = await response.json() as { results?: MPPosResult[] };
+    return data.results || [];
+  }
+
   // ============================================
   // WEBHOOKS
   // ============================================
@@ -1340,7 +1425,20 @@ class MercadoPagoService {
       let errorMessage = 'Error al crear local en Mercado Pago';
       try {
         const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.message || errorJson.error || errorMessage;
+        // MP devuelve detalles en 'cause' o 'causes'
+        if (errorJson.cause && Array.isArray(errorJson.cause) && errorJson.cause.length > 0) {
+          const causes = errorJson.cause.map((c: { code?: string; description?: string }) =>
+            c.description || c.code || JSON.stringify(c)
+          ).join(', ');
+          errorMessage = `${errorJson.message || 'Error'}: ${causes}`;
+        } else if (errorJson.causes && Array.isArray(errorJson.causes) && errorJson.causes.length > 0) {
+          const causes = errorJson.causes.map((c: { code?: string; description?: string }) =>
+            c.description || c.code || JSON.stringify(c)
+          ).join(', ');
+          errorMessage = `${errorJson.message || 'Error'}: ${causes}`;
+        } else {
+          errorMessage = errorJson.message || errorJson.error || errorMessage;
+        }
       } catch {
         // Si no es JSON, usar el texto como mensaje
         if (errorText) errorMessage = errorText;
@@ -1350,6 +1448,18 @@ class MercadoPagoService {
     }
 
     const store = await response.json() as { id: string; name: string; external_id: string };
+
+    // Guardar en DB local
+    await this.saveLocalStore(tenantId, {
+      mpStoreId: store.id,
+      externalId: store.external_id,
+      name: store.name,
+      streetName: data.location.street_name,
+      streetNumber: data.location.street_number,
+      cityName: data.location.city_name,
+      stateName: data.location.state_name,
+    });
+
     return store;
   }
 
@@ -1405,6 +1515,17 @@ class MercadoPagoService {
         template_image: string;
       };
     };
+
+    // Guardar en DB local
+    await this.saveLocalCashier(tenantId, {
+      mpCashierId: pos.id,
+      externalId: pos.external_id,
+      name: pos.name,
+      mpStoreId: pos.store_id,
+      qrImage: pos.qr?.image,
+      qrTemplate: pos.qr?.template_document,
+    });
+
     return pos;
   }
 
@@ -1682,6 +1803,516 @@ class MercadoPagoService {
         console.error(`Error renovando token para tenant ${config.tenantId} (${config.appType}):`, error);
       }
     }
+  }
+
+  // ============================================
+  // BRANCHES CON MP STORES
+  // ============================================
+
+  /**
+   * Crea un Store en MP usando los datos de una Branch del sistema
+   * Vincula automáticamente el Store creado con la Branch
+   */
+  async createStoreFromBranch(tenantId: string, branchId: string): Promise<{
+    branch: { id: string; name: string; code: string; mpStoreId: string | null; mpExternalId: string | null };
+    store: { id: string; name: string; external_id: string };
+  }> {
+    // Obtener la Branch
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, tenantId },
+    });
+
+    if (!branch) {
+      throw new Error('Sucursal no encontrada');
+    }
+
+    if (branch.mpStoreId) {
+      throw new Error('Esta sucursal ya tiene un Local de MP vinculado');
+    }
+
+    // Generar external_id limpiando caracteres especiales del code
+    const externalId = branch.code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    // Normalizar provincia y ciudad - usa la ciudad de la sucursal si es válida, sino la capital
+    const location = normalizeLocation(branch.city, branch.state);
+    const stateName = location.state;
+    const cityName = location.city;
+
+    // Preparar datos para crear Store
+    const storeData = {
+      name: branch.name,
+      external_id: externalId,
+      location: {
+        street_name: branch.address || 'Sin dirección',
+        street_number: '0',
+        city_name: cityName,
+        state_name: stateName,
+      },
+    };
+
+    // Crear Store en MP
+    const store = await this.createQRStore(tenantId, storeData);
+
+    // Actualizar Branch con los datos del Store
+    const updatedBranch = await prisma.branch.update({
+      where: { id: branchId },
+      data: {
+        mpStoreId: store.id,
+        mpExternalId: store.external_id,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        mpStoreId: true,
+        mpExternalId: true,
+      },
+    });
+
+    return {
+      branch: updatedBranch,
+      store,
+    };
+  }
+
+  /**
+   * Sincroniza Stores existentes en MP con las Branches del sistema
+   * Busca coincidencias por external_id similar al code de Branch
+   */
+  async syncExistingStores(tenantId: string): Promise<{
+    synced: number;
+    notMatched: Array<{ id: string; name: string; external_id: string }>;
+  }> {
+    // Listar Stores en MP
+    const stores = await this.listQRStores(tenantId);
+
+    // Obtener Branches sin Store vinculado
+    const branches = await prisma.branch.findMany({
+      where: {
+        tenantId,
+        mpStoreId: null,
+      },
+    });
+
+    let synced = 0;
+    const notMatched: Array<{ id: string; name: string; external_id: string }> = [];
+
+    for (const store of stores) {
+      // Buscar Branch que coincida por external_id
+      // Comparamos limpiando caracteres especiales
+      const storeExternalIdClean = store.external_id.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+      const matchingBranch = branches.find(branch => {
+        const branchCodeClean = branch.code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        return branchCodeClean === storeExternalIdClean;
+      });
+
+      if (matchingBranch) {
+        // Vincular Store con Branch
+        await prisma.branch.update({
+          where: { id: matchingBranch.id },
+          data: {
+            mpStoreId: store.id,
+            mpExternalId: store.external_id,
+          },
+        });
+        synced++;
+        // Remover de la lista de branches para no volver a matchear
+        const idx = branches.findIndex(b => b.id === matchingBranch.id);
+        if (idx !== -1) branches.splice(idx, 1);
+      } else {
+        // Verificar si ya está vinculado a otra Branch
+        const existingLink = await prisma.branch.findFirst({
+          where: { tenantId, mpStoreId: store.id },
+        });
+
+        if (!existingLink) {
+          notMatched.push(store);
+        }
+      }
+    }
+
+    return { synced, notMatched };
+  }
+
+  /**
+   * Lista las Branches del tenant con su estado de MP
+   */
+  async getBranchesWithMPStatus(tenantId: string): Promise<Array<{
+    id: string;
+    name: string;
+    code: string;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    hasStore: boolean;
+    mpStoreId: string | null;
+    mpExternalId: string | null;
+  }>> {
+    const branches = await prisma.branch.findMany({
+      where: { tenantId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        address: true,
+        city: true,
+        state: true,
+        mpStoreId: true,
+        mpExternalId: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return branches.map(branch => ({
+      ...branch,
+      hasStore: !!branch.mpStoreId,
+    }));
+  }
+
+  /**
+   * Vincula manualmente un Store existente de MP a una Branch del sistema
+   */
+  async linkStoreToBranch(tenantId: string, branchId: string, storeId: string, externalId: string): Promise<{
+    id: string;
+    name: string;
+    code: string;
+    mpStoreId: string | null;
+    mpExternalId: string | null;
+  }> {
+    // Verificar que la Branch existe y pertenece al tenant
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, tenantId },
+    });
+
+    if (!branch) {
+      throw new Error('Sucursal no encontrada');
+    }
+
+    // Verificar que el Store no está vinculado a otra Branch
+    const existingLink = await prisma.branch.findFirst({
+      where: { tenantId, mpStoreId: storeId, id: { not: branchId } },
+    });
+
+    if (existingLink) {
+      throw new Error(`Este local ya está vinculado a la sucursal "${existingLink.name}"`);
+    }
+
+    // Vincular Store a Branch
+    const updatedBranch = await prisma.branch.update({
+      where: { id: branchId },
+      data: {
+        mpStoreId: storeId,
+        mpExternalId: externalId,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        mpStoreId: true,
+        mpExternalId: true,
+      },
+    });
+
+    return updatedBranch;
+  }
+
+  /**
+   * Desvincula un Store de MP de una Branch
+   */
+  async unlinkStoreFromBranch(tenantId: string, branchId: string): Promise<{
+    id: string;
+    name: string;
+    code: string;
+    mpStoreId: string | null;
+    mpExternalId: string | null;
+  }> {
+    // Verificar que la Branch existe y pertenece al tenant
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, tenantId },
+    });
+
+    if (!branch) {
+      throw new Error('Sucursal no encontrada');
+    }
+
+    // Desvincular
+    const updatedBranch = await prisma.branch.update({
+      where: { id: branchId },
+      data: {
+        mpStoreId: null,
+        mpExternalId: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        mpStoreId: true,
+        mpExternalId: true,
+      },
+    });
+
+    return updatedBranch;
+  }
+
+  /**
+   * Lista Stores de MP que no están vinculados a ninguna Branch
+   */
+  async getUnlinkedStores(tenantId: string): Promise<Array<{ id: string; name: string; external_id: string }>> {
+    // Obtener stores de la DB local
+    const allStores = await this.getLocalStores(tenantId);
+
+    // Obtener IDs de stores ya vinculados a branches
+    const linkedBranches = await prisma.branch.findMany({
+      where: { tenantId, mpStoreId: { not: null } },
+      select: { mpStoreId: true },
+    });
+
+    const linkedStoreIds = new Set(linkedBranches.map(b => b.mpStoreId));
+
+    // Filtrar stores no vinculados
+    return allStores
+      .filter(store => !linkedStoreIds.has(store.mpStoreId))
+      .map(store => ({
+        id: store.mpStoreId,
+        name: store.name,
+        external_id: store.externalId,
+      }));
+  }
+
+  // ============================================
+  // CACHE LOCAL DE STORES Y CASHIERS
+  // ============================================
+
+  /**
+   * Obtiene stores de la DB local
+   */
+  async getLocalStores(tenantId: string): Promise<Array<{
+    id: string;
+    mpStoreId: string;
+    name: string;
+    externalId: string;
+    streetName: string | null;
+    streetNumber: string | null;
+    cityName: string | null;
+    stateName: string | null;
+    cashierCount: number;
+  }>> {
+    const stores = await prisma.mercadoPagoStore.findMany({
+      where: { tenantId },
+      include: {
+        _count: { select: { cashiers: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return stores.map(store => ({
+      id: store.id,
+      mpStoreId: store.mpStoreId,
+      name: store.name,
+      externalId: store.externalId,
+      streetName: store.streetName,
+      streetNumber: store.streetNumber,
+      cityName: store.cityName,
+      stateName: store.stateName,
+      cashierCount: store._count.cashiers,
+    }));
+  }
+
+  /**
+   * Obtiene cashiers de la DB local
+   */
+  async getLocalCashiers(tenantId: string, mpStoreId?: string): Promise<Array<{
+    id: string;
+    mpCashierId: number;
+    name: string;
+    externalId: string;
+    mpStoreId: string;
+    qrImage: string | null;
+    qrTemplate: string | null;
+  }>> {
+    const where: { tenantId: string; store?: { mpStoreId: string } } = { tenantId };
+    if (mpStoreId) {
+      where.store = { mpStoreId };
+    }
+
+    const cashiers = await prisma.mercadoPagoCashier.findMany({
+      where,
+      include: { store: { select: { mpStoreId: true } } },
+      orderBy: { name: 'asc' },
+    });
+
+    return cashiers.map(cashier => ({
+      id: cashier.id,
+      mpCashierId: cashier.mpCashierId,
+      name: cashier.name,
+      externalId: cashier.externalId,
+      mpStoreId: cashier.store.mpStoreId,
+      qrImage: cashier.qrImage,
+      qrTemplate: cashier.qrTemplate,
+    }));
+  }
+
+  /**
+   * Guarda un store en la DB local (upsert)
+   */
+  async saveLocalStore(tenantId: string, storeData: {
+    mpStoreId: string;
+    externalId?: string;
+    name: string;
+    streetName?: string;
+    streetNumber?: string;
+    cityName?: string;
+    stateName?: string;
+  }): Promise<{ id: string; mpStoreId: string }> {
+    // Usar mpStoreId como fallback si externalId no está definido
+    const externalId = storeData.externalId || `STORE${storeData.mpStoreId}`;
+
+    const store = await prisma.mercadoPagoStore.upsert({
+      where: {
+        tenantId_mpStoreId: { tenantId, mpStoreId: storeData.mpStoreId },
+      },
+      update: {
+        name: storeData.name,
+        externalId,
+        streetName: storeData.streetName,
+        streetNumber: storeData.streetNumber,
+        cityName: storeData.cityName,
+        stateName: storeData.stateName,
+        lastSyncedAt: new Date(),
+      },
+      create: {
+        tenantId,
+        mpStoreId: storeData.mpStoreId,
+        externalId,
+        name: storeData.name,
+        streetName: storeData.streetName,
+        streetNumber: storeData.streetNumber,
+        cityName: storeData.cityName,
+        stateName: storeData.stateName,
+      },
+    });
+
+    return { id: store.id, mpStoreId: store.mpStoreId };
+  }
+
+  /**
+   * Guarda un cashier en la DB local (upsert)
+   */
+  async saveLocalCashier(tenantId: string, cashierData: {
+    mpCashierId: number;
+    externalId?: string;
+    name: string;
+    mpStoreId: string;
+    qrImage?: string;
+    qrTemplate?: string;
+  }): Promise<{ id: string; mpCashierId: number }> {
+    // Buscar el store local por mpStoreId
+    const store = await prisma.mercadoPagoStore.findFirst({
+      where: { tenantId, mpStoreId: cashierData.mpStoreId },
+    });
+
+    if (!store) {
+      throw new Error(`Store con mpStoreId ${cashierData.mpStoreId} no encontrado en DB local`);
+    }
+
+    // Usar mpCashierId como fallback si externalId no está definido
+    const externalId = cashierData.externalId || `CAJA${cashierData.mpCashierId}`;
+
+    const cashier = await prisma.mercadoPagoCashier.upsert({
+      where: {
+        tenantId_mpCashierId: { tenantId, mpCashierId: cashierData.mpCashierId },
+      },
+      update: {
+        name: cashierData.name,
+        externalId,
+        qrImage: cashierData.qrImage,
+        qrTemplate: cashierData.qrTemplate,
+        lastSyncedAt: new Date(),
+      },
+      create: {
+        tenantId,
+        storeId: store.id,
+        mpCashierId: cashierData.mpCashierId,
+        externalId,
+        name: cashierData.name,
+        qrImage: cashierData.qrImage,
+        qrTemplate: cashierData.qrTemplate,
+      },
+    });
+
+    return { id: cashier.id, mpCashierId: cashier.mpCashierId };
+  }
+
+  /**
+   * Sincroniza stores y cashiers desde MP a la DB local
+   */
+  async syncQRDataFromMP(tenantId: string): Promise<{
+    storesAdded: number;
+    storesUpdated: number;
+    cashiersAdded: number;
+    cashiersUpdated: number;
+  }> {
+    let storesAdded = 0;
+    let storesUpdated = 0;
+    let cashiersAdded = 0;
+    let cashiersUpdated = 0;
+
+    try {
+      // 1. Sincronizar stores
+      const mpStores = await this.listQRStores(tenantId);
+
+      for (const mpStore of mpStores) {
+        const existing = await prisma.mercadoPagoStore.findFirst({
+          where: { tenantId, mpStoreId: mpStore.id },
+        });
+
+        await this.saveLocalStore(tenantId, {
+          mpStoreId: mpStore.id,
+          externalId: mpStore.external_id,
+          name: mpStore.name,
+        });
+
+        if (existing) {
+          storesUpdated++;
+        } else {
+          storesAdded++;
+        }
+      }
+
+      // 2. Sincronizar cashiers
+      const mpCashiers = await this.listQRCashiers(tenantId);
+
+      for (const mpCashier of mpCashiers) {
+        const existing = await prisma.mercadoPagoCashier.findFirst({
+          where: { tenantId, mpCashierId: mpCashier.id },
+        });
+
+        try {
+          await this.saveLocalCashier(tenantId, {
+            mpCashierId: mpCashier.id,
+            externalId: mpCashier.external_id,
+            name: mpCashier.name,
+            mpStoreId: mpCashier.store_id,
+            qrImage: mpCashier.qr?.image,
+            qrTemplate: mpCashier.qr?.template_document,
+          });
+
+          if (existing) {
+            cashiersUpdated++;
+          } else {
+            cashiersAdded++;
+          }
+        } catch (err) {
+          console.error(`Error guardando cashier ${mpCashier.id}:`, err);
+        }
+      }
+    } catch (error) {
+      console.error('Error sincronizando datos QR desde MP:', error);
+      throw error;
+    }
+
+    return { storesAdded, storesUpdated, cashiersAdded, cashiersUpdated };
   }
 }
 

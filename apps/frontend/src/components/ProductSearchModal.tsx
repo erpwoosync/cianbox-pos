@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Search, Loader2, Package, Grid3x3, ShoppingCart, ArrowLeft, Layers, Tag, Barcode, BoxIcon } from 'lucide-react';
 import { productsService, SizeCurveData } from '../services/api';
 
@@ -130,28 +130,50 @@ export default function ProductSearchModal({
     }
   };
 
-  const handleSearch = useCallback(async (query: string) => {
+  // Ref para debounce
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     setSelectedProduct(null);
     setSizeCurve(null);
 
+    // Limpiar timeout anterior
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
     if (query.length < 2) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
-    try {
-      const response = await productsService.search(query, undefined, branchId);
-      if (response.success) {
-        setSearchResults(response.data);
+
+    // Debounce de 300ms
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await productsService.search(query, undefined, branchId);
+        if (response.success) {
+          setSearchResults(response.data);
+        }
+      } catch (error) {
+        console.error('Error en busqueda:', error);
+      } finally {
+        setIsSearching(false);
       }
-    } catch (error) {
-      console.error('Error en busqueda:', error);
-    } finally {
-      setIsSearching(false);
-    }
+    }, 300);
   }, [branchId]);
+
+  // Limpiar timeout al desmontar
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);

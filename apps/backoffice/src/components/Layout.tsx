@@ -30,7 +30,10 @@ import {
   Settings,
   Boxes,
   Receipt,
+  FileText,
   LucideIcon,
+  Vault,
+  CreditCard,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -80,6 +83,8 @@ const menuGroups: MenuGroup[] = [
       { path: '/customers', label: 'Clientes', icon: UserCircle },
       { path: '/orphan-payments', label: 'Pagos Huérfanos', icon: AlertTriangle },
       { path: '/cash-sessions', label: 'Caja', icon: Banknote },
+      { path: '/treasury', label: 'Tesorería', icon: Vault },
+      { path: '/gift-cards', label: 'Gift Cards', icon: CreditCard },
     ],
   },
   {
@@ -90,6 +95,7 @@ const menuGroups: MenuGroup[] = [
       { path: '/roles', label: 'Roles', icon: Shield },
       { path: '/users', label: 'Usuarios', icon: Users },
       { path: '/integrations', label: 'Integraciones', icon: Plug },
+      { path: '/afip', label: 'Facturación AFIP', icon: FileText },
     ],
   },
 ];

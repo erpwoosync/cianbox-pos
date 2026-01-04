@@ -24,9 +24,13 @@ import agencyRoutes from './routes/agency.js';
 import backofficeRoutes from './routes/backoffice.js';
 import mercadoPagoRoutes, { webhookRouter as mpWebhookRouter } from './routes/mercadopago.js';
 import cashRoutes from './routes/cash.js';
+import cashConfigRoutes from './routes/cash-config.js';
+import giftCardsRoutes from './routes/gift-cards.js';
+import treasuryRoutes from './routes/treasury.js';
 import cianboxWebhookRoutes from './routes/webhooks.js';
 import terminalsRoutes from './routes/terminals.js';
 import customersRoutes from './routes/customers.js';
+import afipRoutes from './routes/afip.js';
 
 // Importar servicios
 import CianboxService from './services/cianbox.service.js';
@@ -112,6 +116,9 @@ app.get('/api', (_req, res) => {
       backoffice: '/api/backoffice',
       mercadopago: '/api/mercadopago',
       cash: '/api/cash',
+      cashConfig: '/api/cash-config',
+      giftCards: '/api/gift-cards',
+      treasury: '/api/treasury',
       terminals: '/api/pos/terminals',
       webhooks: '/api/webhooks',
       cianboxwebhooks: '/api/cianboxwebhooks',
@@ -129,11 +136,15 @@ app.use('/api/agency', agencyRoutes); // Super admin / gestión de DB servers
 app.use('/api/backoffice', backofficeRoutes); // Client backoffice - gestión de catálogo
 app.use('/api/mercadopago', mercadoPagoRoutes); // Mercado Pago Point integration
 app.use('/api/cash', cashRoutes); // Gestión de turnos de caja y arqueos
+app.use('/api/cash-config', cashConfigRoutes); // Configuración de caja por POS
+app.use('/api/gift-cards', giftCardsRoutes); // Gestión de gift cards
+app.use('/api/treasury', treasuryRoutes); // Tesorería - retiros pendientes
 app.use('/api/pos/terminals', terminalsRoutes); // Gestión de terminales POS
 app.use('/api/backoffice/terminals', terminalsRoutes); // Alias para backoffice
 app.use('/api/webhooks', mpWebhookRouter); // Webhooks Mercado Pago (público, sin auth)
 app.use('/api/cianboxwebhooks', cianboxWebhookRoutes); // Webhooks Cianbox (público, sin auth)
 app.use('/api/customers', customersRoutes); // Gestión de clientes
+app.use('/api/afip', afipRoutes); // Facturación electrónica AFIP
 
 // Ruta 404
 app.use((_req, res) => {

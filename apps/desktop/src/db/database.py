@@ -161,6 +161,8 @@ def init_database() -> None:
         AppConfig,
         Device,
         Customer,
+        Sale,
+        SaleItem,
     )
 
     engine = get_engine()

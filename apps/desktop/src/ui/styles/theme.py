@@ -57,17 +57,23 @@ class Theme:
     background: str = COLORS["background"]
     background_secondary: str = COLORS["background_secondary"]
     surface: str = COLORS["surface"]
+    surface_variant: str = COLORS["gray_100"]  # Variante más oscura de surface
 
     # Bordes
     border: str = COLORS["border"]
     border_light: str = COLORS["border_light"]
     border_focus: str = COLORS["border_focus"]
+    divider: str = COLORS["gray_200"]  # Color para divisores/separadores
+
+    # Alias de estados
+    error: str = COLORS["danger"]  # Alias para danger
 
     # Texto
     text_primary: str = COLORS["text_primary"]
     text_secondary: str = COLORS["text_secondary"]
     text_muted: str = COLORS["text_muted"]
     text_inverse: str = COLORS["text_inverse"]
+    text: str = COLORS["text_primary"]  # Alias para text_primary
 
     # Escala de grises
     gray_50: str = COLORS["gray_50"]

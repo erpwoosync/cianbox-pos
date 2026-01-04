@@ -12,6 +12,7 @@ from .promotion import Promotion, PromotionProduct
 from .sync import OfflineQueue, AppConfig
 from .device import Device, DeviceStatus
 from .customer import Customer, CustomerType
+from .sale import Sale, SaleItem
 
 __all__ = [
     # Base
@@ -39,4 +40,7 @@ __all__ = [
     # Clientes
     "Customer",
     "CustomerType",
+    # Ventas
+    "Sale",
+    "SaleItem",
 ]

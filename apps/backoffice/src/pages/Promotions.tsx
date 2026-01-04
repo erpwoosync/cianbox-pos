@@ -134,14 +134,14 @@ export default function Promotions() {
   const loadSelectorsData = async () => {
     setLoadingData(true);
     try {
-      const [cats, brnds, prods] = await Promise.all([
+      const [cats, brnds, prodsResponse] = await Promise.all([
         categoriesApi.getAll(),
         brandsApi.getAll(),
         productsApi.getAll(),
       ]);
       setCategories(cats || []);
       setBrands(brnds || []);
-      setProducts(prods || []);
+      setProducts(prodsResponse?.data || []);
     } catch (error) {
       console.error('Error cargando datos:', error);
     } finally {

@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Cianbox POS para tiendas de ropa y calzado. Curva de talles visual, sincronizacion con Cianbox ERP, promociones automaticas y cobro con Mercado Pago.">
+    <meta name="keywords" content="POS, punto de venta, tienda de ropa, calzado, moda, Cianbox, curva de talles, sistema de ventas">
+    <meta name="author" content="Cianbox POS">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Cianbox POS - El punto de venta para tiendas de moda">
+    <meta property="og:description" content="Vende mas ropa con menos dolores de cabeza. Curva de talles, promociones automaticas y sincronizacion con Cianbox.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://pos.cianbox.com">
+    <meta property="og:image" content="https://pos.cianbox.com/og-image.jpg">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Cianbox POS - El punto de venta para tiendas de moda">
+    <meta name="twitter:description" content="Vende mas ropa con menos dolores de cabeza. Curva de talles, promociones automaticas y sincronizacion con Cianbox.">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>">
+
+    <!-- Preload -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <title>Cianbox POS - Punto de Venta para Tiendas de Moda y Calzado</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav" id="nav">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">
+                <svg class="nav-logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="8" fill="currentColor"/>
+                    <path d="M8 12h16M8 16h16M8 20h10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Cianbox POS</span>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="#features">Funcionalidades</a>
+                <a href="#como-funciona">Como funciona</a>
+                <a href="#precios">Precios</a>
+                <a href="#faq">FAQ</a>
+            </div>
+            <div class="nav-cta">
+                <a href="#contacto" class="btn btn-secondary btn-sm">Ingresar</a>
+                <a href="#contacto" class="btn btn-primary btn-sm">Empezar gratis</a>
+            </div>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <span class="hero-badge">Para tiendas de moda y calzado</span>
+                    <h1 class="hero-title">Vende mas ropa.<br><span class="text-gradient">Menos dolores de cabeza.</span></h1>
+                    <p class="hero-subtitle">El punto de venta que entiende tu negocio de moda. Curva de talles, promociones de temporada y sincronizacion automatica con Cianbox.</p>
+                    <div class="hero-cta">
+                        <a href="#contacto" class="btn btn-primary btn-lg">
+                            Empezar prueba gratis
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10h12m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </a>
+                        <a href="#demo" class="btn btn-ghost btn-lg">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/><path d="M8 7l5 3-5 3V7z" fill="currentColor"/></svg>
+                            Ver demo en vivo
+                        </a>
+                    </div>
+                    <div class="hero-trust">
+                        <div class="hero-trust-item">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5l-7 7-3-3" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <span>14 dias gratis</span>
+                        </div>
+                        <div class="hero-trust-item">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5l-7 7-3-3" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <span>Sin tarjeta</span>
+                        </div>
+                        <div class="hero-trust-item">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5l-7 7-3-3" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <span>Config. en 24hs</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-visual">
+                    <!-- SVG Illustration: Fashion Store POS -->
+                    <svg class="hero-illustration" viewBox="0 0 500 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Background shapes -->
+                        <circle cx="400" cy="100" r="60" fill="#EEF2FF" opacity="0.6"/>
+                        <circle cx="80" cy="320" r="40" fill="#FCE7F3" opacity="0.6"/>
+
+                        <!-- Hanger rack -->
+                        <rect x="60" y="80" width="200" height="8" rx="4" fill="#64748B"/>
+                        <rect x="70" y="88" width="4" height="160" fill="#64748B"/>
+                        <rect x="246" y="88" width="4" height="160" fill="#64748B"/>
+
+                        <!-- Clothes on hangers -->
+                        <g class="clothes-animate">
+                            <!-- Hanger 1 -->
+                            <path d="M100 88v4l-10 8h20l-10-8z" fill="#94A3B8"/>
+                            <path d="M85 100h30v60c0 5-6 10-15 10s-15-5-15-10V100z" fill="#EC4899"/>
+                            <path d="M85 100h30v15H85z" fill="#DB2777"/>
+
+                            <!-- Hanger 2 -->
+                            <path d="M140 88v4l-10 8h20l-10-8z" fill="#94A3B8"/>
+                            <path d="M125 100h30v65c0 5-6 10-15 10s-15-5-15-10V100z" fill="#6366F1"/>
+
+                            <!-- Hanger 3 -->
+                            <path d="M180 88v4l-10 8h20l-10-8z" fill="#94A3B8"/>
+                            <path d="M165 100h30v55c0 5-6 10-15 10s-15-5-15-10V100z" fill="#10B981"/>
+                            <path d="M165 100h30v12H165z" fill="#059669"/>
+
+                            <!-- Hanger 4 -->
+                            <path d="M220 88v4l-10 8h20l-10-8z" fill="#94A3B8"/>
+                            <path d="M205 100h30v60c0 5-6 10-15 10s-15-5-15-10V100z" fill="#F59E0B"/>
+                        </g>
+
+                        <!-- POS Terminal -->
+                        <g class="pos-terminal">
+                            <rect x="300" y="140" width="160" height="200" rx="12" fill="#1E293B"/>
+                            <rect x="310" y="150" width="140" height="100" rx="8" fill="#F8FAFC"/>
+
+                            <!-- Screen content - Size curve -->
+                            <rect x="320" y="160" width="120" height="80" rx="4" fill="white"/>
+
+                            <!-- Size matrix -->
+                            <rect x="325" y="175" width="22" height="12" rx="2" fill="#10B981"/>
+                            <rect x="350" y="175" width="22" height="12" rx="2" fill="#10B981"/>
+                            <rect x="375" y="175" width="22" height="12" rx="2" fill="#F59E0B"/>
+                            <rect x="400" y="175" width="22" height="12" rx="2" fill="#EF4444"/>
+
+                            <rect x="325" y="190" width="22" height="12" rx="2" fill="#10B981"/>
+                            <rect x="350" y="190" width="22" height="12" rx="2" fill="#F59E0B"/>
+                            <rect x="375" y="190" width="22" height="12" rx="2" fill="#10B981"/>
+                            <rect x="400" y="190" width="22" height="12" rx="2" fill="#F59E0B"/>
+
+                            <rect x="325" y="205" width="22" height="12" rx="2" fill="#F59E0B"/>
+                            <rect x="350" y="205" width="22" height="12" rx="2" fill="#10B981"/>
+                            <rect x="375" y="205" width="22" height="12" rx="2" fill="#EF4444"/>
+                            <rect x="400" y="205" width="22" height="12" rx="2" fill="#10B981"/>
+
+                            <!-- Size labels -->
+                            <text x="336" y="170" font-size="6" fill="#64748B" font-family="Inter">38</text>
+                            <text x="361" y="170" font-size="6" fill="#64748B" font-family="Inter">40</text>
+                            <text x="386" y="170" font-size="6" fill="#64748B" font-family="Inter">42</text>
+                            <text x="411" y="170" font-size="6" fill="#64748B" font-family="Inter">44</text>
+
+                            <!-- Keypad -->
+                            <rect x="310" y="260" width="35" height="25" rx="4" fill="#334155"/>
+                            <rect x="350" y="260" width="35" height="25" rx="4" fill="#334155"/>
+                            <rect x="390" y="260" width="55" height="25" rx="4" fill="#6366F1"/>
+
+                            <rect x="310" y="290" width="35" height="25" rx="4" fill="#334155"/>
+                            <rect x="350" y="290" width="35" height="25" rx="4" fill="#334155"/>
+                            <rect x="390" y="290" width="55" height="25" rx="4" fill="#10B981"/>
+                        </g>
+
+                        <!-- Shoe display -->
+                        <g class="shoe-display">
+                            <rect x="60" y="280" width="100" height="8" rx="2" fill="#E2E8F0"/>
+                            <ellipse cx="90" cy="275" rx="25" ry="10" fill="#1E293B"/>
+                            <path d="M70 275c0-10 10-20 20-20s20 10 20 20" fill="#6366F1"/>
+                            <ellipse cx="140" cy="275" rx="20" ry="8" fill="#1E293B"/>
+                            <path d="M125 275c0-8 8-16 15-16s15 8 15 16" fill="#EC4899"/>
+                        </g>
+
+                        <!-- Price tags floating -->
+                        <g class="price-tags">
+                            <rect x="270" y="60" width="50" height="30" rx="4" fill="#FEF3C7" transform="rotate(-10 295 75)"/>
+                            <circle cx="278" cy="68" r="3" fill="#F59E0B"/>
+                            <rect x="283" y="70" width="30" height="4" rx="2" fill="#D97706"/>
+                            <rect x="283" y="77" width="20" height="3" rx="1" fill="#D97706" opacity="0.5"/>
+                        </g>
+
+                        <!-- Mannequin -->
+                        <g class="mannequin">
+                            <ellipse cx="480" cy="260" rx="3" ry="80" fill="#CBD5E1"/>
+                            <circle cx="480" cy="170" r="20" fill="#E2E8F0"/>
+                            <path d="M455 200c0 0 10-10 25-10s25 10 25 10v70c0 5-10 10-25 10s-25-5-25-10V200z" fill="#8B5CF6"/>
+                            <path d="M455 200c0 0 10-10 25-10s25 10 25 10v20H455V200z" fill="#7C3AED"/>
+                        </g>
+
+                        <!-- Barcode scanner beam -->
+                        <g class="scanner-beam">
+                            <line x1="200" y1="350" x2="280" y2="300" stroke="#EF4444" stroke-width="2" stroke-dasharray="4 2" opacity="0.8"/>
+                            <circle cx="200" cy="350" r="8" fill="#1E293B"/>
+                            <circle cx="200" cy="350" r="4" fill="#EF4444"/>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div class="hero-bg"></div>
+    </section>
+
+    <!-- Problem Section -->
+    <section class="problems" id="problemas">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">El dia a dia en tu tienda</span>
+                <h2 class="section-title">Sabemos lo que enfrentas cada dia</h2>
+            </div>
+            <div class="problems-grid">
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" fill="#FEE2E2"/>
+                            <path d="M24 16v8M24 28h.01" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="24" cy="24" r="12" stroke="#EF4444" stroke-width="2" fill="none"/>
+                        </svg>
+                    </div>
+                    <h3 class="problem-title">"Talle 38 negro... dejame fijarme en el deposito"</h3>
+                    <p class="problem-text">Perdes ventas mientras buscas stock que no sabes si tenes. Tu cliente se impacienta y se va.</p>
+                </div>
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" fill="#FEF3C7"/>
+                            <path d="M16 24h16M24 16v16" stroke="#F59E0B" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="problem-title">"Espera que lo cargo en la caja y despues en Cianbox"</h3>
+                    <p class="problem-text">Doble carga de datos. Doble posibilidad de error. Doble perdida de tiempo.</p>
+                </div>
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" fill="#DBEAFE"/>
+                            <path d="M24 14v10l6 4" stroke="#3B82F6" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="24" cy="24" r="10" stroke="#3B82F6" stroke-width="2" fill="none"/>
+                        </svg>
+                    </div>
+                    <h3 class="problem-title">"La promo termino ayer pero nadie la saco"</h3>
+                    <p class="problem-text">Descuentos que se aplican mal, precios desactualizados, discusiones en caja.</p>
+                </div>
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" fill="#F3E8FF"/>
+                            <path d="M18 30l4-8 4 4 6-10" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="problem-title">"Fin de temporada = caos total"</h3>
+                    <p class="problem-text">Liquidaciones que no se reflejan en el sistema. Stock que no cierra. Numeros que no cuadran.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solution Section -->
+    <section class="solution">
+        <div class="container">
+            <div class="solution-content">
+                <div class="solution-text">
+                    <span class="section-badge">La solucion</span>
+                    <h2 class="section-title">Cianbox POS: Tu nuevo aliado en el mostrador</h2>
+                    <p class="solution-description">Un sistema pensado para tiendas de moda que se conecta directo con tu Cianbox. Sin planillas, sin doble carga, sin sorpresas.</p>
+                    <div class="solution-highlights">
+                        <div class="solution-highlight">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="#10B981" stroke-width="2"/></svg>
+                            <span>Sincronizado con Cianbox ERP</span>
+                        </div>
+                        <div class="solution-highlight">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="#10B981" stroke-width="2"/></svg>
+                            <span>Pensado para moda y calzado</span>
+                        </div>
+                        <div class="solution-highlight">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="#10B981" stroke-width="2"/></svg>
+                            <span>Listo para usar en minutos</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="solution-visual">
+                    <!-- Illustration: Connected systems -->
+                    <svg viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Central POS -->
+                        <rect x="140" y="100" width="120" height="100" rx="12" fill="#6366F1"/>
+                        <rect x="150" y="110" width="100" height="60" rx="6" fill="white"/>
+                        <text x="200" y="145" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">POS</text>
+                        <rect x="160" y="180" width="30" height="10" rx="2" fill="#4F46E5"/>
+                        <rect x="200" y="180" width="40" height="10" rx="2" fill="#10B981"/>
+
+                        <!-- Connection lines -->
+                        <path d="M140 150 Q 80 150 60 80" stroke="#E2E8F0" stroke-width="3" stroke-dasharray="6 4"/>
+                        <path d="M260 150 Q 320 150 340 80" stroke="#E2E8F0" stroke-width="3" stroke-dasharray="6 4"/>
+                        <path d="M200 200 Q 200 260 200 280" stroke="#E2E8F0" stroke-width="3" stroke-dasharray="6 4"/>
+
+                        <!-- Cianbox ERP -->
+                        <rect x="20" y="40" width="80" height="50" rx="8" fill="#1E293B"/>
+                        <text x="60" y="70" text-anchor="middle" font-size="10" font-weight="600" fill="white">Cianbox</text>
+
+                        <!-- Mercado Pago -->
+                        <rect x="300" y="40" width="80" height="50" rx="8" fill="#00B1EA"/>
+                        <text x="340" y="70" text-anchor="middle" font-size="9" font-weight="600" fill="white">Mercado Pago</text>
+
+                        <!-- Stock -->
+                        <rect x="160" y="250" width="80" height="40" rx="8" fill="#10B981"/>
+                        <text x="200" y="275" text-anchor="middle" font-size="10" font-weight="600" fill="white">Stock</text>
+
+                        <!-- Animated dots on paths -->
+                        <circle r="4" fill="#6366F1">
+                            <animateMotion dur="2s" repeatCount="indefinite" path="M140 150 Q 80 150 60 80"/>
+                        </circle>
+                        <circle r="4" fill="#00B1EA">
+                            <animateMotion dur="2s" repeatCount="indefinite" path="M260 150 Q 320 150 340 80"/>
+                        </circle>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Funcionalidades</span>
+                <h2 class="section-title">Todo lo que necesitas para vender mejor</h2>
+                <p class="section-subtitle">Herramientas disenadas especificamente para tiendas de moda y calzado</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card feature-card-highlight">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <rect x="8" y="12" width="32" height="24" rx="4" fill="#EEF2FF"/>
+                            <rect x="12" y="16" width="6" height="6" rx="1" fill="#10B981"/>
+                            <rect x="20" y="16" width="6" height="6" rx="1" fill="#10B981"/>
+                            <rect x="28" y="16" width="6" height="6" rx="1" fill="#F59E0B"/>
+                            <rect x="12" y="24" width="6" height="6" rx="1" fill="#F59E0B"/>
+                            <rect x="20" y="24" width="6" height="6" rx="1" fill="#EF4444"/>
+                            <rect x="28" y="24" width="6" height="6" rx="1" fill="#10B981"/>
+                        </svg>
+                    </div>
+                    <span class="feature-badge">Destacado</span>
+                    <h3 class="feature-title">Curva de Talles en Pantalla</h3>
+                    <p class="feature-description">Matriz visual de talles y colores con stock en tiempo real. Sabras al instante si tenes el 38 negro sin moverte del mostrador.</p>
+                    <p class="feature-extra">Click en la celda = producto agregado al ticket</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="16" fill="#DBEAFE"/>
+                            <path d="M16 24h4l4-6 4 10 4-4h4" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Sincronizacion con Cianbox</h3>
+                    <p class="feature-description">Cada venta se refleja automaticamente en tu Cianbox. Productos, precios y stock siempre sincronizados.</p>
+                    <p class="feature-extra">Olvida la doble carga de datos</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <rect x="10" y="14" width="28" height="20" rx="4" fill="#FEF3C7"/>
+                            <text x="24" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#D97706">2x1</text>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Promociones Inteligentes</h3>
+                    <p class="feature-description">Configura 2x1, segunda unidad al 50% o descuentos por fecha. El sistema los aplica automaticamente cuando corresponde.</p>
+                    <p class="feature-extra">Black Friday, Cyber Monday, liquidaciones sin drama</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <rect x="12" y="8" width="24" height="32" rx="4" fill="#ECFDF5"/>
+                            <rect x="16" y="12" width="16" height="8" rx="2" fill="#10B981"/>
+                            <rect x="16" y="24" width="8" height="8" rx="2" fill="#D1FAE5"/>
+                            <rect x="26" y="24" width="6" height="8" rx="2" fill="#D1FAE5"/>
+                            <rect x="16" y="34" width="16" height="4" rx="1" fill="#10B981"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Cobro con Mercado Pago</h3>
+                    <p class="feature-description">Efectivo, tarjeta, QR o transferencia. Integrado con Mercado Pago Point para cobros rapidos y seguros.</p>
+                    <p class="feature-extra">Menos tiempo en caja = mas tiempo para vender</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <rect x="6" y="18" width="14" height="18" rx="3" fill="#F3E8FF"/>
+                            <rect x="28" y="18" width="14" height="18" rx="3" fill="#F3E8FF"/>
+                            <path d="M20 27h8" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="13" cy="14" r="4" fill="#8B5CF6"/>
+                            <circle cx="35" cy="14" r="4" fill="#8B5CF6"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Stock por Sucursal</h3>
+                    <p class="feature-description">Tu vendedor puede ver si hay stock en otra sucursal y reservarlo para el cliente. No pierdas ventas por falta de talle.</p>
+                    <p class="feature-extra">Tus tiendas trabajan como un equipo</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <rect x="10" y="10" width="28" height="28" rx="4" fill="#FEE2E2"/>
+                            <path d="M16 18h16M16 24h10M16 30h14" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+                            <rect x="30" y="26" width="6" height="10" rx="1" fill="#EF4444"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Historial de Ventas</h3>
+                    <p class="feature-description">Accede al historial de cada venta, haz devoluciones parciales y genera reportes de cierre de caja.</p>
+                    <p class="feature-extra">Cierre de caja en 2 minutos</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Size Curve Feature Section -->
+    <section class="size-curve" id="curva-talles">
+        <div class="container">
+            <div class="size-curve-content">
+                <div class="size-curve-text">
+                    <span class="section-badge section-badge-light">Feature estrella</span>
+                    <h2 class="section-title section-title-light">La curva de talles que siempre quisiste</h2>
+                    <p class="size-curve-subtitle">Deja de buscar en planillas. Ve todo el stock en una matriz visual.</p>
+                    <ul class="size-curve-list">
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Talles en columnas, colores en filas
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Colores que indican nivel de stock
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Click para agregar al ticket
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Funciona con lector de codigo de barras
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Stock en tiempo real de todas las sucursales
+                        </li>
+                    </ul>
+                    <a href="#demo" class="btn btn-white btn-lg">
+                        Quiero verlo en accion
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10h12m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </a>
+                </div>
+                <div class="size-curve-demo">
+                    <div class="size-curve-window">
+                        <div class="size-curve-window-header">
+                            <div class="window-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <span class="window-title">JEAN RECTO CELESTE - Curva de talles</span>
+                        </div>
+                        <div class="size-curve-matrix">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th>36</th>
+                                        <th>38</th>
+                                        <th>40</th>
+                                        <th>42</th>
+                                        <th>44</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="color-label">Negro</td>
+                                        <td class="stock-high">8</td>
+                                        <td class="stock-high">12</td>
+                                        <td class="stock-medium">3</td>
+                                        <td class="stock-high">6</td>
+                                        <td class="stock-low">0</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="color-label">Celeste</td>
+                                        <td class="stock-high">5</td>
+                                        <td class="stock-medium">2</td>
+                                        <td class="stock-high">9</td>
+                                        <td class="stock-medium">4</td>
+                                        <td class="stock-medium">2</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="color-label">Blanco</td>
+                                        <td class="stock-medium">3</td>
+                                        <td class="stock-high">7</td>
+                                        <td class="stock-low">0</td>
+                                        <td class="stock-high">5</td>
+                                        <td class="stock-medium">1</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="color-label">Gris</td>
+                                        <td class="stock-low">0</td>
+                                        <td class="stock-medium">4</td>
+                                        <td class="stock-high">6</td>
+                                        <td class="stock-medium">2</td>
+                                        <td class="stock-high">8</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div class="stock-legend">
+                                <span class="legend-item"><span class="legend-dot legend-high"></span> Stock alto (5+)</span>
+                                <span class="legend-item"><span class="legend-dot legend-medium"></span> Stock bajo (1-4)</span>
+                                <span class="legend-item"><span class="legend-dot legend-low"></span> Sin stock</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it Works -->
+    <section class="how-it-works" id="como-funciona">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Implementacion</span>
+                <h2 class="section-title">Listo para vender en 3 pasos</h2>
+                <p class="section-subtitle">Configuracion rapida, soporte incluido</p>
+            </div>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="18" fill="#EEF2FF"/>
+                            <path d="M24 14v10l6 4" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M32 32l-4-4" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="step-title">Conecta tu Cianbox</h3>
+                    <p class="step-description">Ingresa tus credenciales y sincronizamos todo tu catalogo automaticamente.</p>
+                </div>
+                <div class="step-connector">
+                    <svg viewBox="0 0 60 20" fill="none">
+                        <path d="M0 10h50" stroke="#E2E8F0" stroke-width="2" stroke-dasharray="6 4"/>
+                        <path d="M45 5l5 5-5 5" stroke="#6366F1" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <rect x="10" y="14" width="28" height="20" rx="4" fill="#ECFDF5"/>
+                            <path d="M18 24h4M26 24h4" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="20" cy="24" r="3" stroke="#10B981" stroke-width="2"/>
+                            <circle cx="28" cy="24" r="3" stroke="#10B981" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3 class="step-title">Configura tu caja</h3>
+                    <p class="step-description">Define sucursales, usuarios y metodos de pago en minutos.</p>
+                </div>
+                <div class="step-connector">
+                    <svg viewBox="0 0 60 20" fill="none">
+                        <path d="M0 10h50" stroke="#E2E8F0" stroke-width="2" stroke-dasharray="6 4"/>
+                        <path d="M45 5l5 5-5 5" stroke="#6366F1" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="18" fill="#FEF3C7"/>
+                            <path d="M18 24l4 4 8-8" stroke="#F59E0B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="step-title">Empieza a vender</h3>
+                    <p class="step-description">Escanea, selecciona talle y cobra. Asi de simple.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="testimonials" id="testimonios">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Testimonios</span>
+                <h2 class="section-title">Lo que dicen nuestras tiendas</h2>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <div class="testimonial-rating">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                    </div>
+                    <blockquote class="testimonial-quote">"Antes tardaba 5 minutos por venta buscando talles. Ahora es instantaneo."</blockquote>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar" style="background: linear-gradient(135deg, #EC4899, #8B5CF6);">MG</div>
+                        <div class="testimonial-info">
+                            <strong>Maria Gonzalez</strong>
+                            <span>Duena de "Urbana Moda", Belgrano</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-rating">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                    </div>
+                    <blockquote class="testimonial-quote">"La sincronizacion con Cianbox me ahorro contratar una persona solo para cargar datos."</blockquote>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar" style="background: linear-gradient(135deg, #6366F1, #3B82F6);">CM</div>
+                        <div class="testimonial-info">
+                            <strong>Carlos Mendez</strong>
+                            <span>Gerente de "Zapateria del Centro", Cordoba</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-rating">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="#F59E0B"><path d="M10 1l2.39 6.26L19 8l-5.5 4.74L15.18 19 10 15.27 4.82 19l1.68-6.26L1 8l6.61-.74L10 1z"/></svg>
+                    </div>
+                    <blockquote class="testimonial-quote">"Las promociones de fin de temporada ya no son un dolor de cabeza. Se activan solas."</blockquote>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar" style="background: linear-gradient(135deg, #10B981, #14B8A6);">LF</div>
+                        <div class="testimonial-info">
+                            <strong>Laura Fernandez</strong>
+                            <span>Encargada de "Fashion Store", Rosario</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="pricing" id="precios">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Precios</span>
+                <h2 class="section-title">Planes que crecen con tu negocio</h2>
+                <p class="section-subtitle">Sin sorpresas. Precio fijo mensual.</p>
+            </div>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3 class="pricing-name">Starter</h3>
+                        <p class="pricing-description">Ideal para una tienda, un punto de venta</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="pricing-currency">$</span>
+                        <span class="pricing-amount">15.000</span>
+                        <span class="pricing-period">/mes</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            1 sucursal
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            2 usuarios
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Sincronizacion Cianbox
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Curva de talles
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Promociones basicas
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Soporte por email
+                        </li>
+                    </ul>
+                    <a href="#contacto" class="btn btn-secondary btn-block">Empezar gratis</a>
+                </div>
+                <div class="pricing-card pricing-card-featured">
+                    <div class="pricing-badge">Mas elegido</div>
+                    <div class="pricing-header">
+                        <h3 class="pricing-name">Profesional</h3>
+                        <p class="pricing-description">Tiendas con varias cajas o sucursales</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="pricing-currency">$</span>
+                        <span class="pricing-amount">29.000</span>
+                        <span class="pricing-period">/mes</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Hasta 3 sucursales
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Usuarios ilimitados
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Todo lo del plan Starter
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Mercado Pago integrado
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Stock multi-sucursal
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Promociones avanzadas
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Soporte prioritario
+                        </li>
+                    </ul>
+                    <a href="#contacto" class="btn btn-primary btn-block">Empezar gratis</a>
+                </div>
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3 class="pricing-name">Enterprise</h3>
+                        <p class="pricing-description">Cadenas y franquicias</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="pricing-amount pricing-custom">Personalizado</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Sucursales ilimitadas
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Todo lo del plan Profesional
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Integracion personalizada
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Capacitacion presencial
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Soporte 24/7
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 5l-9 9-4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            SLA garantizado
+                        </li>
+                    </ul>
+                    <a href="#contacto" class="btn btn-secondary btn-block">Contactar ventas</a>
+                </div>
+            </div>
+            <p class="pricing-note">Todos los precios en pesos argentinos (ARS). IVA no incluido. Prueba gratis por 14 dias, sin tarjeta de credito.</p>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="faq" id="faq">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">FAQ</span>
+                <h2 class="section-title">Preguntas frecuentes</h2>
+            </div>
+            <div class="faq-grid">
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Necesito tener Cianbox para usar el POS?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si, Cianbox POS esta disenado para trabajar integrado con tu cuenta de Cianbox ERP. Los productos, precios y stock se sincronizan automaticamente.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Funciona con cualquier lector de codigo de barras?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si, funciona con cualquier lector USB o Bluetooth estandar. Solo escaneas y el producto aparece en pantalla.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Puedo usar Mercado Pago Point?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si, tenemos integracion nativa con Mercado Pago. Podes cobrar con Point, QR o link de pago directamente desde el POS.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Que pasa si se corta internet?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>El sistema tiene modo offline para seguir vendiendo. Cuando vuelve la conexion, todo se sincroniza automaticamente.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Puedo configurar promociones de temporada?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si, podes crear promociones con fecha de inicio y fin. Se activan y desactivan automaticamente. Ideal para Black Friday, liquidaciones, etc.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Cuanto tiempo toma la implementacion?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>En general, entre 1 y 3 dias. Sincronizamos tu catalogo, configuramos usuarios y te capacitamos en el uso del sistema.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Puedo hacer devoluciones parciales?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si, podes devolver items individuales de una venta. El stock se actualiza automaticamente.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question">
+                        <span>Tienen soporte tecnico?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Si, todos los planes incluyen soporte. El plan Profesional tiene soporte prioritario y el Enterprise incluye soporte 24/7.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section class="final-cta" id="contacto">
+        <div class="container">
+            <div class="final-cta-content">
+                <h2 class="final-cta-title">Tu tienda merece un POS que la entienda</h2>
+                <p class="final-cta-subtitle">Empieza hoy y vende mas con menos esfuerzo.</p>
+                <div class="final-cta-buttons">
+                    <a href="#" class="btn btn-white btn-lg">
+                        Comenzar prueba gratis de 14 dias
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10h12m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </a>
+                    <a href="#" class="btn btn-ghost-white btn-lg">Agendar demo personalizada</a>
+                </div>
+                <div class="final-cta-trust">
+                    <span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5l-7 7-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Sin tarjeta de credito
+                    </span>
+                    <span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5l-7 7-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Configuracion en 24 hs
+                    </span>
+                    <span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5l-7 7-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Soporte incluido
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#" class="footer-logo">
+                        <svg class="footer-logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="32" rx="8" fill="#6366F1"/>
+                            <path d="M8 12h16M8 16h16M8 20h10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <span>Cianbox POS</span>
+                    </a>
+                    <p class="footer-description">El punto de venta disenado para tiendas de moda y calzado.</p>
+                    <div class="footer-social">
+                        <a href="#" aria-label="Instagram">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="4" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="2"/><circle cx="15" cy="5" r="1" fill="currentColor"/></svg>
+                        </a>
+                        <a href="#" aria-label="LinkedIn">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M6 9v5M6 6v.01M10 14v-3a2 2 0 114 0v3M10 9v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        </a>
+                        <a href="#" aria-label="YouTube">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 8l5 2.5L8 13V8z" fill="currentColor"/></svg>
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Producto</h4>
+                    <ul>
+                        <li><a href="#features">Funcionalidades</a></li>
+                        <li><a href="#precios">Precios</a></li>
+                        <li><a href="#">Integraciones</a></li>
+                        <li><a href="#">Actualizaciones</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Recursos</h4>
+                    <ul>
+                        <li><a href="#">Centro de ayuda</a></li>
+                        <li><a href="#">Documentacion</a></li>
+                        <li><a href="#">Blog</a></li>
+                        <li><a href="#">Casos de exito</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Empresa</h4>
+                    <ul>
+                        <li><a href="#">Sobre nosotros</a></li>
+                        <li><a href="#">Contacto</a></li>
+                        <li><a href="#">Trabaja con nosotros</a></li>
+                        <li><a href="#">Partners</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Cianbox POS. Todos los derechos reservados.</p>
+                <div class="footer-legal">
+                    <a href="#">Terminos de servicio</a>
+                    <a href="#">Politica de privacidad</a>
+                    <a href="#">Politica de cookies</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

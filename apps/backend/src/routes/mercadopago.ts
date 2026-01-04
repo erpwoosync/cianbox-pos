@@ -354,6 +354,10 @@ const changeOperatingModeSchema = z.object({
   operatingMode: z.enum(['PDV', 'STANDALONE']),
 });
 
+// NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
+// Se debe configurar desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
+// Solo se puede tener UNA terminal en modo PDV por caja. Para múltiples terminales, crear múltiples cajas.
+
 /**
  * PATCH /api/mercadopago/devices/:deviceId/operating-mode
  * Cambia el modo de operación de un dispositivo Point (PDV <-> STANDALONE)
@@ -390,6 +394,118 @@ router.patch('/devices/:deviceId/operating-mode', authenticate, async (req: Auth
     });
   }
 });
+
+/**
+ * POST /api/mercadopago/devices/:deviceId/test-payment
+ * Envía un pago de prueba de $50 al dispositivo para verificar la conexión
+ */
+router.post('/devices/:deviceId/test-payment', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { deviceId } = req.params;
+
+    // Generar referencia única para el test
+    const externalReference = `TEST-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    const result = await mercadoPagoService.createPointOrder({
+      tenantId,
+      deviceId,
+      amount: 50, // $50 pesos de prueba
+      externalReference,
+      description: 'Pago de prueba - Verificación de conexión',
+    });
+
+    res.json({
+      success: true,
+      data: {
+        orderId: result.orderId,
+        amount: 50,
+        externalReference,
+        message: 'Pago de prueba enviado al dispositivo. Cancélalo desde la terminal.',
+      },
+    });
+  } catch (error) {
+    console.error('Error enviando pago de prueba:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al enviar pago de prueba',
+    });
+  }
+});
+
+/**
+ * GET /api/mercadopago/test-payment/:orderId/status
+ * Consulta el estado de un pago de prueba (para verificar si fue cancelado)
+ */
+router.get('/test-payment/:orderId/status', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { orderId } = req.params;
+
+    // Buscar la orden en nuestra BD
+    const order = await prisma.mercadoPagoOrder.findFirst({
+      where: {
+        orderId,
+        tenantId,
+      },
+      select: {
+        orderId: true,
+        status: true,
+        externalReference: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: 'Orden no encontrada',
+      });
+    }
+
+    // Consultar el estado actual en Mercado Pago para obtener actualización en tiempo real
+    try {
+      const mpStatus = await mercadoPagoService.getOrderStatus(tenantId, orderId);
+
+      res.json({
+        success: true,
+        data: {
+          orderId: order.orderId,
+          status: mpStatus.status,
+          externalReference: order.externalReference,
+          isTestPayment: order.externalReference?.startsWith('TEST-'),
+          isCancelled: mpStatus.status === 'CANCELED',
+          isFailed: mpStatus.status === 'FAILED',
+          isCompleted: mpStatus.status === 'CANCELED' || mpStatus.status === 'FAILED' || mpStatus.status === 'EXPIRED',
+        },
+      });
+    } catch {
+      // Si falla la consulta a MP, devolver el estado de nuestra BD
+      res.json({
+        success: true,
+        data: {
+          orderId: order.orderId,
+          status: order.status,
+          externalReference: order.externalReference,
+          isTestPayment: order.externalReference?.startsWith('TEST-'),
+          isCancelled: order.status === 'CANCELED',
+          isFailed: order.status === 'FAILED',
+          isCompleted: order.status === 'CANCELED' || order.status === 'FAILED' || order.status === 'EXPIRED',
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error consultando estado de pago de prueba:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al consultar estado',
+    });
+  }
+});
+
+// Rutas de asociación terminal→POS eliminadas - no soportado por API de MP
+// La asociación se hace desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
 
 /**
  * PUT /api/mercadopago/points-of-sale/:id/device
@@ -709,6 +825,232 @@ router.post('/qr/stores', authenticate, async (req: AuthenticatedRequest, res: R
       });
     }
 
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+// ============================================
+// RUTAS DE BRANCHES CON MP STORES
+// ============================================
+
+/**
+ * GET /api/mercadopago/qr/branches-status
+ * Lista las sucursales del tenant con su estado de MP
+ */
+router.get('/qr/branches-status', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const branches = await mercadoPagoService.getBranchesWithMPStatus(tenantId);
+
+    res.json({
+      success: true,
+      data: branches,
+    });
+  } catch (error) {
+    console.error('Error obteniendo estado de branches:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * POST /api/mercadopago/qr/stores/from-branch/:branchId
+ * Crea un Store en MP usando los datos de una Branch del sistema
+ */
+router.post('/qr/stores/from-branch/:branchId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { branchId } = req.params;
+
+    const result = await mercadoPagoService.createStoreFromBranch(tenantId, branchId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Local creado exitosamente en Mercado Pago y vinculado a la sucursal',
+    });
+  } catch (error) {
+    console.error('Error creando store desde branch:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * POST /api/mercadopago/qr/sync-stores
+ * Sincroniza Stores existentes en MP con las Branches del sistema
+ */
+router.post('/qr/sync-stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const result = await mercadoPagoService.syncExistingStores(tenantId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: `${result.synced} sucursales vinculadas. ${result.notMatched.length} stores sin coincidencia.`,
+    });
+  } catch (error) {
+    console.error('Error sincronizando stores:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * GET /api/mercadopago/qr/unlinked-stores
+ * Lista Stores de MP que no están vinculados a ninguna Branch
+ */
+router.get('/qr/unlinked-stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const stores = await mercadoPagoService.getUnlinkedStores(tenantId);
+
+    res.json({
+      success: true,
+      data: stores,
+    });
+  } catch (error) {
+    console.error('Error obteniendo stores no vinculados:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * PUT /api/mercadopago/qr/branches/:branchId/link-store
+ * Vincula manualmente un Store existente de MP a una Branch
+ */
+router.put('/qr/branches/:branchId/link-store', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { branchId } = req.params;
+    const { storeId, externalId } = req.body;
+
+    if (!storeId || !externalId) {
+      return res.status(400).json({
+        success: false,
+        error: 'storeId y externalId son requeridos',
+      });
+    }
+
+    const result = await mercadoPagoService.linkStoreToBranch(tenantId, branchId, storeId, externalId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Local vinculado exitosamente a la sucursal',
+    });
+  } catch (error) {
+    console.error('Error vinculando store a branch:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * DELETE /api/mercadopago/qr/branches/:branchId/unlink-store
+ * Desvincula un Store de MP de una Branch
+ */
+router.delete('/qr/branches/:branchId/unlink-store', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { branchId } = req.params;
+
+    const result = await mercadoPagoService.unlinkStoreFromBranch(tenantId, branchId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Local desvinculado de la sucursal',
+    });
+  } catch (error) {
+    console.error('Error desvinculando store de branch:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+// ============================================
+// CACHE LOCAL DE STORES Y CASHIERS
+// ============================================
+
+/**
+ * GET /api/mercadopago/qr/local/stores
+ * Lista stores desde la DB local (cache)
+ */
+router.get('/qr/local/stores', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const stores = await mercadoPagoService.getLocalStores(tenantId);
+
+    res.json({
+      success: true,
+      data: stores,
+    });
+  } catch (error) {
+    console.error('Error listando stores locales:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * GET /api/mercadopago/qr/local/cashiers
+ * Lista cashiers desde la DB local (cache)
+ */
+router.get('/qr/local/cashiers', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { storeId } = req.query;
+    const cashiers = await mercadoPagoService.getLocalCashiers(tenantId, storeId as string | undefined);
+
+    res.json({
+      success: true,
+      data: cashiers,
+    });
+  } catch (error) {
+    console.error('Error listando cashiers locales:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error interno del servidor',
+    });
+  }
+});
+
+/**
+ * POST /api/mercadopago/qr/sync-data
+ * Sincroniza stores y cashiers desde MP a la DB local
+ */
+router.post('/qr/sync-data', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const result = await mercadoPagoService.syncQRDataFromMP(tenantId);
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Sincronización completada: ${result.storesAdded} stores nuevos, ${result.cashiersAdded} cajas nuevas`,
+    });
+  } catch (error) {
+    console.error('Error sincronizando datos QR:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Error interno del servidor',

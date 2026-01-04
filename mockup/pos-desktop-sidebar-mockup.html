@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockup - POS Desktop con Sidebar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            display: flex;
+            height: 100vh;
+            background: #f5f5f5;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 220px;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .sidebar.collapsed {
+            width: 70px;
+        }
+
+        .sidebar-header {
+            padding: 20px 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: #10b981;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .brand-text {
+            font-size: 16px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .sidebar.collapsed .brand-text {
+            display: none;
+        }
+
+        /* Tenant info */
+        .tenant-info {
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .tenant-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: #10b981;
+        }
+
+        .branch-name {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            margin-top: 2px;
+        }
+
+        .sidebar.collapsed .tenant-info {
+            padding: 10px;
+            text-align: center;
+        }
+
+        .sidebar.collapsed .tenant-name,
+        .sidebar.collapsed .branch-name {
+            display: none;
+        }
+
+        /* Navigation */
+        .nav-section {
+            padding: 15px 0;
+            flex: 1;
+        }
+
+        .nav-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.4);
+            padding: 0 15px;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar.collapsed .nav-label {
+            display: none;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+            color: rgba(255,255,255,0.7);
+        }
+
+        .nav-item:hover {
+            background: rgba(255,255,255,0.08);
+            color: white;
+        }
+
+        .nav-item.active {
+            background: rgba(16, 185, 129, 0.15);
+            border-left-color: #10b981;
+            color: #10b981;
+        }
+
+        .nav-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .nav-text {
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .sidebar.collapsed .nav-text {
+            display: none;
+        }
+
+        .nav-shortcut {
+            margin-left: auto;
+            font-size: 11px;
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: rgba(255,255,255,0.5);
+        }
+
+        .sidebar.collapsed .nav-shortcut {
+            display: none;
+        }
+
+        /* User section */
+        .user-section {
+            padding: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .user-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .user-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .user-role {
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
+        }
+
+        .sidebar.collapsed .user-info {
+            display: none;
+        }
+
+        /* Collapse button */
+        .collapse-btn {
+            position: absolute;
+            right: -12px;
+            top: 70px;
+            width: 24px;
+            height: 24px;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .collapse-btn:hover {
+            background: #059669;
+        }
+
+        /* Main content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top bar */
+        .top-bar {
+            height: 60px;
+            background: white;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 20px;
+        }
+
+        .page-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .top-bar-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #059669;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        /* Content area */
+        .content-area {
+            flex: 1;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        /* POS View */
+        .pos-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .products-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 2px solid #e5e5e5;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+
+        .products-grid {
+            flex: 1;
+            padding: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            overflow: auto;
+            align-content: start;
+        }
+
+        .product-card {
+            background: #f9fafb;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .product-card:hover {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+
+        .product-name {
+            font-size: 12px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 5px;
+        }
+
+        .product-price {
+            font-size: 14px;
+            font-weight: 600;
+            color: #10b981;
+        }
+
+        /* Cart panel */
+        .cart-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cart-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cart-title {
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .cart-items {
+            flex: 1;
+            padding: 10px;
+            overflow: auto;
+        }
+
+        .cart-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #f3f4f6;
+            gap: 10px;
+        }
+
+        .cart-item-info {
+            flex: 1;
+        }
+
+        .cart-item-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .cart-item-price {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .cart-item-qty {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .qty-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .qty-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .cart-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #e5e5e5;
+            background: #f9fafb;
+            border-radius: 0 0 12px 12px;
+        }
+
+        .cart-total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .cart-total-amount {
+            color: #10b981;
+        }
+
+        .btn-pay {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* Refund View */
+        .refund-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .refund-search-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        .refund-detail-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 15px;
+        }
+
+        .sales-list {
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .sale-row {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e5e5e5;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .sale-row:last-child {
+            border-bottom: none;
+        }
+
+        .sale-row:hover {
+            background: #f9fafb;
+        }
+
+        .sale-row.selected {
+            background: #f0fdf4;
+            border-left: 3px solid #10b981;
+        }
+
+        .sale-number {
+            font-weight: 500;
+            color: #1a1a2e;
+        }
+
+        .sale-date {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .sale-total {
+            font-weight: 600;
+            color: #10b981;
+        }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .status-online {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        /* View tabs indicator */
+        .view-indicator {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(26, 26, 46, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .view-tab {
+            padding: 5px 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .view-tab.active {
+            background: #10b981;
+        }
+
+        .view-tab:hover:not(.active) {
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* Hidden views */
+        .view {
+            display: none;
+            height: 100%;
+        }
+
+        .view.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="collapse-btn" onclick="toggleSidebar()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                <path d="M15 18l-6-6 6-6" stroke="white" stroke-width="2" fill="none"/>
+            </svg>
+        </div>
+
+        <div class="sidebar-header">
+            <div class="logo">C</div>
+            <span class="brand-text">Cianbox POS</span>
+        </div>
+
+        <div class="tenant-info">
+            <div class="tenant-name">Demo Store S.A.</div>
+            <div class="branch-name">Casa Central</div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-label">Principal</div>
+
+            <div class="nav-item active" onclick="showView('pos')">
+                <span class="nav-icon">🛒</span>
+                <span class="nav-text">Punto de Venta</span>
+                <span class="nav-shortcut">F1</span>
+            </div>
+
+            <div class="nav-item" onclick="showView('refund')">
+                <span class="nav-icon">↩️</span>
+                <span class="nav-text">Devoluciones</span>
+                <span class="nav-shortcut">F2</span>
+            </div>
+
+            <div class="nav-item" onclick="showView('products')">
+                <span class="nav-icon">🔍</span>
+                <span class="nav-text">Consulta Productos</span>
+                <span class="nav-shortcut">F3</span>
+            </div>
+
+            <div class="nav-label" style="margin-top: 20px;">Caja</div>
+
+            <div class="nav-item">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">Resumen del Día</span>
+                <span class="nav-shortcut">F4</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">💵</span>
+                <span class="nav-text">Cierre de Caja</span>
+                <span class="nav-shortcut">F5</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">📜</span>
+                <span class="nav-text">Historial Ventas</span>
+                <span class="nav-shortcut">F6</span>
+            </div>
+        </div>
+
+        <div class="user-section">
+            <div class="user-avatar">C</div>
+            <div class="user-info">
+                <div class="user-name">Cajero1</div>
+                <div class="user-role">Cajero</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="top-bar">
+            <h1 class="page-title" id="pageTitle">Punto de Venta</h1>
+            <span class="status-badge status-online">● Online</span>
+            <div class="top-bar-actions">
+                <button class="btn btn-secondary">⚙️ Configuración</button>
+                <button class="btn btn-secondary">🚪 Cerrar Sesión</button>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <!-- POS View -->
+            <div class="view active" id="posView">
+                <div class="pos-container">
+                    <div class="products-panel">
+                        <div class="panel-header">
+                            <div class="search-box">
+                                <input type="text" class="search-input" placeholder="Buscar producto o escanear código...">
+                                <button class="btn btn-primary">Buscar</button>
+                            </div>
+                        </div>
+                        <div class="products-grid">
+                            <div class="product-card">
+                                <div class="product-name">CHALECO JEAN LEONA</div>
+                                <div class="product-price">$168.51</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="product-name">REMERA BASIC</div>
+                                <div class="product-price">$89.99</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="product-name">PANTALON CARGO</div>
+                                <div class="product-price">$245.00</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="product-name">CAMPERA POLAR</div>
+                                <div class="product-price">$320.00</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="product-name">BUZO HOODIE</div>
+                                <div class="product-price">$199.00</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="product-name">BERMUDA DENIM</div>
+                                <div class="product-price">$175.50</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cart-panel">
+                        <div class="cart-header">
+                            <span class="cart-title">🛒 Carrito (3)</span>
+                            <button class="btn btn-secondary">Limpiar</button>
+                        </div>
+                        <div class="cart-items">
+                            <div class="cart-item">
+                                <div class="cart-item-info">
+                                    <div class="cart-item-name">CHALECO JEAN LEONA</div>
+                                    <div class="cart-item-price">$168.51 c/u</div>
+                                </div>
+                                <div class="cart-item-qty">
+                                    <button class="qty-btn">-</button>
+                                    <span>2</span>
+                                    <button class="qty-btn">+</button>
+                                </div>
+                            </div>
+                            <div class="cart-item">
+                                <div class="cart-item-info">
+                                    <div class="cart-item-name">REMERA BASIC</div>
+                                    <div class="cart-item-price">$89.99 c/u</div>
+                                </div>
+                                <div class="cart-item-qty">
+                                    <button class="qty-btn">-</button>
+                                    <span>1</span>
+                                    <button class="qty-btn">+</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="cart-footer">
+                            <div class="cart-total">
+                                <span>TOTAL</span>
+                                <span class="cart-total-amount">$427.01</span>
+                            </div>
+                            <button class="btn btn-primary btn-pay">💳 COBRAR (F8)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Refund View -->
+            <div class="view" id="refundView">
+                <div class="refund-container">
+                    <div class="refund-search-panel">
+                        <div class="panel-title">Buscar Producto a Devolver</div>
+                        <div class="search-box" style="margin-bottom: 20px;">
+                            <input type="text" class="search-input" placeholder="Código de barras, SKU o nombre..." value="jean">
+                            <button class="btn btn-primary">Buscar</button>
+                        </div>
+
+                        <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <div style="font-weight: 600; color: #065f46;">CHALECO JEAN LEONA</div>
+                            <div style="font-size: 12px; color: #6b7280;">SKU: CHA-LIT-00163 | Cod: 11650312005</div>
+                        </div>
+
+                        <div class="panel-title">Ventas con este producto (8)</div>
+                        <div class="sales-list">
+                            <div class="sale-row selected">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div class="sale-number">SUC-1-CAJA-01-20260103-0007</div>
+                                        <div class="sale-date">03/01/2026 19:47</div>
+                                    </div>
+                                    <div class="sale-total">$143.23</div>
+                                </div>
+                            </div>
+                            <div class="sale-row">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div class="sale-number">SUC-1-CAJA-01-20260103-0006</div>
+                                        <div class="sale-date">03/01/2026 19:46</div>
+                                    </div>
+                                    <div class="sale-total">$168.51</div>
+                                </div>
+                            </div>
+                            <div class="sale-row">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div class="sale-number">SUC-001-CAJA-01-20251218-0002</div>
+                                        <div class="sale-date">18/12/2025 16:16</div>
+                                    </div>
+                                    <div class="sale-total">$696,900.85</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="refund-detail-panel">
+                        <div class="panel-title">Detalle de Devolución</div>
+
+                        <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <div style="font-size: 12px; color: #6b7280;">Venta seleccionada</div>
+                            <div style="font-weight: 600;">SUC-1-CAJA-01-20260103-0007</div>
+                            <div style="font-size: 13px; color: #6b7280;">Cliente: CONSUMIDOR FINAL</div>
+                        </div>
+
+                        <div class="panel-title">Producto a devolver</div>
+                        <div style="border: 1px solid #e5e5e5; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                            <div style="font-weight: 500;">CHALECO JEAN LEONA</div>
+                            <div style="font-size: 13px; color: #6b7280; margin-bottom: 15px;">Precio: $168.51 | Disponible: 1 unidad</div>
+
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <label style="font-size: 13px;">Cantidad a devolver:</label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <button class="qty-btn">-</button>
+                                    <input type="number" value="1" style="width: 60px; text-align: center; padding: 8px; border: 1px solid #e5e5e5; border-radius: 6px;">
+                                    <button class="qty-btn">+</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-title">Motivo de devolución</div>
+                        <textarea style="width: 100%; padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 20px; resize: none; height: 80px;" placeholder="Ingrese el motivo..."></textarea>
+
+                        <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <div style="font-size: 24px; font-weight: 700; color: #92400e;">Monto a devolver: $143.23</div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-secondary" style="flex: 1;">Cancelar</button>
+                            <button class="btn btn-primary" style="flex: 2;">✓ Procesar Devolución</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products View -->
+            <div class="view" id="productsView">
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <div class="panel-title">Consulta de Productos</div>
+                    <div class="search-box" style="max-width: 500px;">
+                        <input type="text" class="search-input" placeholder="Buscar por nombre, código o SKU...">
+                        <button class="btn btn-primary">Buscar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View switcher for demo -->
+    <div class="view-indicator">
+        <div class="view-tab active" onclick="showView('pos')">Punto de Venta</div>
+        <div class="view-tab" onclick="showView('refund')">Devoluciones</div>
+        <div class="view-tab" onclick="showView('products')">Consulta</div>
+    </div>
+
+    <script>
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+        }
+
+        function showView(view) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+
+            // Show selected view
+            const viewMap = {
+                'pos': { view: 'posView', title: 'Punto de Venta', navIndex: 0, tabIndex: 0 },
+                'refund': { view: 'refundView', title: 'Devoluciones', navIndex: 1, tabIndex: 1 },
+                'products': { view: 'productsView', title: 'Consulta de Productos', navIndex: 2, tabIndex: 2 }
+            };
+
+            const config = viewMap[view];
+            document.getElementById(config.view).classList.add('active');
+            document.getElementById('pageTitle').textContent = config.title;
+            document.querySelectorAll('.nav-item')[config.navIndex].classList.add('active');
+            document.querySelectorAll('.view-tab')[config.tabIndex].classList.add('active');
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F1') { e.preventDefault(); showView('pos'); }
+            if (e.key === 'F2') { e.preventDefault(); showView('refund'); }
+            if (e.key === 'F3') { e.preventDefault(); showView('products'); }
+        });
+    </script>
+</body>
+</html>

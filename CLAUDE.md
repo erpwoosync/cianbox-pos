@@ -52,38 +52,18 @@ Sistema POS (Point of Sale) multi-tenant con integracion a Cianbox ERP.
 ```
 cianbox-pos/
 ├── apps/
-│   ├── backend/
-│   │   ├── src/
-│   │   │   ├── index.ts
-│   │   │   ├── middleware/
-│   │   │   │   └── auth.ts
-│   │   │   ├── routes/
-│   │   │   │   ├── auth.ts
-│   │   │   │   ├── cianbox.ts
-│   │   │   │   ├── products.ts
-│   │   │   │   ├── sales.ts
-│   │   │   │   └── promotions.ts
-│   │   │   ├── services/
-│   │   │   │   └── cianbox.service.ts
-│   │   │   └── utils/
-│   │   │       └── errors.ts
-│   │   ├── prisma/
-│   │   │   └── schema.prisma
-│   │   ├── package.json
-│   │   └── tsconfig.json
-│   └── frontend/
-│       ├── src/
-│       │   ├── pages/
-│       │   ├── components/
-│       │   ├── services/
-│       │   ├── hooks/
-│       │   └── context/
-│       ├── package.json
-│       └── vite.config.ts
-├── docs/
-│   └── GUIA-TECNICA-POS-CIANBOX.md
-├── deploy/
-└── .github/workflows/
+│   ├── backend/          # API Node.js/Express
+│   ├── frontend/         # POS React (punto de venta)
+│   ├── backoffice/       # Backoffice para clientes
+│   ├── agency/           # Backoffice para agencia
+│   └── desktop/          # App Windows Python/PyQt6
+├── landing/              # Landing page marketing
+│   ├── index.html
+│   ├── styles.css
+│   └── script.js
+├── docs/                 # Documentacion
+├── deploy/               # Scripts de deploy
+└── .github/workflows/    # CI/CD
 ```
 
 ## Integracion Cianbox
@@ -225,12 +205,13 @@ ssh -i "ssh key/root_servers_ssh_key" root@172.16.1.62
 
 ### Despliegue de Aplicaciones
 
-| App | Puerto | Carpeta en Servidor |
-|-----|--------|---------------------|
-| POS Frontend | 80 | `/var/www/cianbox-pos/frontend` |
-| Agency Backoffice | 8083 | `/var/www/cianbox-pos/apps/agency/dist` |
-| Client Backoffice | 8084 | `/var/www/cianbox-pos/apps/backoffice/dist` |
-| Backend API | 3001 | `/var/www/cianbox-pos/apps/backend/dist` |
+| App | Puerto | Carpeta en Servidor | URL Produccion |
+|-----|--------|---------------------|----------------|
+| POS Frontend | 80 | `/var/www/cianbox-pos/frontend` | https://cianbox-pos-point.ews-cdn.link |
+| Landing Page | 80 | `/var/www/cianbox-pos/landing` | https://cianbox-pos-point.ews-cdn.link/landing |
+| Agency Backoffice | 8083 | `/var/www/cianbox-pos/apps/agency/dist` | https://cianbox-pos-agency.ews-cdn.link |
+| Client Backoffice | 8084 | `/var/www/cianbox-pos/apps/backoffice/dist` | https://cianbox-pos-backoffice.ews-cdn.link |
+| Backend API | 3001 | `/var/www/cianbox-pos/apps/backend/dist` | https://cianbox-pos-point.ews-cdn.link/api |
 
 ### Servicios en Servidor APP
 
@@ -274,4 +255,5 @@ Ver `docs/INFRAESTRUCTURA.md` para configuraciones detalladas de Nginx, troubles
 - **API de Productos:** `docs/API-PRODUCTOS.md`
 - **Productos Variables:** `docs/PRODUCTOS-VARIABLES.md`
 - **Credenciales de Testing:** `docs/TESTING-CREDENTIALS.md`
+- **Landing Page:** `landing/README.md`
 - **Codigo de referencia:** Proyecto warehouse-picking (mismo stack)

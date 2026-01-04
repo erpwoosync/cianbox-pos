@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mercadoPagoApi, MercadoPagoConfig, MercadoPagoDevice, MercadoPagoAppType, pointsOfSaleApi, stockApi } from '../services/api';
-import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, MapPin, ToggleLeft, ToggleRight, Plus, X } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Smartphone, ExternalLink, Link2, Unlink, AlertTriangle, CreditCard, QrCode, Store, Printer, ToggleLeft, ToggleRight, Plus, X, Building2, Zap, Info } from 'lucide-react';
 
 interface QRStore {
   id: string;
@@ -40,6 +40,18 @@ interface SystemBranch {
   state?: string;
 }
 
+interface BranchWithMPStatus {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  hasStore: boolean;
+  mpStoreId: string | null;
+  mpExternalId: string | null;
+}
+
 export default function Integrations() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -55,17 +67,17 @@ export default function Integrations() {
   const [isQrConnected, setIsQrConnected] = useState(false);
   const [mpDevices, setMpDevices] = useState<MercadoPagoDevice[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; message: string } | null>(null);
 
   // QR Stores and Cashiers
   const [qrStores, setQrStores] = useState<QRStore[]>([]);
   const [qrCashiers, setQrCashiers] = useState<QRCashier[]>([]);
   const [loadingQrData, setLoadingQrData] = useState(false);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [systemPOSList, setSystemPOSList] = useState<SystemPOS[]>([]);
   const [systemBranches, setSystemBranches] = useState<SystemBranch[]>([]);
   const [linkingCashier, setLinkingCashier] = useState<number | null>(null);
   const [changingModeDeviceId, setChangingModeDeviceId] = useState<string | null>(null);
+  const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
 
   // Modales para crear store/cashier
   const [showCreateStoreModal, setShowCreateStoreModal] = useState(false);
@@ -73,6 +85,15 @@ export default function Integrations() {
   const [selectedStoreForNewCashier, setSelectedStoreForNewCashier] = useState<QRStore | null>(null);
   const [creatingStore, setCreatingStore] = useState(false);
   const [creatingCashier, setCreatingCashier] = useState(false);
+
+  // Sucursales con MP Status
+  const [branchesWithMPStatus, setBranchesWithMPStatus] = useState<BranchWithMPStatus[]>([]);
+  const [loadingBranchesStatus, setLoadingBranchesStatus] = useState(false);
+  const [creatingStoreFromBranch, setCreatingStoreFromBranch] = useState<string | null>(null);
+  const [syncingQRData, setSyncingQRData] = useState(false);
+
+  // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
+  // Se configura desde el dispositivo físico: Más opciones > Ajustes > Modo de vinculación
 
   // Form data para crear store
   const [newStoreData, setNewStoreData] = useState({
@@ -133,14 +154,17 @@ export default function Integrations() {
 
       // Load devices if Point is connected
       if (result.isPointConnected) {
-        loadDevices();
+        await loadDevices();
       }
 
-      // Load QR data if QR is connected
+      // Load QR data if QR is connected - await all to prevent race condition
       if (result.isQrConnected) {
-        loadQRData();
-        loadSystemPOS();
-        loadSystemBranches();
+        await Promise.all([
+          loadQRData(),
+          loadSystemPOS(),
+          loadSystemBranches(),
+          loadBranchesWithMPStatus(),
+        ]);
       }
     } catch (error) {
       console.error('Error loading MP config:', error);
@@ -149,19 +173,93 @@ export default function Integrations() {
     }
   };
 
-  const loadQRData = async () => {
+  const loadQRData = async (autoSync = true) => {
     setLoadingQrData(true);
     try {
-      const stores = await mercadoPagoApi.listQRStores();
-      setQrStores(stores);
+      // Cargar desde cache local (DB) en lugar de MP API
+      const stores = await mercadoPagoApi.getLocalStores();
 
-      // Load all cashiers
-      const cashiers = await mercadoPagoApi.listQRCashiers();
-      setQrCashiers(cashiers);
+      // Si el cache está vacío y autoSync está habilitado, sincronizar automáticamente
+      if (stores.length === 0 && autoSync) {
+        console.log('Cache vacío, sincronizando desde MP...');
+        try {
+          await mercadoPagoApi.syncQRData();
+          // Recargar después de sincronizar (sin autoSync para evitar loop)
+          return await loadQRData(false);
+        } catch (syncError) {
+          console.error('Error en sync automático:', syncError);
+          // Si falla el sync, intentar cargar directo de MP como fallback
+          try {
+            const mpStores = await mercadoPagoApi.listQRStores();
+            setQrStores(mpStores);
+            const mpCashiers = await mercadoPagoApi.listQRCashiers();
+            setQrCashiers(mpCashiers);
+            return;
+          } catch (mpError) {
+            console.error('Error cargando de MP:', mpError);
+          }
+        }
+      }
+
+      // Convertir al formato esperado
+      const formattedStores: QRStore[] = stores.map(s => ({
+        id: s.mpStoreId,
+        name: s.name,
+        external_id: s.externalId,
+      }));
+      setQrStores(formattedStores);
+
+      // Load all cashiers desde cache local
+      const cashiers = await mercadoPagoApi.getLocalCashiers();
+      // Convertir al formato esperado
+      const formattedCashiers: QRCashier[] = cashiers.map(c => ({
+        id: c.mpCashierId,
+        name: c.name,
+        external_id: c.externalId,
+        store_id: c.mpStoreId,
+        qr: c.qrImage ? {
+          image: c.qrImage,
+          template_document: c.qrTemplate || '',
+          template_image: '',
+        } : undefined,
+      }));
+      setQrCashiers(formattedCashiers);
     } catch (error) {
       console.error('Error loading QR data:', error);
     } finally {
       setLoadingQrData(false);
+    }
+  };
+
+  // Sincronizar datos QR desde MP a cache local
+  const handleSyncQRData = async () => {
+    setSyncingQRData(true);
+    try {
+      const result = await mercadoPagoApi.syncQRData();
+      const added = result.storesAdded + result.cashiersAdded;
+      const updated = result.storesUpdated + result.cashiersUpdated;
+
+      if (added > 0 || updated > 0) {
+        setNotification({
+          type: 'success',
+          message: `Sincronización completada: ${added} nuevos, ${updated} actualizados`,
+        });
+      } else {
+        setNotification({ type: 'success', message: 'Todo está sincronizado' });
+      }
+
+      // Recargar datos locales
+      await loadQRData();
+      await loadBranchesWithMPStatus();
+    } catch (error: unknown) {
+      console.error('Error syncing QR data:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({
+        type: 'error',
+        message: err.response?.data?.error || err.message || 'Error al sincronizar',
+      });
+    } finally {
+      setSyncingQRData(false);
     }
   };
 
@@ -180,6 +278,35 @@ export default function Integrations() {
       setSystemBranches(branches);
     } catch (error) {
       console.error('Error loading system branches:', error);
+    }
+  };
+
+  // Cargar sucursales con estado de MP
+  const loadBranchesWithMPStatus = async () => {
+    setLoadingBranchesStatus(true);
+    try {
+      const branches = await mercadoPagoApi.getBranchesWithMPStatus();
+      setBranchesWithMPStatus(branches);
+    } catch (error) {
+      console.error('Error loading branches MP status:', error);
+    } finally {
+      setLoadingBranchesStatus(false);
+    }
+  };
+
+  // Crear Store en MP desde una Branch (1 click)
+  const handleCreateStoreFromBranch = async (branchId: string) => {
+    setCreatingStoreFromBranch(branchId);
+    try {
+      await mercadoPagoApi.createStoreFromBranch(branchId);
+      setNotification({ type: 'success', message: 'Local creado exitosamente en Mercado Pago' });
+      await Promise.all([loadBranchesWithMPStatus(), loadQRData()]);
+    } catch (error: unknown) {
+      console.error('Error creating store from branch:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({ type: 'error', message: err.response?.data?.error || err.message || 'Error al crear local' });
+    } finally {
+      setCreatingStoreFromBranch(null);
     }
   };
 
@@ -292,7 +419,22 @@ export default function Integrations() {
 
   const openCreateCashierModal = (store: QRStore) => {
     setSelectedStoreForNewCashier(store);
-    setNewCashierData({ name: '', external_id: '' });
+
+    // Autogenerar nombre y external_id basado en cajas existentes del store
+    const storeCashiers = qrCashiers.filter(c => c.store_id === store.id);
+    const nextNumber = storeCashiers.length + 1;
+
+    // Buscar la sucursal del sistema vinculada a este store
+    const linkedBranch = branchesWithMPStatus.find(b => b.mpStoreId === store.id);
+    // Usar el código de la sucursal (ej: SUC-1 → SUC1) o fallback al store
+    const branchCode = linkedBranch
+      ? linkedBranch.code.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+      : store.external_id.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+    setNewCashierData({
+      name: `Caja ${nextNumber}`,
+      external_id: `${branchCode}CAJA${String(nextNumber).padStart(2, '0')}`,
+    });
     setLinkToPosId('');
     setShowCreateCashierModal(true);
   };
@@ -344,8 +486,12 @@ export default function Integrations() {
     const newMode: 'PDV' | 'STANDALONE' = currentMode === 'PDV' ? 'STANDALONE' : 'PDV';
     const modeLabel = newMode === 'PDV' ? 'Integrado (PDV)' : 'Independiente (STANDALONE)';
 
-    if (!confirm(`¿Cambiar el dispositivo a modo ${modeLabel}?\n\nIMPORTANTE: Deberás reiniciar el dispositivo para que el cambio tome efecto.`)) {
-      return;
+    // Si va a cambiar a PDV, mostrar instrucción sobre cómo asociar a un POS
+    if (newMode === 'PDV') {
+      const confirmMsg = `¿Cambiar el dispositivo a modo ${modeLabel}?\n\nIMPORTANTE:\n1. Solo puede haber UNA terminal en modo PDV por caja\n2. Para múltiples terminales, crea múltiples cajas en la sección QR\n3. La asociación terminal→caja se configura desde el dispositivo:\n   Más opciones > Ajustes > Modo de vinculación\n4. Reinicia el dispositivo después del cambio`;
+      if (!confirm(confirmMsg)) return;
+    } else {
+      if (!confirm(`¿Cambiar el dispositivo a modo ${modeLabel}?\n\nReinicia el dispositivo para aplicar el cambio.`)) return;
     }
 
     setChangingModeDeviceId(deviceId);
@@ -356,7 +502,6 @@ export default function Integrations() {
         type: 'success',
         message: `Modo cambiado a ${modeLabel}. Reinicia el dispositivo para aplicar el cambio.`,
       });
-      // Recargar dispositivos para ver el nuevo estado
       await loadDevices();
     } catch (error: unknown) {
       console.error('Error changing device mode:', error);
@@ -367,6 +512,101 @@ export default function Integrations() {
       });
     } finally {
       setChangingModeDeviceId(null);
+    }
+  };
+
+  // Enviar pago de prueba de $50 a un dispositivo y esperar respuesta
+  const handleTestPayment = async (deviceId: string) => {
+    if (!confirm('¿Enviar un pago de prueba de $50 al dispositivo?\n\nEsto enviará una solicitud de cobro de $50 pesos al dispositivo para verificar que la conexión funciona correctamente.\n\nDespués de verificar, cancela el pago desde la terminal para confirmar que la comunicación bidireccional funciona.')) {
+      return;
+    }
+
+    setTestingDeviceId(deviceId);
+    try {
+      const result = await mercadoPagoApi.sendTestPayment(deviceId);
+      if (!result.success || !result.data) {
+        setNotification({
+          type: 'error',
+          message: result.error || 'Error al enviar pago de prueba',
+        });
+        setTestingDeviceId(null);
+        return;
+      }
+
+      const orderId = result.data.orderId;
+      setNotification({
+        type: 'info',
+        message: 'Pago de prueba enviado. Esperando respuesta del dispositivo...',
+      });
+
+      // Polling para verificar cuando se cancele el pago
+      const maxAttempts = 60; // 60 intentos x 2 segundos = 2 minutos máximo
+      let attempts = 0;
+
+      const pollStatus = async (): Promise<void> => {
+        attempts++;
+        try {
+          const statusResult = await mercadoPagoApi.getTestPaymentStatus(orderId);
+
+          if (statusResult.success && statusResult.data) {
+            if (statusResult.data.isCancelled) {
+              setNotification({
+                type: 'success',
+                message: 'Conexión verificada. El pago fue cancelado correctamente desde el dispositivo.',
+              });
+              setTestingDeviceId(null);
+              return;
+            } else if (statusResult.data.isFailed) {
+              setNotification({
+                type: 'warning',
+                message: 'El pago falló en el dispositivo. Verifica la configuración.',
+              });
+              setTestingDeviceId(null);
+              return;
+            } else if (statusResult.data.status === 'PROCESSED') {
+              setNotification({
+                type: 'warning',
+                message: 'El pago de prueba fue procesado. Se esperaba que fuera cancelado.',
+              });
+              setTestingDeviceId(null);
+              return;
+            }
+          }
+
+          // Si no está completado y no excedimos intentos, seguir consultando
+          if (attempts < maxAttempts) {
+            setTimeout(pollStatus, 2000); // Consultar cada 2 segundos
+          } else {
+            setNotification({
+              type: 'warning',
+              message: 'Tiempo de espera agotado. Verifica el estado manualmente en el dispositivo.',
+            });
+            setTestingDeviceId(null);
+          }
+        } catch {
+          if (attempts < maxAttempts) {
+            setTimeout(pollStatus, 2000);
+          } else {
+            setNotification({
+              type: 'error',
+              message: 'Error al verificar el estado del pago de prueba.',
+            });
+            setTestingDeviceId(null);
+          }
+        }
+      };
+
+      // Iniciar polling después de un pequeño delay
+      setTimeout(pollStatus, 2000);
+
+    } catch (error: unknown) {
+      console.error('Error sending test payment:', error);
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      setNotification({
+        type: 'error',
+        message: err.response?.data?.error || err.message || 'Error al enviar pago de prueba',
+      });
+      setTestingDeviceId(null);
     }
   };
 
@@ -624,21 +864,35 @@ export default function Integrations() {
         <h1 className="text-2xl font-bold text-gray-900">Integraciones</h1>
       </div>
 
-      {/* Notification */}
+      {/* Notification Toast - Fixed position */}
       {notification && (
         <div
-          className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center gap-3 max-w-md animate-in fade-in slide-in-from-top-2 ${
             notification.type === 'success'
-              ? 'bg-green-50 text-green-800 border border-green-200'
-              : 'bg-red-50 text-red-800 border border-red-200'
+              ? 'bg-green-600 text-white'
+              : notification.type === 'warning'
+              ? 'bg-yellow-500 text-white'
+              : notification.type === 'info'
+              ? 'bg-blue-600 text-white'
+              : 'bg-red-600 text-white'
           }`}
         >
           {notification.type === 'success' ? (
             <CheckCircle size={20} />
+          ) : notification.type === 'warning' ? (
+            <AlertTriangle size={20} />
+          ) : notification.type === 'info' ? (
+            <Info size={20} />
           ) : (
             <XCircle size={20} />
           )}
-          <span>{notification.message}</span>
+          <span className="flex-1">{notification.message}</span>
+          <button
+            onClick={() => setNotification(null)}
+            className="p-1 hover:bg-white/20 rounded"
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
@@ -743,32 +997,65 @@ export default function Integrations() {
                         </div>
                       </div>
 
-                      {device.external_pos_id && (
-                        <p className="mt-2 text-xs text-gray-400">
-                          POS ID: {device.external_pos_id}
-                        </p>
+                      {/* Mostrar POS asociado si está en modo PDV */}
+                      {isPDV && device.external_pos_id && (
+                        <div className="mt-2 p-2 bg-green-50 rounded-lg">
+                          <p className="text-xs text-green-700">
+                            <span className="font-medium">Caja asociada:</span> {device.external_pos_id}
+                          </p>
+                        </div>
                       )}
 
-                      {/* Botón para cambiar modo */}
-                      <button
-                        onClick={() => handleChangeDeviceMode(device.id, device.operating_mode)}
-                        disabled={isChanging}
-                        className={`mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
-                          isPDV
-                            ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            : 'bg-green-50 text-green-700 hover:bg-green-100'
-                        } disabled:opacity-50`}
-                        title={isPDV ? 'Cambiar a modo Independiente' : 'Cambiar a modo Integrado (PDV)'}
-                      >
-                        {isChanging ? (
-                          <RefreshCw size={16} className="animate-spin" />
-                        ) : isPDV ? (
-                          <ToggleRight size={16} />
-                        ) : (
-                          <ToggleLeft size={16} />
-                        )}
-                        {isPDV ? 'Cambiar a Independiente' : 'Cambiar a PDV'}
-                      </button>
+                      {/* Instrucciones para configurar desde el dispositivo */}
+                      {!isPDV && (
+                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-xs text-blue-700">
+                            <strong>Para integrar:</strong><br/>
+                            1. Crea una Caja en la sección QR abajo<br/>
+                            2. En el dispositivo: Más opciones → Ajustes → Modo de vinculación<br/>
+                            3. Activa modo PDV aquí
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Botones de acción */}
+                      <div className="mt-3 flex gap-2">
+                        {/* Botón de test de pago */}
+                        <button
+                          onClick={() => handleTestPayment(device.id)}
+                          disabled={testingDeviceId === device.id || isChanging}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors bg-yellow-50 text-yellow-700 hover:bg-yellow-100 disabled:opacity-50"
+                          title="Enviar pago de prueba de $50"
+                        >
+                          {testingDeviceId === device.id ? (
+                            <RefreshCw size={16} className="animate-spin" />
+                          ) : (
+                            <Zap size={16} />
+                          )}
+                          Test $50
+                        </button>
+
+                        {/* Botón para cambiar modo */}
+                        <button
+                          onClick={() => handleChangeDeviceMode(device.id, device.operating_mode)}
+                          disabled={isChanging || testingDeviceId === device.id}
+                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                            isPDV
+                              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              : 'bg-green-50 text-green-700 hover:bg-green-100'
+                          } disabled:opacity-50`}
+                          title={isPDV ? 'Cambiar a modo Independiente' : 'Cambiar a modo Integrado (PDV)'}
+                        >
+                          {isChanging ? (
+                            <RefreshCw size={16} className="animate-spin" />
+                          ) : isPDV ? (
+                            <ToggleRight size={16} />
+                          ) : (
+                            <ToggleLeft size={16} />
+                          )}
+                          {isPDV ? 'Independiente' : 'PDV'}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -788,193 +1075,202 @@ export default function Integrations() {
         </div>
       )}
 
-      {/* QR Stores and Cashiers Section - Only show if QR is connected */}
+      {/* Puntos de Venta y Cajas QR - Vista unificada */}
       {isQrConnected && (
         <div className="bg-white rounded-xl shadow-sm mt-6">
           <div className="p-4 border-b flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Store size={20} className="text-purple-600" />
+                <QrCode size={20} className="text-purple-600" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Locales y Cajas QR</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Puntos de Venta y Cajas QR</h2>
                 <p className="text-sm text-gray-500">
-                  Vincula las cajas de Mercado Pago a tus puntos de venta
+                  Vincula cada punto de venta con una caja QR de Mercado Pago
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowCreateStoreModal(true)}
-                className="flex items-center gap-2 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700"
-              >
-                <Plus size={18} />
-                Crear Local
-              </button>
-              <button
-                onClick={loadQRData}
-                disabled={loadingQrData}
-                className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border rounded-lg hover:bg-gray-50"
-              >
-                <RefreshCw size={18} className={loadingQrData ? 'animate-spin' : ''} />
-                Actualizar
-              </button>
-            </div>
+            <button
+              onClick={handleSyncQRData}
+              disabled={syncingQRData}
+              className="flex items-center gap-2 px-4 py-2 text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50"
+              title="Sincronizar datos desde Mercado Pago"
+            >
+              <RefreshCw size={18} className={syncingQRData ? 'animate-spin' : ''} />
+              Sincronizar con MP
+            </button>
           </div>
 
           <div className="p-4">
-            {loadingQrData ? (
+            {loadingQrData || loadingBranchesStatus ? (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="w-6 h-6 animate-spin text-purple-600" />
               </div>
+            ) : systemPOSList.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Store size={48} className="mx-auto mb-3 text-gray-300" />
+                <p>No hay puntos de venta configurados</p>
+                <p className="text-sm mt-1">
+                  Crea puntos de venta en la sección correspondiente
+                </p>
+              </div>
             ) : (
               <div className="space-y-6">
-                {/* Store filter */}
-                {qrStores.length > 1 && (
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-medium text-gray-700">Filtrar por local:</label>
-                    <select
-                      value={selectedStoreId}
-                      onChange={(e) => setSelectedStoreId(e.target.value)}
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    >
-                      <option value="">Todos los locales</option>
-                      {qrStores.map(store => (
-                        <option key={store.id} value={store.id}>{store.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {/* Agrupar POS por sucursal */}
+                {branchesWithMPStatus.map(branch => {
+                  const branchPOS = systemPOSList.filter(pos => pos.branchId === branch.id);
+                  if (branchPOS.length === 0) return null;
 
-                {/* Stores list */}
-                <div className="space-y-4">
-                  {qrStores
-                    .filter(store => !selectedStoreId || store.id === selectedStoreId)
-                    .map(store => {
-                      const storeCashiers = qrCashiers.filter(c => c.store_id === store.id);
-
-                      return (
-                        <div key={store.id} className="border rounded-lg overflow-hidden">
-                          {/* Store header */}
-                          <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <MapPin size={18} className="text-gray-500" />
-                              <span className="font-medium text-gray-900">{store.name}</span>
-                              <span className="text-xs text-gray-500">({storeCashiers.length} cajas)</span>
-                            </div>
-                            <button
-                              onClick={() => openCreateCashierModal(store)}
-                              className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100"
-                            >
-                              <Plus size={16} />
-                              Agregar Caja
-                            </button>
-                          </div>
-
-                          {/* Cashiers */}
-                          {storeCashiers.length === 0 ? (
-                            <div className="p-4 text-center text-gray-500 text-sm">
-                              No hay cajas en este local
-                            </div>
-                          ) : (
-                            <div className="divide-y">
-                              {storeCashiers.map(cashier => {
-                                const linkedPOS = systemPOSList.find(pos => pos.mpQrPosId === cashier.id);
-
-                                return (
-                                  <div key={cashier.id} className="p-4 flex items-center justify-between gap-4">
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                                        <QrCode size={20} className="text-purple-600" />
-                                      </div>
-                                      <div>
-                                        <p className="font-medium text-gray-900">{cashier.name}</p>
-                                        <p className="text-xs text-gray-500">
-                                          ID: {cashier.id} | External: {cashier.external_id || '-'}
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-3">
-                                      {/* Print QR button */}
-                                      {cashier.qr?.template_document && (
-                                        <a
-                                          href={cashier.qr.template_document}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100"
-                                        >
-                                          <Printer size={16} />
-                                          Imprimir QR
-                                        </a>
-                                      )}
-
-                                      {/* Link status / selector */}
-                                      {linkedPOS ? (
-                                        <div className="flex items-center gap-2">
-                                          <span className="px-3 py-1.5 text-sm text-green-700 bg-green-100 rounded-lg flex items-center gap-2">
-                                            <CheckCircle size={14} />
-                                            Vinculado a: {linkedPOS.name}
-                                          </span>
-                                          <button
-                                            onClick={() => handleUnlinkCashier(linkedPOS.id)}
-                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                                            title="Desvincular"
-                                          >
-                                            <Unlink size={16} />
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center gap-2">
-                                          <select
-                                            disabled={linkingCashier === cashier.id}
-                                            onChange={(e) => {
-                                              if (e.target.value) {
-                                                handleLinkCashierToPOS(cashier.id, cashier.external_id, e.target.value);
-                                              }
-                                            }}
-                                            className="px-3 py-1.5 text-sm border rounded-lg"
-                                            defaultValue=""
-                                          >
-                                            <option value="">Vincular a POS...</option>
-                                            {systemPOSList
-                                              .filter(pos => !pos.mpQrPosId)
-                                              .map(pos => (
-                                                <option key={pos.id} value={pos.id}>
-                                                  {pos.name} {pos.branch?.name ? `(${pos.branch.name})` : ''}
-                                                </option>
-                                              ))}
-                                          </select>
-                                          {linkingCashier === cashier.id && (
-                                            <RefreshCw size={16} className="animate-spin text-purple-600" />
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                  return (
+                    <div key={branch.id} className="border rounded-lg overflow-hidden">
+                      {/* Branch header */}
+                      <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Building2 size={18} className="text-gray-500" />
+                          <span className="font-medium text-gray-900">{branch.name}</span>
+                          <span className="text-xs text-gray-500">({branch.code})</span>
+                          <span className="text-xs text-gray-400">
+                            {branchPOS.filter(p => p.mpQrPosId).length}/{branchPOS.length} vinculados
+                          </span>
                         </div>
-                      );
-                    })}
-                </div>
+                        {!branch.hasStore && (
+                          <button
+                            onClick={() => handleCreateStoreFromBranch(branch.id)}
+                            disabled={creatingStoreFromBranch === branch.id}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 disabled:opacity-50"
+                            title="Crear local en MP para esta sucursal"
+                          >
+                            {creatingStoreFromBranch === branch.id ? (
+                              <RefreshCw size={12} className="animate-spin" />
+                            ) : (
+                              <Plus size={12} />
+                            )}
+                            Crear Local MP
+                          </button>
+                        )}
+                      </div>
 
-                {qrStores.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <Store size={48} className="mx-auto mb-3 text-gray-300" />
-                    <p>No se encontraron locales en Mercado Pago</p>
-                    <p className="text-sm mt-1 mb-4">
-                      Crea un local para empezar a usar QR
-                    </p>
-                    <button
-                      onClick={() => setShowCreateStoreModal(true)}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700"
-                    >
-                      <Plus size={18} />
-                      Crear Local
-                    </button>
+                      {/* POS list */}
+                      <div className="divide-y">
+                        {branchPOS.map(pos => {
+                          const linkedCashier = pos.mpQrPosId
+                            ? qrCashiers.find(c => c.id === pos.mpQrPosId)
+                            : null;
+                          // Cajas disponibles para vincular (del local de esta sucursal o sin vincular)
+                          const availableCashiers = qrCashiers.filter(c => {
+                            // Solo cajas no vinculadas a ningún POS
+                            const isLinked = systemPOSList.some(p => p.mpQrPosId === c.id);
+                            if (isLinked) return false;
+                            // Preferir cajas del local de esta sucursal
+                            if (branch.mpStoreId) return c.store_id === branch.mpStoreId;
+                            return true;
+                          });
+
+                          return (
+                            <div key={pos.id} className="p-4 flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                  linkedCashier ? 'bg-green-100' : 'bg-gray-100'
+                                }`}>
+                                  <QrCode size={20} className={linkedCashier ? 'text-green-600' : 'text-gray-400'} />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{pos.name}</p>
+                                  <p className="text-xs text-gray-500">{pos.code}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                {linkedCashier ? (
+                                  <>
+                                    {/* QR info */}
+                                    <div className="text-right">
+                                      <p className="text-sm text-green-700 font-medium flex items-center gap-1">
+                                        <CheckCircle size={14} />
+                                        {linkedCashier.external_id}
+                                      </p>
+                                      <p className="text-xs text-gray-500">{linkedCashier.name}</p>
+                                    </div>
+                                    {/* Print QR */}
+                                    {linkedCashier.qr?.template_document && (
+                                      <a
+                                        href={linkedCashier.qr.template_document}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100"
+                                      >
+                                        <Printer size={14} />
+                                        QR
+                                      </a>
+                                    )}
+                                    {/* Unlink */}
+                                    <button
+                                      onClick={() => handleUnlinkCashier(pos.id)}
+                                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                      title="Desvincular caja QR"
+                                    >
+                                      <Unlink size={16} />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    {availableCashiers.length > 0 ? (
+                                      <select
+                                        disabled={linkingCashier !== null}
+                                        onChange={(e) => {
+                                          const cashier = qrCashiers.find(c => c.id === Number(e.target.value));
+                                          if (cashier) {
+                                            handleLinkCashierToPOS(cashier.id, cashier.external_id, pos.id);
+                                          }
+                                        }}
+                                        className="px-3 py-1.5 text-sm border rounded-lg"
+                                        defaultValue=""
+                                      >
+                                        <option value="">Vincular caja QR...</option>
+                                        {availableCashiers.map(c => (
+                                          <option key={c.id} value={c.id}>
+                                            {c.external_id} - {c.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span className="text-xs text-gray-400">Sin cajas disponibles</span>
+                                    )}
+                                    {branch.hasStore && (
+                                      <button
+                                        onClick={() => {
+                                          const store = qrStores.find(s => s.id === branch.mpStoreId);
+                                          if (store) {
+                                            // Pre-seleccionar este POS para vincular después de crear
+                                            setLinkToPosId(pos.id);
+                                            openCreateCashierModal(store);
+                                          }
+                                        }}
+                                        className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100"
+                                        title="Crear nueva caja QR"
+                                      >
+                                        <Plus size={14} />
+                                        Crear
+                                      </button>
+                                    )}
+                                    {linkingCashier !== null && (
+                                      <RefreshCw size={14} className="animate-spin text-purple-600" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Mensaje si no hay cajas QR */}
+                {qrCashiers.length === 0 && (
+                  <div className="text-center py-4 text-gray-500 text-sm border-t">
+                    <p>No hay cajas QR sincronizadas. Haz clic en "Sincronizar con MP" para importar datos.</p>
                   </div>
                 )}
               </div>

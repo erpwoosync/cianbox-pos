@@ -115,6 +115,17 @@ export const brandsApi = {
 };
 
 // Products API
+export interface ProductsResponse {
+  data: Product[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
+
 export const productsApi = {
   getAll: async (params?: {
     categoryId?: string;
@@ -122,9 +133,14 @@ export const productsApi = {
     search?: string;
     parentsOnly?: boolean;  // Solo productos padre con variantes
     hideVariants?: boolean; // Ocultar variantes, mostrar padres y simples
-  }) => {
+    page?: number;
+    limit?: number;
+  }): Promise<ProductsResponse> => {
     const response = await api.get('/backoffice/products', { params });
-    return response.data.data;
+    return {
+      data: response.data.data,
+      pagination: response.data.pagination || { page: 1, limit: 50, total: response.data.data.length, totalPages: 1, hasMore: false },
+    };
   },
   getById: async (id: string) => {
     const response = await api.get(`/backoffice/products/${id}`);
@@ -793,6 +809,43 @@ export const mercadoPagoApi = {
     return response.data;
   },
 
+  // Enviar pago de prueba de $50 a un dispositivo Point
+  sendTestPayment: async (deviceId: string): Promise<{
+    success: boolean;
+    data?: {
+      orderId: string;
+      amount: number;
+      externalReference: string;
+      message: string;
+    };
+    error?: string;
+  }> => {
+    const response = await api.post(`/mercadopago/devices/${deviceId}/test-payment`);
+    return response.data;
+  },
+
+  // Consultar estado de un pago de prueba
+  getTestPaymentStatus: async (orderId: string): Promise<{
+    success: boolean;
+    data?: {
+      orderId: string;
+      status: string;
+      externalReference: string;
+      isTestPayment: boolean;
+      isCancelled: boolean;
+      isFailed: boolean;
+      isCompleted: boolean;
+    };
+    error?: string;
+  }> => {
+    const response = await api.get(`/mercadopago/test-payment/${orderId}/status`);
+    return response.data;
+  },
+
+  // NOTA: La asociación terminal→POS NO se puede hacer vía API de MP.
+  // Se configura desde el panel web de MP o desde el dispositivo físico:
+  // Más opciones > Ajustes > Modo de vinculación
+
   // Listar sucursales/locales de MP QR
   listQRStores: async (): Promise<Array<{ id: string; name: string; external_id: string }>> => {
     const response = await api.get('/mercadopago/qr/stores');
@@ -844,6 +897,102 @@ export const mercadoPagoApi = {
   // Vincular caja QR a un PointOfSale del sistema
   linkQRCashierToPOS: async (posId: string, data: { mpQrPosId: number | null; mpQrPosExternalId?: string | null }) => {
     const response = await api.put(`/mercadopago/points-of-sale/${posId}/qr-cashier`, data);
+    return response.data.data;
+  },
+
+  // ============ BRANCHES CON MP STORES ============
+
+  // Obtener sucursales con estado de MP (vinculadas/pendientes)
+  getBranchesWithMPStatus: async (): Promise<Array<{
+    id: string;
+    name: string;
+    code: string;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    hasStore: boolean;
+    mpStoreId: string | null;
+    mpExternalId: string | null;
+  }>> => {
+    const response = await api.get('/mercadopago/qr/branches-status');
+    return response.data.data;
+  },
+
+  // Crear Store en MP desde una Branch del sistema (1 click)
+  createStoreFromBranch: async (branchId: string): Promise<{
+    branch: { id: string; name: string; code: string; mpStoreId: string | null; mpExternalId: string | null };
+    store: { id: string; name: string; external_id: string };
+  }> => {
+    const response = await api.post(`/mercadopago/qr/stores/from-branch/${branchId}`);
+    return response.data.data;
+  },
+
+  // Sincronizar Stores existentes de MP con Branches del sistema
+  syncMPStores: async (): Promise<{
+    synced: number;
+    notMatched: Array<{ id: string; name: string; external_id: string }>;
+  }> => {
+    const response = await api.post('/mercadopago/qr/sync-stores');
+    return response.data.data;
+  },
+
+  // Obtener Stores de MP que no están vinculados a ninguna Branch
+  getUnlinkedStores: async (): Promise<Array<{ id: string; name: string; external_id: string }>> => {
+    const response = await api.get('/mercadopago/qr/unlinked-stores');
+    return response.data.data;
+  },
+
+  // Vincular manualmente un Store existente a una Branch
+  linkStoreToBranch: async (branchId: string, storeId: string, externalId: string): Promise<void> => {
+    await api.put(`/mercadopago/qr/branches/${branchId}/link-store`, { storeId, externalId });
+  },
+
+  // Desvincular un Store de una Branch
+  unlinkStoreFromBranch: async (branchId: string): Promise<void> => {
+    await api.delete(`/mercadopago/qr/branches/${branchId}/unlink-store`);
+  },
+
+  // ============ CACHE LOCAL DE STORES Y CASHIERS ============
+
+  // Obtener stores desde cache local (DB)
+  getLocalStores: async (): Promise<Array<{
+    id: string;
+    mpStoreId: string;
+    name: string;
+    externalId: string;
+    streetName: string | null;
+    streetNumber: string | null;
+    cityName: string | null;
+    stateName: string | null;
+    cashierCount: number;
+  }>> => {
+    const response = await api.get('/mercadopago/qr/local/stores');
+    return response.data.data;
+  },
+
+  // Obtener cashiers desde cache local (DB)
+  getLocalCashiers: async (storeId?: string): Promise<Array<{
+    id: string;
+    mpCashierId: number;
+    name: string;
+    externalId: string;
+    mpStoreId: string;
+    qrImage: string | null;
+    qrTemplate: string | null;
+  }>> => {
+    const params = storeId ? `?storeId=${storeId}` : '';
+    const response = await api.get(`/mercadopago/qr/local/cashiers${params}`);
+    return response.data.data;
+  },
+
+  // Sincronizar stores y cashiers desde MP a cache local
+  syncQRData: async (): Promise<{
+    storesAdded: number;
+    storesUpdated: number;
+    cashiersAdded: number;
+    cashiersUpdated: number;
+  }> => {
+    const response = await api.post('/mercadopago/qr/sync-data');
     return response.data.data;
   },
 };
@@ -1191,6 +1340,350 @@ export const customersApi = {
   getStats: async () => {
     const response = await api.get('/backoffice/customers-stats');
     return response.data.data as CustomerStats;
+  },
+};
+
+// ==============================================
+// AFIP Facturación Electrónica
+// ==============================================
+
+export interface AfipConfig {
+  id: string;
+  tenantId: string;
+  cuit: string;
+  businessName: string;
+  tradeName?: string;
+  taxCategory: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  activityStartDate?: string;
+  isProduction: boolean;
+  isActive: boolean;
+  hasCertificate?: boolean;
+  hasKey?: boolean;
+  hasAccessToken?: boolean;
+  lastSync?: string;
+  salesPoints?: AfipSalesPoint[];
+}
+
+export interface AfipSalesPoint {
+  id: string;
+  tenantId: string;
+  afipConfigId: string;
+  number: number;
+  name?: string;
+  lastInvoiceA: number;
+  lastInvoiceB: number;
+  lastInvoiceC: number;
+  lastCreditNoteA: number;
+  lastCreditNoteB: number;
+  lastCreditNoteC: number;
+  lastDebitNoteA: number;
+  lastDebitNoteB: number;
+  lastDebitNoteC: number;
+  pointOfSaleId?: string;
+  isActive: boolean;
+  pointOfSale?: { id: string; name: string };
+}
+
+export interface AfipInvoice {
+  id: string;
+  tenantId: string;
+  afipConfigId: string;
+  salesPointId: string;
+  voucherType: string;
+  number: number;
+  cae: string;
+  caeExpiration: string;
+  issueDate: string;
+  receiverDocType: string;
+  receiverDocNum: string;
+  receiverName?: string;
+  receiverTaxCategory?: string;
+  netAmount: number;
+  exemptAmount: number;
+  taxAmount: number;
+  otherTaxes: number;
+  totalAmount: number;
+  concept: number;
+  status: string;
+  salesPoint?: { number: number; name?: string };
+}
+
+export interface AfipConstants {
+  DOC_TYPES: Record<string, number>;
+  IVA_CONDITIONS: Record<string, number>;
+  IVA_RATES: Record<string, { id: number; rate: number }>;
+  CONCEPTS: Record<string, number>;
+  VOUCHER_TYPE_CODES: Record<string, number>;
+  TAX_CATEGORIES: string[];
+}
+
+export const afipApi = {
+  // Configuración
+  getConfig: async () => {
+    const response = await api.get('/afip/config');
+    return response.data as { configured: boolean; config: AfipConfig | null };
+  },
+  saveConfig: async (data: Partial<AfipConfig>) => {
+    const response = await api.post('/afip/config', data);
+    return response.data as { success: boolean; config: AfipConfig };
+  },
+
+  // Puntos de venta
+  getSalesPoints: async () => {
+    const response = await api.get('/afip/sales-points');
+    return response.data as AfipSalesPoint[];
+  },
+  createSalesPoint: async (data: { number: number; name?: string; pointOfSaleId?: string }) => {
+    const response = await api.post('/afip/sales-points', data);
+    return response.data as AfipSalesPoint;
+  },
+  updateSalesPoint: async (id: string, data: Partial<AfipSalesPoint>) => {
+    const response = await api.put(`/afip/sales-points/${id}`, data);
+    return response.data as AfipSalesPoint;
+  },
+  deleteSalesPoint: async (id: string) => {
+    const response = await api.delete(`/afip/sales-points/${id}`);
+    return response.data as { success: boolean };
+  },
+
+  // Comprobantes
+  getInvoices: async (params?: { page?: number; limit?: number; salesPointId?: string; voucherType?: string; from?: string; to?: string }) => {
+    const response = await api.get('/afip/invoices', { params });
+    return response.data as { data: AfipInvoice[]; pagination: { page: number; limit: number; total: number; pages: number } };
+  },
+  getInvoice: async (id: string) => {
+    const response = await api.get(`/afip/invoices/${id}`);
+    return response.data as AfipInvoice;
+  },
+  getInvoiceQr: async (id: string) => {
+    const response = await api.get(`/afip/invoices/${id}/qr`);
+    return response.data as { qrUrl: string };
+  },
+  createInvoice: async (data: {
+    salesPointId: string;
+    voucherType: string;
+    concept?: number;
+    receiverDocType: number;
+    receiverDocNum: string;
+    receiverName?: string;
+    receiverTaxCategory?: number;
+    netAmount: number;
+    exemptAmount?: number;
+    taxAmount: number;
+    otherTaxes?: number;
+    totalAmount: number;
+    saleId?: string;
+  }) => {
+    const response = await api.post('/afip/invoices', data);
+    return response.data;
+  },
+  createFacturaB: async (data: {
+    salesPointId: string;
+    totalAmount: number;
+    receiverDocType?: number;
+    receiverDocNum?: string;
+    receiverName?: string;
+    taxRate?: number;
+    saleId?: string;
+  }) => {
+    const response = await api.post('/afip/invoices/factura-b', data);
+    return response.data;
+  },
+  createNotaCreditoB: async (data: {
+    salesPointId: string;
+    originalInvoiceId: string;
+    amount?: number;
+  }) => {
+    const response = await api.post('/afip/invoices/nota-credito-b', data);
+    return response.data;
+  },
+
+  // Estado y utilidades
+  getServerStatus: async () => {
+    const response = await api.get('/afip/status');
+    return response.data as { appserver: string; dbserver: string; authserver: string };
+  },
+  getAfipSalesPoints: async () => {
+    const response = await api.get('/afip/afip-sales-points');
+    return response.data as {
+      salesPoints: Array<{ number: number; type: string; blocked: string; dropDate: string | null }>;
+      isProduction: boolean;
+      message: string | null;
+    };
+  },
+  getLastVoucher: async (salesPointNumber: number, voucherType: string) => {
+    const response = await api.get('/afip/last-voucher', { params: { salesPointNumber, voucherType } });
+    return response.data as { lastNumber: number };
+  },
+  getConstants: async () => {
+    const response = await api.get('/afip/constants');
+    return response.data as AfipConstants;
+  },
+
+  // Wizard de certificados
+  generateCertificate: async (data: {
+    username: string;
+    password: string;
+    alias: string;
+    isProduction: boolean;
+  }) => {
+    const response = await api.post('/afip/generate-certificate', data);
+    return response.data as { success: boolean; message: string; hasCertificate: boolean; hasKey: boolean };
+  },
+
+  authorizeWebService: async (data: {
+    username: string;
+    password: string;
+    wsId?: string;
+    isProduction: boolean;
+  }) => {
+    const response = await api.post('/afip/authorize-webservice', data);
+    return response.data as { success: boolean; message: string };
+  },
+};
+
+// =============================================
+// TREASURY (Tesorería)
+// =============================================
+
+export type TreasuryStatus = 'PENDING' | 'CONFIRMED' | 'PARTIAL' | 'REJECTED';
+
+export interface TreasuryPending {
+  id: string;
+  amount: number;
+  currency: string;
+  status: TreasuryStatus;
+  createdAt: string;
+  cashMovement: {
+    id: string;
+    type: string;
+    amount: number;
+    reason: string;
+    createdAt: string;
+  };
+  cashSession: {
+    id: string;
+    openedAt?: string;
+    closedAt?: string;
+    pointOfSale: { id: string; name: string };
+    user: { id: string; name: string; email: string };
+  };
+  confirmedAt?: string;
+  confirmedBy?: { id: string; name: string; email: string };
+  confirmedAmount?: number | null;
+  differenceNotes?: string;
+  receiptNumber?: string;
+}
+
+export interface TreasurySummary {
+  currency: string;
+  pending: { count: number; amount: number };
+  confirmed: { count: number; expectedAmount: number; confirmedAmount: number };
+  partial: { count: number; expectedAmount: number; confirmedAmount: number };
+  rejected: { count: number; amount: number };
+  totals: { totalExpected: number; totalReceived: number; totalDifference: number };
+}
+
+export const treasuryApi = {
+  getPending: async (params?: {
+    status?: TreasuryStatus;
+    currency?: string;
+    branchId?: string;
+    fromDate?: string;
+    toDate?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ pending: TreasuryPending[]; total: number }> => {
+    const response = await api.get('/treasury/pending', { params });
+    return { pending: response.data.pending, total: response.data.total };
+  },
+
+  getPendingById: async (id: string): Promise<TreasuryPending> => {
+    const response = await api.get(`/treasury/pending/${id}`);
+    return response.data.pending;
+  },
+
+  confirm: async (id: string, data: { receivedAmount: number; notes?: string }) => {
+    const response = await api.post(`/treasury/pending/${id}/confirm`, data);
+    return response.data;
+  },
+
+  reject: async (id: string, data: { reason: string }) => {
+    const response = await api.post(`/treasury/pending/${id}/reject`, data);
+    return response.data;
+  },
+
+  getSummary: async (params?: { fromDate?: string; toDate?: string; currency?: string }): Promise<TreasurySummary> => {
+    const response = await api.get('/treasury/summary', { params });
+    return response.data.summary;
+  },
+};
+
+// =============================================
+// GIFT CARDS (Tarjetas de Regalo)
+// =============================================
+
+export type GiftCardStatus = 'INACTIVE' | 'ACTIVE' | 'DEPLETED' | 'EXPIRED' | 'CANCELLED';
+
+export interface GiftCard {
+  id: string;
+  code: string;
+  initialAmount: number;
+  currentBalance: number;
+  currency: string;
+  status: GiftCardStatus;
+  expiresAt?: string;
+  activatedAt?: string;
+  isExpired?: boolean;
+  generatedBy?: { id: string; name: string };
+  activatedBy?: { id: string; name: string };
+  createdAt: string;
+}
+
+export interface GiftCardTransaction {
+  id: string;
+  type: 'ACTIVATION' | 'REDEMPTION' | 'REFUND' | 'CANCELLATION';
+  amount: number;
+  balanceAfter: number;
+  notes?: string;
+  user?: { id: string; name: string };
+  sale?: { id: string; saleNumber: string };
+  createdAt: string;
+}
+
+export const giftCardsApi = {
+  generate: async (data: { quantity: number; amount: number; currency?: string; expiresAt?: string }): Promise<GiftCard[]> => {
+    const response = await api.post('/gift-cards/generate', data);
+    return response.data.giftCards;
+  },
+
+  getAll: async (params?: {
+    status?: GiftCardStatus;
+    currency?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ giftCards: GiftCard[]; total: number }> => {
+    const response = await api.get('/gift-cards', { params });
+    return { giftCards: response.data.giftCards, total: response.data.total };
+  },
+
+  getTransactions: async (id: string): Promise<{ giftCard: GiftCard; transactions: GiftCardTransaction[] }> => {
+    const response = await api.get(`/gift-cards/${id}/transactions`);
+    return { giftCard: response.data.giftCard, transactions: response.data.transactions };
+  },
+
+  checkBalance: async (code: string): Promise<GiftCard> => {
+    const response = await api.post('/gift-cards/balance', { code });
+    return response.data.giftCard;
+  },
+
+  cancel: async (code: string, reason?: string): Promise<{ success: boolean; giftCard: { id: string; code: string; status: string } }> => {
+    const response = await api.post('/gift-cards/cancel', { code, reason });
+    return response.data;
   },
 };
 

@@ -20,8 +20,9 @@ from src.api import get_api_client, NetworkError
 from src.api.products import ProductsAPI, ProductData, CategoryData, BrandData
 from src.api.promotions import PromotionsAPI, PromotionData, CalculationResult
 from src.api.customers import CustomersAPI, CustomerData
+from src.api.sales import SalesAPI
 from src.db import session_scope, get_session
-from src.models import Product, Category, Brand, Customer
+from src.models import Product, Category, Brand, Customer, Sale, SaleItem
 
 
 class SyncStatus(Enum):
@@ -42,6 +43,7 @@ class SyncResult:
     brands_synced: int = 0
     promotions_synced: int = 0
     customers_synced: int = 0
+    sales_synced: int = 0
     error_message: Optional[str] = None
     duration_seconds: float = 0.0
 
@@ -76,6 +78,7 @@ class SyncService:
         self._api = ProductsAPI()
         self._promotions_api = PromotionsAPI()
         self._customers_api = CustomersAPI()
+        self._sales_api = SalesAPI()
         self._lock = threading.Lock()
         self._on_progress: Optional[Callable[[str, int, int], None]] = None
         self._on_complete: Optional[Callable[[SyncResult], None]] = None
@@ -83,6 +86,9 @@ class SyncService:
         # Cache de promociones en memoria
         self._active_promotions: List[PromotionData] = []
         self._promotions_last_sync: Optional[datetime] = None
+
+        # Dias de ventas a mantener en cache local
+        self._sales_retention_days = 180
 
         logger.info(f"SyncService inicializado para tenant: {tenant_id}, branch: {branch_id}")
 
@@ -169,12 +175,19 @@ class SyncService:
             result.promotions_synced = promotions_count
             logger.info(f"Promociones sincronizadas: {promotions_count}")
 
-            self._notify_progress("Sincronizando clientes...", 4, 5)
+            self._notify_progress("Sincronizando clientes...", 4, 6)
 
             # 5. Sincronizar clientes
             customers_count = self._sync_customers()
             result.customers_synced = customers_count
             logger.info(f"Clientes sincronizados: {customers_count}")
+
+            self._notify_progress("Sincronizando ventas...", 5, 6)
+
+            # 6. Sincronizar ventas (ultimos 180 dias)
+            sales_count = self._sync_sales()
+            result.sales_synced = sales_count
+            logger.info(f"Ventas sincronizadas: {sales_count}")
 
             # Calcular duracion
             duration = (datetime.now() - start_time).total_seconds()
@@ -189,10 +202,10 @@ class SyncService:
                 f"Sincronizacion completada en {duration:.1f}s: "
                 f"{categories_count} categorias, {brands_count} marcas, "
                 f"{products_count} productos, {promotions_count} promociones, "
-                f"{customers_count} clientes"
+                f"{customers_count} clientes, {sales_count} ventas"
             )
 
-            self._notify_progress("Sincronizacion completada", 5, 5)
+            self._notify_progress("Sincronizacion completada", 6, 6)
             self._notify_complete(result)
 
             return result
@@ -974,6 +987,28 @@ class SyncService:
 
         return None
 
+    def get_default_customer(self) -> Optional[Customer]:
+        """
+        Obtiene el cliente por defecto (Consumidor Final, cianbox_id = 1).
+
+        Returns:
+            Cliente por defecto o None si no existe
+        """
+        from sqlalchemy import select
+
+        with session_scope() as session:
+            customer = session.execute(
+                select(Customer)
+                .where(Customer.tenant_id == self.tenant_id)
+                .where(Customer.cianbox_id == 1)
+            ).scalar_one_or_none()
+
+            if customer:
+                session.expunge(customer)
+                return customer
+
+        return None
+
     def get_customers_count(self) -> int:
         """
         Obtiene el numero de clientes en cache local.
@@ -988,6 +1023,423 @@ class SyncService:
                 select(func.count(Customer.id))
                 .where(Customer.tenant_id == self.tenant_id)
                 .where(Customer.is_active == True)
+            ).scalar()
+            return count or 0
+
+    # =========================================================================
+    # VENTAS
+    # =========================================================================
+
+    def _sync_sales(self) -> int:
+        """
+        Sincroniza ventas desde el backend (ultimos 180 dias).
+
+        Solo sincroniza ventas con estado COMPLETED o PARTIAL_REFUND
+        que pueden ser usadas para devoluciones.
+
+        Returns:
+            Numero de ventas sincronizadas
+        """
+        from datetime import timedelta
+
+        synced = 0
+        page = 1
+        page_size = 100
+        has_more = True
+
+        # Calcular fecha desde (180 dias atras)
+        date_from = (datetime.now() - timedelta(days=self._sales_retention_days)).strftime("%Y-%m-%d")
+
+        while has_more:
+            sales, pagination = self._sales_api.list_sales(
+                branch_id=self.branch_id,
+                date_from=date_from,
+                page=page,
+                page_size=page_size,
+                include_items=True,  # Incluir items para cache de devoluciones
+            )
+
+            if not sales:
+                break
+
+            with session_scope() as session:
+                for sale_data in sales:
+                    try:
+                        # Solo sincronizar ventas que se pueden devolver
+                        status = sale_data.get("status", "")
+                        if status in ("COMPLETED", "PARTIAL_REFUND"):
+                            self._upsert_sale(session, sale_data)
+                            synced += 1
+                    except Exception as e:
+                        logger.error(f"Error sincronizando venta {sale_data.get('id')}: {e}")
+
+            # Verificar si hay mas paginas
+            if pagination:
+                has_more = page < pagination.get("totalPages", 1)
+                page += 1
+                self._notify_progress(
+                    f"Sincronizando ventas... ({synced})",
+                    synced,
+                    pagination.get("total", 0),
+                )
+            else:
+                has_more = False
+
+        # Limpiar ventas antiguas (mas de 180 dias)
+        self._cleanup_old_sales()
+
+        return synced
+
+    def _upsert_sale(self, session: Session, data: dict) -> Sale:
+        """
+        Inserta o actualiza una venta.
+
+        Args:
+            session: Sesion de base de datos
+            data: Datos de la venta desde API
+
+        Returns:
+            Venta creada o actualizada
+        """
+        from dateutil.parser import parse as parse_date
+
+        sale_id = data.get("id")
+        sale = session.query(Sale).filter_by(id=sale_id).first()
+
+        # Parsear fecha
+        sale_date_str = data.get("saleDate") or data.get("createdAt")
+        sale_date = parse_date(sale_date_str) if sale_date_str else datetime.now()
+
+        # Datos del cliente
+        customer = data.get("customer") or {}
+        customer_id = customer.get("id") if customer else data.get("customerId")
+        customer_name = customer.get("name") if customer else None
+
+        # Datos del usuario
+        user = data.get("user") or {}
+        user_id = user.get("id") if user else data.get("userId")
+        user_name = user.get("name") if user else None
+
+        # Datos de sucursal y POS
+        branch = data.get("branch") or {}
+        branch_name = branch.get("name") if branch else None
+        pos = data.get("pointOfSale") or {}
+        pos_id = pos.get("id") if pos else data.get("pointOfSaleId")
+        pos_name = pos.get("name") if pos else None
+
+        if sale:
+            # Actualizar existente
+            sale.sale_number = data.get("saleNumber", "")
+            sale.sale_date = sale_date
+            sale.customer_id = customer_id
+            sale.customer_name = customer_name
+            sale.subtotal = Decimal(str(data.get("subtotal", 0)))
+            sale.discount = Decimal(str(data.get("discount", 0)))
+            sale.tax = Decimal(str(data.get("tax", 0)))
+            sale.total = Decimal(str(data.get("total", 0)))
+            sale.status = data.get("status", "COMPLETED")
+            sale.receipt_type = data.get("receiptType", "NDP_X")
+            sale.fiscal_number = data.get("fiscalNumber")
+            sale.user_id = user_id
+            sale.user_name = user_name
+            sale.point_of_sale_id = pos_id
+            sale.point_of_sale_name = pos_name
+            sale.branch_name = branch_name
+            sale.notes = data.get("notes")
+            sale.last_synced_at = datetime.now()
+        else:
+            # Crear nueva
+            sale = Sale(
+                id=sale_id,
+                tenant_id=self.tenant_id,
+                branch_id=data.get("branchId") or (branch.get("id") if branch else ""),
+                sale_number=data.get("saleNumber", ""),
+                sale_date=sale_date,
+                customer_id=customer_id,
+                customer_name=customer_name,
+                subtotal=Decimal(str(data.get("subtotal", 0))),
+                discount=Decimal(str(data.get("discount", 0))),
+                tax=Decimal(str(data.get("tax", 0))),
+                total=Decimal(str(data.get("total", 0))),
+                status=data.get("status", "COMPLETED"),
+                receipt_type=data.get("receiptType", "NDP_X"),
+                fiscal_number=data.get("fiscalNumber"),
+                user_id=user_id,
+                user_name=user_name,
+                point_of_sale_id=pos_id,
+                point_of_sale_name=pos_name,
+                branch_name=branch_name,
+                notes=data.get("notes"),
+                last_synced_at=datetime.now(),
+            )
+            session.add(sale)
+
+        # Sincronizar items
+        items = data.get("items") or []
+        for item_data in items:
+            self._upsert_sale_item(session, sale_id, item_data)
+
+        return sale
+
+    def _upsert_sale_item(self, session: Session, sale_id: str, data: dict) -> SaleItem:
+        """
+        Inserta o actualiza un item de venta.
+        """
+        item_id = data.get("id")
+        item = session.query(SaleItem).filter_by(id=item_id).first()
+
+        # Calcular cantidad devuelta
+        refund_items = data.get("refundItems") or []
+        refunded_qty = sum(abs(float(r.get("quantity", 0))) for r in refund_items)
+
+        if item:
+            # Actualizar existente
+            item.product_id = data.get("productId")
+            item.product_code = data.get("productCode")
+            item.product_name = data.get("productName", "")
+            item.product_barcode = data.get("productBarcode")
+            item.quantity = Decimal(str(data.get("quantity", 0)))
+            item.unit_price = Decimal(str(data.get("unitPrice", 0)))
+            item.unit_price_net = Decimal(str(data.get("unitPriceNet", 0))) if data.get("unitPriceNet") else None
+            item.discount = Decimal(str(data.get("discount", 0)))
+            item.subtotal = Decimal(str(data.get("subtotal", 0)))
+            item.tax_rate = Decimal(str(data.get("taxRate", 21)))
+            item.tax_amount = Decimal(str(data.get("taxAmount", 0)))
+            item.promotion_id = data.get("promotionId")
+            item.promotion_name = data.get("promotionName")
+            item.is_return = data.get("isReturn", False)
+            item.original_item_id = data.get("originalItemId")
+            item.refunded_quantity = Decimal(str(refunded_qty))
+        else:
+            # Crear nuevo
+            item = SaleItem(
+                id=item_id,
+                sale_id=sale_id,
+                product_id=data.get("productId"),
+                product_code=data.get("productCode"),
+                product_name=data.get("productName", ""),
+                product_barcode=data.get("productBarcode"),
+                quantity=Decimal(str(data.get("quantity", 0))),
+                unit_price=Decimal(str(data.get("unitPrice", 0))),
+                unit_price_net=Decimal(str(data.get("unitPriceNet", 0))) if data.get("unitPriceNet") else None,
+                discount=Decimal(str(data.get("discount", 0))),
+                subtotal=Decimal(str(data.get("subtotal", 0))),
+                tax_rate=Decimal(str(data.get("taxRate", 21))),
+                tax_amount=Decimal(str(data.get("taxAmount", 0))),
+                promotion_id=data.get("promotionId"),
+                promotion_name=data.get("promotionName"),
+                is_return=data.get("isReturn", False),
+                original_item_id=data.get("originalItemId"),
+                refunded_quantity=Decimal(str(refunded_qty)),
+            )
+            session.add(item)
+
+        return item
+
+    def _cleanup_old_sales(self) -> int:
+        """
+        Elimina ventas antiguas del cache local.
+
+        Returns:
+            Numero de ventas eliminadas
+        """
+        from datetime import timedelta
+        from sqlalchemy import delete
+
+        cutoff_date = datetime.now() - timedelta(days=self._sales_retention_days)
+
+        with session_scope() as session:
+            # Primero eliminar items de ventas antiguas
+            old_sale_ids = session.query(Sale.id).filter(
+                Sale.tenant_id == self.tenant_id,
+                Sale.sale_date < cutoff_date,
+            ).all()
+
+            if old_sale_ids:
+                ids = [s[0] for s in old_sale_ids]
+                session.execute(
+                    delete(SaleItem).where(SaleItem.sale_id.in_(ids))
+                )
+                result = session.execute(
+                    delete(Sale).where(Sale.id.in_(ids))
+                )
+                deleted = result.rowcount
+                logger.debug(f"Eliminadas {deleted} ventas antiguas del cache")
+                return deleted
+
+        return 0
+
+    def search_sales_by_product(
+        self,
+        query: str,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        """
+        Busca ventas que contengan un producto especifico.
+        Busqueda local en cache SQLite.
+
+        Args:
+            query: Codigo de barras, SKU, codigo interno o nombre del producto
+            limit: Limite de resultados
+
+        Returns:
+            Dict con producto y lista de ventas
+        """
+        from sqlalchemy import or_, and_
+        from sqlalchemy.orm import joinedload
+
+        logger.info(f"Buscando ventas por producto: '{query}'")
+
+        with session_scope() as session:
+            # Primero buscar el producto
+            logger.debug(f"Buscando producto con query: {query}")
+            product = session.query(Product).filter(
+                Product.tenant_id == self.tenant_id,
+                or_(
+                    Product.id == query,
+                    Product.barcode == query,
+                    Product.sku == query,
+                    Product.internal_code == query,
+                    Product.name.ilike(f"%{query}%"),
+                ),
+            ).first()
+
+            if not product:
+                logger.warning(f"Producto no encontrado: {query}")
+                return {"success": False, "error": "Producto no encontrado"}
+
+            logger.info(f"Producto encontrado: {product.name} (ID: {product.id})")
+
+            # Buscar ventas con este producto (con eager loading de items)
+            # Excluir devoluciones (NDC_X, CREDIT_NOTE_*) - no se puede devolver una devolución
+            sales = session.query(Sale).options(
+                joinedload(Sale.items)
+            ).join(SaleItem).filter(
+                Sale.tenant_id == self.tenant_id,
+                Sale.status.in_(["COMPLETED", "PARTIAL_REFUND"]),
+                SaleItem.product_id == product.id,
+                ~Sale.receipt_type.in_(["NDC_X", "CREDIT_NOTE_A", "CREDIT_NOTE_B", "CREDIT_NOTE_C"]),
+            ).order_by(Sale.sale_date.desc()).limit(limit).all()
+
+            logger.info(f"Ventas encontradas: {len(sales)}")
+
+            # Construir respuesta
+            result_sales = []
+            for sale in sales:
+                # Incluir TODOS los items de la venta
+                items_data = []
+                has_matching_item = False
+
+                for item in sale.items:
+                    available_qty = float(abs(item.quantity)) - float(item.refunded_quantity)
+                    is_match = item.product_id == product.id
+
+                    if is_match and available_qty > 0:
+                        has_matching_item = True
+
+                    items_data.append({
+                        "id": item.id,
+                        "productId": item.product_id,
+                        "productCode": item.product_code,
+                        "productName": item.product_name,
+                        "productBarcode": item.product_barcode,
+                        "quantity": float(item.quantity),
+                        "unitPrice": float(item.unit_price),
+                        "subtotal": float(item.subtotal),
+                        "refundedQuantity": float(item.refunded_quantity),
+                        "availableQuantity": available_qty,
+                        "matchesSearch": is_match,  # Marca si coincide con búsqueda
+                    })
+
+                if has_matching_item:  # Solo incluir si hay items del producto buscado disponibles
+                    result_sales.append({
+                        "id": sale.id,
+                        "saleNumber": sale.sale_number,
+                        "saleDate": sale.sale_date.isoformat(),
+                        "receiptType": sale.receipt_type,
+                        "customer": {"id": sale.customer_id, "name": sale.customer_name} if sale.customer_id else None,
+                        "branch": {"name": sale.branch_name},
+                        "pointOfSale": {"name": sale.point_of_sale_name},
+                        "user": {"name": sale.user_name},
+                        "total": float(sale.total),
+                        "status": sale.status,
+                        "items": items_data,
+                    })
+
+            return {
+                "success": True,
+                "data": {
+                    "product": {
+                        "id": product.id,
+                        "name": product.name,
+                        "sku": product.sku,
+                        "barcode": product.barcode,
+                        "internalCode": product.internal_code,
+                    },
+                    "sales": result_sales,
+                },
+            }
+
+    def get_local_sales(self, limit: int = 100) -> List[Dict]:
+        """
+        Obtiene las ventas del cache local.
+
+        Args:
+            limit: Limite de ventas a retornar
+
+        Returns:
+            Lista de ventas con sus items
+        """
+        from sqlalchemy.orm import joinedload
+
+        with session_scope() as session:
+            sales = session.query(Sale).options(
+                joinedload(Sale.items)
+            ).filter(
+                Sale.tenant_id == self.tenant_id
+            ).order_by(Sale.sale_date.desc()).limit(limit).all()
+
+            result = []
+            for sale in sales:
+                items_data = []
+                for item in sale.items:
+                    items_data.append({
+                        "id": item.id,
+                        "productId": item.product_id,
+                        "productCode": item.product_code,
+                        "productName": item.product_name,
+                        "quantity": float(item.quantity),
+                        "unitPrice": float(item.unit_price),
+                        "subtotal": float(item.subtotal),
+                    })
+
+                result.append({
+                    "id": sale.id,
+                    "saleNumber": sale.sale_number,
+                    "saleDate": sale.sale_date.isoformat(),
+                    "customer": {"id": sale.customer_id, "name": sale.customer_name} if sale.customer_id else None,
+                    "total": float(sale.total),
+                    "status": sale.status,
+                    "receiptType": sale.receipt_type,
+                    "fiscalNumber": sale.fiscal_number,
+                    "items": items_data,
+                })
+
+            return result
+
+    def get_sales_count(self) -> int:
+        """
+        Obtiene el numero de ventas en cache local.
+
+        Returns:
+            Cantidad de ventas
+        """
+        from sqlalchemy import select, func
+
+        with session_scope() as session:
+            count = session.execute(
+                select(func.count(Sale.id))
+                .where(Sale.tenant_id == self.tenant_id)
             ).scalar()
             return count or 0
 
