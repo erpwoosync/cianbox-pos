@@ -39,6 +39,7 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QSpinBox,
     QToolButton,
+    QStackedWidget,
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent, QAction, QCloseEvent, QPixmap, QColor
@@ -53,6 +54,8 @@ from src.services import get_sync_service, SyncStatus, SyncResult
 from src.models import Product, Category
 from src.ui.dialogs import CheckoutDialog, CheckoutResult, SizeCurveDialog, CustomerDialog, InvoiceDialog, SalesHistoryDialog, ProductRefundDialog
 from src.ui.dialogs.checkout_dialog import PaymentData as CheckoutPaymentData
+from src.ui.components import Sidebar, NavItem
+from src.ui.views import POSView, RefundView, ProductLookupView, SalesHistoryView, CashCloseView
 from src.models import Customer
 from src.utils import get_image_loader
 
@@ -152,26 +155,154 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
 
-        # Layout principal vertical
-        main_layout = QVBoxLayout(central)
+        # Layout principal horizontal (navegacion + contenido)
+        main_layout = QHBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # 1. HEADER
-        header = self._create_header()
-        main_layout.addWidget(header)
+        # 1. NAVIGATION SIDEBAR (izquierda)
+        self.nav_sidebar = self._create_nav_sidebar()
+        main_layout.addWidget(self.nav_sidebar)
 
-        # 2. BARRA DE SINCRONIZACION (oculta por defecto)
+        # 2. CONTENEDOR DE VISTAS (derecha)
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        # 2.1 HEADER
+        header = self._create_header()
+        right_layout.addWidget(header)
+
+        # 2.2 BARRA DE SINCRONIZACION (oculta por defecto)
         self.sync_bar = self._create_sync_bar()
-        main_layout.addWidget(self.sync_bar)
+        right_layout.addWidget(self.sync_bar)
         self.sync_bar.hide()
 
-        # 3. CONTENIDO PRINCIPAL (sidebar + productos + carrito)
-        content = self._create_content()
-        main_layout.addWidget(content, 1)  # stretch=1 para que ocupe el espacio
+        # 2.3 STACKED WIDGET para vistas
+        self.view_stack = QStackedWidget()
+        right_layout.addWidget(self.view_stack, 1)
 
-        # 4. STATUS BAR
+        # Vista 0: POS (actual)
+        pos_view = self._create_pos_view()
+        self.view_stack.addWidget(pos_view)
+
+        # Vista 1: Devoluciones
+        self._create_refund_view()
+        self.view_stack.addWidget(self.refund_view)
+
+        # Vista 2: Consulta de Productos
+        self._create_product_lookup_view()
+        self.view_stack.addWidget(self.lookup_view)
+
+        # Vista 3: Historial de Ventas
+        self._create_sales_history_view()
+        self.view_stack.addWidget(self.history_view)
+
+        # Vista 4: Cierre de Caja
+        self._create_cash_close_view()
+        self.view_stack.addWidget(self.cash_close_view)
+
+        main_layout.addWidget(right_container, 1)
+
+        # 3. STATUS BAR
         self._create_statusbar()
+
+        # Establecer vista inicial
+        self.view_stack.setCurrentIndex(0)
+        self.nav_sidebar.set_current_item("pos")
+
+    def _create_nav_sidebar(self) -> Sidebar:
+        """Crea el sidebar de navegacion principal."""
+        sidebar = Sidebar(
+            theme=self.theme,
+            tenant_name=self.tenant.get("name", ""),
+            branch_name=self.user.get("branch_name", "Sucursal"),
+            user_name=self.user.get("name", "Usuario"),
+            user_role=self.user.get("role_name", "Cajero"),
+        )
+
+        # Agregar items de navegacion
+        sidebar.add_section("Principal")
+        sidebar.add_item(NavItem(id="pos", icon="\U0001F4B0", text="Punto de Venta", shortcut="F1"))
+        sidebar.add_item(NavItem(id="refund", icon="\U0001F504", text="Devoluciones", shortcut="F2"))
+        sidebar.add_item(NavItem(id="lookup", icon="\U0001F50D", text="Consulta Productos", shortcut="F3"))
+
+        sidebar.add_section("Operaciones")
+        sidebar.add_item(NavItem(id="history", icon="\U0001F4CB", text="Historial Ventas", shortcut="F4"))
+        sidebar.add_item(NavItem(id="close", icon="\U0001F4B5", text="Cierre de Caja", shortcut="F5"))
+
+        sidebar.add_stretch()
+
+        sidebar.add_section("Sistema")
+        sidebar.add_item(NavItem(id="sync", icon="\U0001F504", text="Sincronizar", shortcut="F6"))
+        sidebar.add_item(NavItem(id="settings", icon="\u2699\ufe0f", text="Configuracion"))
+        sidebar.add_item(NavItem(id="logout", icon="\U0001F6AA", text="Cerrar Sesion"))
+
+        # Conectar navegacion
+        sidebar.navigation_changed.connect(self._on_navigation_changed)
+
+        return sidebar
+
+    def _on_navigation_changed(self, item_id: str) -> None:
+        """Maneja cambio de navegacion."""
+        logger.info(f"Navegando a: {item_id}")
+
+        view_map = {
+            "pos": 0,
+            "refund": 1,
+            "lookup": 2,
+            "history": 3,
+            "close": 4,
+        }
+
+        if item_id in view_map:
+            self.view_stack.setCurrentIndex(view_map[item_id])
+            # Focus y acciones por vista
+            if item_id == "pos":
+                self._focus_search()
+            elif item_id == "refund" and hasattr(self, 'refund_view'):
+                self.refund_view.focus_search()
+            elif item_id == "lookup" and hasattr(self, 'lookup_view'):
+                self.lookup_view.focus_search()
+            elif item_id == "history" and hasattr(self, 'history_view'):
+                self.history_view.refresh()
+        elif item_id == "sync":
+            self._start_initial_sync()
+        elif item_id == "logout":
+            self._on_logout_clicked()
+
+    def _create_pos_view(self) -> POSView:
+        """Crea la vista del punto de venta."""
+        pos_view = POSView()
+
+        # Agregar componentes existentes
+        sidebar = self._create_category_sidebar()
+        pos_view.add_sidebar(sidebar)
+
+        products_panel = self._create_products_panel()
+        pos_view.add_products_panel(products_panel)
+
+        cart_panel = self._create_cart_panel()
+        pos_view.add_cart_panel(cart_panel)
+
+        return pos_view
+
+    def _create_refund_view(self) -> None:
+        """Crea la vista de devoluciones."""
+        self.refund_view = RefundView(self.theme, self.sync_service)
+
+    def _create_product_lookup_view(self) -> None:
+        """Crea la vista de consulta de productos."""
+        self.lookup_view = ProductLookupView(self.theme)
+
+    def _create_sales_history_view(self) -> None:
+        """Crea la vista de historial de ventas."""
+        self.history_view = SalesHistoryView(self.theme, self.sync_service)
+
+    def _create_cash_close_view(self) -> None:
+        """Crea la vista de cierre de caja."""
+        self.cash_close_view = CashCloseView(self.theme)
 
     def _create_header(self) -> QFrame:
         """Crea el header superior con logo, busqueda y usuario."""
@@ -439,29 +570,8 @@ class MainWindow(QMainWindow):
 
         return bar
 
-    def _create_content(self) -> QWidget:
-        """Crea el contenido principal con sidebar, productos y carrito."""
-        content = QWidget()
-        layout = QHBoxLayout(content)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        # SIDEBAR - Categorias
-        sidebar = self._create_sidebar()
-        layout.addWidget(sidebar)
-
-        # PRODUCTOS - Grid
-        products_panel = self._create_products_panel()
-        layout.addWidget(products_panel, 1)  # stretch=1
-
-        # CARRITO
-        cart_panel = self._create_cart_panel()
-        layout.addWidget(cart_panel)
-
-        return content
-
-    def _create_sidebar(self) -> QFrame:
-        """Crea el sidebar con categorias."""
+    def _create_category_sidebar(self) -> QFrame:
+        """Crea el sidebar con categorias de productos."""
         sidebar = QFrame()
         sidebar.setFixedWidth(180)
         sidebar.setStyleSheet(f"""
@@ -1671,9 +1781,26 @@ class MainWindow(QMainWindow):
         statusbar.addPermanentWidget(self.cash_label)
 
     def _setup_shortcuts(self) -> None:
-        """Configura atajos de teclado."""
-        # Los atajos principales se manejan en keyPressEvent
-        pass
+        """Configura atajos de teclado para navegacion."""
+        from PyQt6.QtGui import QShortcut, QKeySequence
+
+        # F1 - Punto de Venta
+        QShortcut(QKeySequence(Qt.Key.Key_F1), self, lambda: self._navigate_to("pos"))
+        # F2 - Devoluciones
+        QShortcut(QKeySequence(Qt.Key.Key_F2), self, lambda: self._navigate_to("refund"))
+        # F3 - Consulta Productos
+        QShortcut(QKeySequence(Qt.Key.Key_F3), self, lambda: self._navigate_to("lookup"))
+        # F4 - Historial Ventas
+        QShortcut(QKeySequence(Qt.Key.Key_F4), self, lambda: self._navigate_to("history"))
+        # F5 - Cierre de Caja
+        QShortcut(QKeySequence(Qt.Key.Key_F5), self, lambda: self._navigate_to("close"))
+        # F6 - Sincronizar
+        QShortcut(QKeySequence(Qt.Key.Key_F6), self, lambda: self._navigate_to("sync"))
+
+    def _navigate_to(self, item_id: str) -> None:
+        """Navega a una vista por su ID."""
+        self.nav_sidebar.set_current_item(item_id)
+        self._on_navigation_changed(item_id)
 
     # =========================================================================
     # SINCRONIZACION
@@ -1773,6 +1900,11 @@ class MainWindow(QMainWindow):
             # Actualizar contador
             total_products = self.sync_service.get_products_count()
             self.products_status_label.setText(f"Productos: {total_products}")
+
+            # Pasar todos los productos a la vista de consulta
+            if hasattr(self, 'lookup_view'):
+                all_products = self.sync_service.get_local_products(limit=1000)
+                self.lookup_view.set_products(all_products)
 
             logger.info(f"Datos locales cargados: {len(self.products)} productos, {len(self.categories)} categorias")
 

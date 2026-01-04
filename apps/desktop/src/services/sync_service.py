@@ -1138,7 +1138,8 @@ class SyncService:
             sale.tax = Decimal(str(data.get("tax", 0)))
             sale.total = Decimal(str(data.get("total", 0)))
             sale.status = data.get("status", "COMPLETED")
-            sale.receipt_type = data.get("receiptType", "TICKET")
+            sale.receipt_type = data.get("receiptType", "NDP_X")
+            sale.fiscal_number = data.get("fiscalNumber")
             sale.user_id = user_id
             sale.user_name = user_name
             sale.point_of_sale_id = pos_id
@@ -1161,7 +1162,8 @@ class SyncService:
                 tax=Decimal(str(data.get("tax", 0))),
                 total=Decimal(str(data.get("total", 0))),
                 status=data.get("status", "COMPLETED"),
-                receipt_type=data.get("receiptType", "TICKET"),
+                receipt_type=data.get("receiptType", "NDP_X"),
+                fiscal_number=data.get("fiscalNumber"),
                 user_id=user_id,
                 user_name=user_name,
                 point_of_sale_id=pos_id,
@@ -1322,30 +1324,32 @@ class SyncService:
             # Construir respuesta
             result_sales = []
             for sale in sales:
-                # Solo incluir items del producto buscado
-                matching_items = [
-                    item for item in sale.items
-                    if item.product_id == product.id
-                ]
-
+                # Incluir TODOS los items de la venta
                 items_data = []
-                for item in matching_items:
-                    available_qty = float(abs(item.quantity)) - float(item.refunded_quantity)
-                    if available_qty > 0:
-                        items_data.append({
-                            "id": item.id,
-                            "productId": item.product_id,
-                            "productCode": item.product_code,
-                            "productName": item.product_name,
-                            "productBarcode": item.product_barcode,
-                            "quantity": float(item.quantity),
-                            "unitPrice": float(item.unit_price),
-                            "subtotal": float(item.subtotal),
-                            "refundedQuantity": float(item.refunded_quantity),
-                            "availableQuantity": available_qty,
-                        })
+                has_matching_item = False
 
-                if items_data:  # Solo incluir si hay items disponibles
+                for item in sale.items:
+                    available_qty = float(abs(item.quantity)) - float(item.refunded_quantity)
+                    is_match = item.product_id == product.id
+
+                    if is_match and available_qty > 0:
+                        has_matching_item = True
+
+                    items_data.append({
+                        "id": item.id,
+                        "productId": item.product_id,
+                        "productCode": item.product_code,
+                        "productName": item.product_name,
+                        "productBarcode": item.product_barcode,
+                        "quantity": float(item.quantity),
+                        "unitPrice": float(item.unit_price),
+                        "subtotal": float(item.subtotal),
+                        "refundedQuantity": float(item.refunded_quantity),
+                        "availableQuantity": available_qty,
+                        "matchesSearch": is_match,  # Marca si coincide con búsqueda
+                    })
+
+                if has_matching_item:  # Solo incluir si hay items del producto buscado disponibles
                     result_sales.append({
                         "id": sale.id,
                         "saleNumber": sale.sale_number,
@@ -1372,6 +1376,53 @@ class SyncService:
                     "sales": result_sales,
                 },
             }
+
+    def get_local_sales(self, limit: int = 100) -> List[Dict]:
+        """
+        Obtiene las ventas del cache local.
+
+        Args:
+            limit: Limite de ventas a retornar
+
+        Returns:
+            Lista de ventas con sus items
+        """
+        from sqlalchemy.orm import joinedload
+
+        with session_scope() as session:
+            sales = session.query(Sale).options(
+                joinedload(Sale.items)
+            ).filter(
+                Sale.tenant_id == self.tenant_id
+            ).order_by(Sale.sale_date.desc()).limit(limit).all()
+
+            result = []
+            for sale in sales:
+                items_data = []
+                for item in sale.items:
+                    items_data.append({
+                        "id": item.id,
+                        "productId": item.product_id,
+                        "productCode": item.product_code,
+                        "productName": item.product_name,
+                        "quantity": float(item.quantity),
+                        "unitPrice": float(item.unit_price),
+                        "subtotal": float(item.subtotal),
+                    })
+
+                result.append({
+                    "id": sale.id,
+                    "saleNumber": sale.sale_number,
+                    "saleDate": sale.sale_date.isoformat(),
+                    "customer": {"id": sale.customer_id, "name": sale.customer_name} if sale.customer_id else None,
+                    "total": float(sale.total),
+                    "status": sale.status,
+                    "receiptType": sale.receipt_type,
+                    "fiscalNumber": sale.fiscal_number,
+                    "items": items_data,
+                })
+
+            return result
 
     def get_sales_count(self) -> int:
         """

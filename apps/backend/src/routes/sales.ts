@@ -84,7 +84,9 @@ const saleCreateSchema = z.object({
   customerId: z.string().optional(),
   receiptType: z
     .enum([
-      'TICKET',
+      'TICKET',       // @deprecated - usar NDP_X
+      'NDP_X',        // Nota de Pedido X (comprobante provisorio)
+      'NDC_X',        // Nota de Credito X (devolucion provisoria)
       'INVOICE_A',
       'INVOICE_B',
       'INVOICE_C',
@@ -93,7 +95,7 @@ const saleCreateSchema = z.object({
       'CREDIT_NOTE_C',
       'RECEIPT',
     ])
-    .default('TICKET'),
+    .default('NDP_X'),
   items: z.array(saleItemSchema).min(1, 'Debe incluir al menos un item'),
   payments: z.array(paymentSchema).min(1, 'Debe incluir al menos un pago'),
   notes: z.string().optional(),
@@ -1073,7 +1075,7 @@ router.post(
             saleNumber: `DEV-${originalSale.saleNumber}`,
             receiptType: originalInvoice
               ? originalInvoice.voucherType.replace('FACTURA', 'CREDIT_NOTE') as any
-              : 'TICKET',
+              : 'NDC_X',  // Nota de Crédito X (comprobante provisorio)
             subtotal: refundTotal.negated(),
             discount: new Prisma.Decimal(0),
             tax: refundTotal.times(0.21 / 1.21).negated(),

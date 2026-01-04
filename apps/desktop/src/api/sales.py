@@ -97,7 +97,7 @@ class CreateSaleRequest:
     items: List[SaleItemData] = field(default_factory=list)
     payments: List[PaymentData] = field(default_factory=list)
     customer_id: Optional[str] = None
-    receipt_type: ReceiptType = ReceiptType.TICKET
+    receipt_type: ReceiptType = ReceiptType.NDP_X
     notes: Optional[str] = None
 
     def to_dict(self) -> dict:

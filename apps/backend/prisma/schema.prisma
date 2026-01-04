@@ -815,7 +815,7 @@ model Sale {
 
   // Numeración
   saleNumber      String      // "A-0001-00000001"
-  receiptType     ReceiptType @default(TICKET)
+  receiptType     ReceiptType @default(NDP_X)
   fiscalNumber    String?     // Número fiscal (CAE, etc)
 
   // Montos
@@ -869,7 +869,9 @@ model Sale {
 }
 
 enum ReceiptType {
-  TICKET          // Ticket simple
+  TICKET          // @deprecated - usar NDP_X
+  NDP_X           // Nota de Pedido X (comprobante provisorio venta)
+  NDC_X           // Nota de Credito X (comprobante provisorio devolucion)
   INVOICE_A       // Factura A
   INVOICE_B       // Factura B
   INVOICE_C       // Factura C

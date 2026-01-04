@@ -60,6 +60,12 @@ from .displays import (
     ConnectionStatus,
 )
 
+from .sidebar import (
+    Sidebar,
+    SidebarNavButton,
+    NavItem,
+)
+
 __all__ = [
     # Botones
     "BaseButton",
@@ -81,4 +87,8 @@ __all__ = [
     "StatusBadge",
     "ItemCountBadge",
     "ConnectionStatus",
+    # Sidebar
+    "Sidebar",
+    "SidebarNavButton",
+    "NavItem",
 ]

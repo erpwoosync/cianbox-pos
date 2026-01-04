@@ -68,7 +68,9 @@ class CashSessionStatus(str, Enum):
 class ReceiptType(str, Enum):
     """Tipos de comprobante fiscal."""
 
-    TICKET = "TICKET"
+    TICKET = "TICKET"       # @deprecated - usar NDP_X
+    NDP_X = "NDP_X"         # Nota de Pedido X (comprobante provisorio venta)
+    NDC_X = "NDC_X"         # Nota de Crédito X (comprobante provisorio devolución)
     INVOICE_A = "INVOICE_A"
     INVOICE_B = "INVOICE_B"
     INVOICE_C = "INVOICE_C"

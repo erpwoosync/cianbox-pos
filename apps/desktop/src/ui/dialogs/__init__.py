@@ -24,6 +24,7 @@ from .product_refund_dialog import ProductRefundDialog
 from .size_curve_dialog import SizeCurveDialog, VariantSelection
 from .variant_selector_dialog import VariantSelectorDialog
 from .supervisor_pin_dialog import SupervisorPinDialog
+from .sale_detail_dialog import SaleDetailDialog
 
 __all__ = [
     "CheckoutDialog",
@@ -38,4 +39,5 @@ __all__ = [
     "VariantSelection",
     "VariantSelectorDialog",
     "SupervisorPinDialog",
+    "SaleDetailDialog",
 ]

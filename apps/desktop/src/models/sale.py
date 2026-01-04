@@ -58,8 +58,11 @@ class Sale(BaseModel):
     status: Mapped[str] = mapped_column(String(30), default="COMPLETED")
     # COMPLETED, CANCELLED, REFUNDED, PARTIAL_REFUND
 
-    # Tipo de comprobante
-    receipt_type: Mapped[str] = mapped_column(String(30), default="TICKET")
+    # Tipo de comprobante (NDP_X = Nota de Pedido X, comprobante provisorio)
+    receipt_type: Mapped[str] = mapped_column(String(30), default="NDP_X")
+
+    # Numero fiscal (CAE para facturas electronicas)
+    fiscal_number: Mapped[Optional[str]] = mapped_column(String(50))
 
     # Usuario que realizo la venta
     user_id: Mapped[Optional[str]] = mapped_column(String(50))
