@@ -1181,6 +1181,12 @@ model CashSession {
   withdrawalsTotal Decimal           @default(0) @db.Decimal(12, 2) // Total retiros
   depositsTotal    Decimal           @default(0) @db.Decimal(12, 2) // Total ingresos
 
+  // === MULTI-MONEDA ===
+  openingAmounts   Json?             // { "ARS": 5000, "USD": 100 }
+  closingAmounts   Json?             // { "ARS": 25000, "USD": 150 }
+  expectedAmounts  Json?             // { "ARS": 24500, "USD": 160 } (calculado)
+  differences      Json?             // { "ARS": 500, "USD": -10 }
+
   // === ESTADO ===
   status           CashSessionStatus @default(OPEN)
 
