@@ -1297,7 +1297,11 @@ model CashCount {
   cashSessionId   String
   type            CashCountType   @default(PARTIAL)
 
-  // === CONTEO POR DENOMINACIÓN (Pesos Argentinos) ===
+  // === MULTI-MONEDA ===
+  currency        String          @default("ARS")
+  denominationCounts Json?        // { "10000": 2, "5000": 5, ... } para cualquier moneda
+
+  // === CONTEO POR DENOMINACIÓN (Pesos Argentinos - legacy) ===
   // Billetes
   bills_10000     Int             @default(0)
   bills_5000      Int             @default(0)
