@@ -144,8 +144,27 @@ router.post('/balance', authenticate, async (req: AuthenticatedRequest, res: Res
       code,
     });
 
+    // Determinar si es valida para uso
+    const isValid = result.status === 'ACTIVE' && !result.isExpired && Number(result.currentBalance) > 0;
+
     res.json({
       success: true,
+      data: {
+        code: result.code,
+        initialAmount: Number(result.initialAmount),
+        balance: Number(result.currentBalance),
+        currentBalance: Number(result.currentBalance),
+        currency: result.currency,
+        status: result.status,
+        expiresAt: result.expiresAt,
+        activatedAt: result.activatedAt,
+        isExpired: result.isExpired,
+        isValid,
+        message: !isValid
+          ? (result.status !== 'ACTIVE' ? 'Gift card no activa' : result.isExpired ? 'Gift card expirada' : 'Sin saldo')
+          : undefined,
+      },
+      // Mantener giftCard para compatibilidad con backoffice
       giftCard: {
         code: result.code,
         initialAmount: Number(result.initialAmount),
