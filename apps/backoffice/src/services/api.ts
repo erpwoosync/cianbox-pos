@@ -1685,6 +1685,11 @@ export const giftCardsApi = {
     const response = await api.post('/gift-cards/cancel', { code, reason });
     return response.data;
   },
+
+  activate: async (code: string): Promise<{ success: boolean; giftCard: GiftCard }> => {
+    const response = await api.post('/gift-cards/activate', { code });
+    return response.data;
+  },
 };
 
 export default api;

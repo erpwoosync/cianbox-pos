@@ -12,6 +12,7 @@ import {
   Eye,
   Ban,
   Search,
+  PlayCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -105,6 +106,19 @@ export default function GiftCards() {
     } catch (error) {
       console.error('Error canceling gift card:', error);
       alert('Error al cancelar la gift card');
+    }
+  };
+
+  const handleActivateGiftCard = async (code: string) => {
+    if (!confirm('¿Activar esta gift card? Una vez activada podra ser utilizada para pagos.')) return;
+
+    try {
+      await giftCardsApi.activate(code);
+      loadGiftCards();
+      alert('Gift card activada correctamente');
+    } catch (error) {
+      console.error('Error activating gift card:', error);
+      alert('Error al activar la gift card');
     }
   };
 
@@ -460,6 +474,15 @@ export default function GiftCards() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+                        {giftCard.status === 'INACTIVE' && (
+                          <button
+                            onClick={() => handleActivateGiftCard(giftCard.code)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                            title="Activar"
+                          >
+                            <PlayCircle className="w-4 h-4" />
+                          </button>
+                        )}
                         {(giftCard.status === 'ACTIVE' || giftCard.status === 'INACTIVE') && (
                           <button
                             onClick={() => handleCancelGiftCard(giftCard.code)}
