@@ -2086,21 +2086,29 @@ export default function POS() {
         </div>
 
         {/* Header del carrito */}
-        <div className="p-4 border-b">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" />
-              Carrito
-              {itemCount > 0 && (
-                <span className="bg-primary-600 text-white text-xs px-2 py-0.5 rounded-full">
-                  {itemCount}
-                </span>
-              )}
-            </h2>
-            {cart.length > 0 && (
+        <div className="p-3 border-b flex items-center justify-between">
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4" />
+            {showPayment ? 'Resumen' : 'Carrito'}
+            {itemCount > 0 && (
+              <span className="bg-primary-600 text-white text-xs px-2 py-0.5 rounded-full">
+                {itemCount}
+              </span>
+            )}
+          </h2>
+          <div className="flex items-center gap-2">
+            {showPayment && (
+              <button
+                onClick={() => setShowPayment(false)}
+                className="text-xs text-primary-600 hover:text-primary-700"
+              >
+                ← Volver
+              </button>
+            )}
+            {cart.length > 0 && !showPayment && (
               <button
                 onClick={() => updateCart(() => [])}
-                className="text-sm text-red-600 hover:text-red-700"
+                className="text-xs text-red-600 hover:text-red-700"
               >
                 Vaciar
               </button>
@@ -2108,117 +2116,135 @@ export default function POS() {
           </div>
         </div>
 
-        {/* Lista de items */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <ShoppingCart className="w-16 h-16 mb-4" />
-              <p>Carrito vacío</p>
-              <p className="text-sm">Escanee o busque productos</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {cart.map((item: CartItem) => (
-                <div
-                  key={item.id}
-                  className={`rounded-lg p-3 flex gap-3 ${
-                    item.isReturn
-                      ? 'bg-red-50 border border-red-200'
-                      : 'bg-gray-50'
-                  }`}
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-1">
-                      {item.isReturn && (
-                        <RotateCcw className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                      )}
-                      <p className={`font-medium text-sm line-clamp-1 ${item.isReturn ? 'text-red-700' : ''}`}>
-                        {item.product.name}
-                      </p>
-                    </div>
-                    {/* Mostrar talle y color si existen */}
-                    {(item.product.size || item.product.color) && (
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        {item.product.size && (
-                          <span className={`inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded ${
-                            item.isReturn ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'
-                          }`}>
-                            T: {item.product.size}
-                          </span>
+        {/* Contenido principal - dos columnas en modo pago */}
+        <div className={`flex-1 overflow-hidden ${showPayment ? 'grid grid-cols-2 gap-0' : 'flex flex-col'}`}>
+          {/* Columna izquierda: Lista de items */}
+          <div className={`overflow-y-auto ${showPayment ? 'border-r flex flex-col' : 'flex-1'}`}>
+            <div className="flex-1 overflow-y-auto p-3">
+              {cart.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                  <ShoppingCart className="w-16 h-16 mb-4" />
+                  <p>Carrito vacío</p>
+                  <p className="text-sm">Escanee o busque productos</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {cart.map((item: CartItem) => (
+                    <div
+                      key={item.id}
+                      className={`rounded-lg p-2 flex gap-2 ${
+                        item.isReturn
+                          ? 'bg-red-50 border border-red-200'
+                          : 'bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          {item.isReturn && (
+                            <RotateCcw className="w-3 h-3 text-red-500 flex-shrink-0" />
+                          )}
+                          <p className={`font-medium text-sm line-clamp-1 ${item.isReturn ? 'text-red-700' : ''}`}>
+                            {item.product.shortName || item.product.name}
+                          </p>
+                        </div>
+                        {/* Mostrar talle y color si existen */}
+                        {(item.product.size || item.product.color) && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {item.product.size && (
+                              <span className={`inline-flex items-center px-1 py-0.5 text-[10px] font-medium rounded ${
+                                item.isReturn ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'
+                              }`}>
+                                T:{item.product.size}
+                              </span>
+                            )}
+                            {item.product.color && (
+                              <span className={`inline-flex items-center px-1 py-0.5 text-[10px] font-medium rounded ${
+                                item.isReturn ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {item.product.color}
+                              </span>
+                            )}
+                          </div>
                         )}
-                        {item.product.color && (
-                          <span className={`inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded ${
-                            item.isReturn ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {item.product.color}
-                          </span>
+                        <p className={`text-[10px] ${item.isReturn ? 'text-red-500' : 'text-gray-500'}`}>
+                          {item.isReturn ? '-' : ''}${Math.abs(item.unitPrice).toFixed(2)} c/u
+                        </p>
+                        {item.promotionName && !item.isReturn && (
+                          <p className="text-[10px] text-green-600 flex items-center gap-0.5">
+                            <Tag className="w-2.5 h-2.5" />
+                            {item.promotionName}
+                          </p>
+                        )}
+                        {item.isReturn && item.returnReason && (
+                          <p className="text-[10px] text-red-500 italic">
+                            {item.returnReason}
+                          </p>
                         )}
                       </div>
-                    )}
-                    <p className={`text-xs ${item.isReturn ? 'text-red-500' : 'text-gray-500'}`}>
-                      {item.isReturn ? '-' : ''}${Math.abs(item.unitPrice).toFixed(2)} c/u
-                    </p>
-                    {item.promotionName && !item.isReturn && (
-                      <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
-                        <Tag className="w-3 h-3" />
-                        {item.promotionName}
-                      </p>
-                    )}
-                    {item.isReturn && item.returnReason && (
-                      <p className="text-xs text-red-500 mt-1 italic">
-                        {item.returnReason}
-                      </p>
-                    )}
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    {item.isReturn ? (
-                      /* Para devoluciones, mostrar cantidad fija (no editable) */
-                      <span className={`px-3 py-1 text-center font-bold text-red-600 bg-red-100 rounded-lg`}>
-                        {item.quantity < 0 ? '' : '-'}{Math.abs(item.quantity)}
-                      </span>
-                    ) : (
-                      /* Para items normales, mostrar controles de cantidad */
-                      <>
-                        <button
-                          onClick={() => updateQuantity(item.id, -1)}
-                          className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="w-8 text-center font-medium">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() => updateQuantity(item.id, 1)}
-                          className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                  </div>
+                      <div className="flex items-center gap-1">
+                        {item.isReturn ? (
+                          <span className="px-2 py-0.5 text-center text-sm font-bold text-red-600 bg-red-100 rounded">
+                            {item.quantity < 0 ? '' : '-'}{Math.abs(item.quantity)}
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => updateQuantity(item.id, -1)}
+                              className="w-6 h-6 rounded bg-white border flex items-center justify-center hover:bg-gray-100 text-xs"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-5 text-center text-sm font-medium">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => updateQuantity(item.id, 1)}
+                              className="w-6 h-6 rounded bg-white border flex items-center justify-center hover:bg-gray-100 text-xs"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
+                      </div>
 
-                  <div className="text-right">
-                    <p className={`font-semibold ${item.isReturn ? 'text-red-600' : ''}`}>
-                      {item.isReturn ? '-' : ''}${Math.abs(item.subtotal).toFixed(2)}
-                    </p>
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="text-red-500 hover:text-red-600 mt-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                      <div className="text-right flex flex-col items-end justify-center">
+                        <p className={`font-semibold text-sm ${item.isReturn ? 'text-red-600' : ''}`}>
+                          {item.isReturn ? '-' : ''}${Math.abs(item.subtotal).toFixed(2)}
+                        </p>
+                        <button
+                          onClick={() => removeItem(item.id)}
+                          className="text-red-500 hover:text-red-600"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
+            {/* Subtotal en columna izquierda cuando está en modo pago */}
+            {showPayment && cart.length > 0 && (
+              <div className="border-t bg-gray-50 p-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">{itemCount} items</span>
+                  <span className="font-semibold">Subtotal: ${(subtotal + totalDiscount).toFixed(2)}</span>
+                </div>
+                {totalDiscount > 0 && (
+                  <div className="flex justify-between text-xs text-green-600 mt-1">
+                    <span>Descuentos aplicados</span>
+                    <span>-${totalDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-        {/* Totales y pago */}
-        <div className="border-t p-4 space-y-4">
-          {/* Totales */}
+          {/* Columna derecha: Totales y pago */}
+          <div className={`${showPayment ? 'flex flex-col overflow-hidden' : 'border-t'}`}>
+            <div className={`p-3 space-y-3 ${showPayment ? 'flex-1 overflow-y-auto' : ''}`}>
+              {/* Totales */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
@@ -2430,6 +2456,8 @@ export default function POS() {
               </div>
             </div>
           )}
+            </div>
+          </div>
         </div>
       </div>
 
