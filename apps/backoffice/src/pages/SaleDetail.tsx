@@ -24,6 +24,7 @@ import {
   Link2,
   ExternalLink,
   Printer,
+  Ticket,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -98,6 +99,15 @@ interface Payment {
   mpDeviceId?: string;
   mpPosId?: string;
   mpStoreId?: string;
+  // Vale de crédito
+  storeCreditId?: string;
+  storeCredit?: {
+    id: string;
+    code: string;
+    originalAmount: number;
+    currentBalance: number;
+    status: string;
+  };
 }
 
 interface Sale {
@@ -755,6 +765,38 @@ export default function SaleDetail() {
                     {formatCurrency(payment.amount)}
                   </div>
                 </div>
+
+                {/* Datos del Vale de Crédito */}
+                {payment.storeCredit && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Ticket className="w-4 h-4 text-amber-600" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-800">Vale de Crédito</p>
+                          <p className="text-xs font-mono text-amber-600">{payment.storeCredit.code}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigate(`/store-credits?view=${payment.storeCredit!.id}`)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Ver vale
+                      </button>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-amber-50 p-2 rounded">
+                        <span className="text-gray-500">Monto original:</span>{' '}
+                        <span className="font-medium">{formatCurrency(payment.storeCredit.originalAmount)}</span>
+                      </div>
+                      <div className="bg-amber-50 p-2 rounded">
+                        <span className="text-gray-500">Saldo actual:</span>{' '}
+                        <span className="font-medium">{formatCurrency(payment.storeCredit.currentBalance)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Datos de Mercado Pago */}
                 {payment.mpPaymentId && (

@@ -2265,7 +2265,19 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
             promotion: { select: { id: true, name: true, code: true } },
           },
         },
-        payments: true,
+        payments: {
+          include: {
+            storeCredit: {
+              select: {
+                id: true,
+                code: true,
+                originalAmount: true,
+                currentBalance: true,
+                status: true,
+              },
+            },
+          },
+        },
         customer: true,
         branch: true,
         pointOfSale: true,

@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Filter,
   RefreshCw,
@@ -27,6 +28,7 @@ import {
 
 export default function StoreCredits() {
   const { tenant: _tenant } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [storeCredits, setStoreCredits] = useState<StoreCredit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StoreCreditStatus | ''>('');
@@ -43,6 +45,28 @@ export default function StoreCredits() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
+
+  // Cargar vale automático si viene el parámetro view
+  useEffect(() => {
+    const viewId = searchParams.get('view');
+    if (viewId) {
+      loadStoreCreditById(viewId);
+      // Limpiar el parámetro de la URL
+      searchParams.delete('view');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams]);
+
+  const loadStoreCreditById = async (id: string) => {
+    try {
+      const response = await storeCreditsApi.getTransactions(id);
+      setSelectedStoreCredit(response.storeCredit);
+      setTransactions(response.transactions);
+      setIsTransactionsModalOpen(true);
+    } catch (error) {
+      console.error('Error loading store credit:', error);
+    }
+  };
 
   useEffect(() => {
     loadStoreCredits();
