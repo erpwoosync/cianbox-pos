@@ -1004,6 +1004,15 @@ export default function POS() {
   const totalAfterGiftCards = total - giftCardAmount - storeCreditAmount; // Monto pendiente despues de gift cards y vales
   const itemCount = cart.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
 
+  // Si el total se vuelve negativo mientras el panel de pago está abierto,
+  // redirigir al modal de vale de crédito
+  useEffect(() => {
+    if (showPayment && total < 0) {
+      setShowPayment(false);
+      setShowStoreCreditModal(true);
+    }
+  }, [showPayment, total]);
+
   // Agrupar descuentos por promoción
   const discountsByPromotion = cart.reduce((acc, item) => {
     // Usar el array de promotions si existe
