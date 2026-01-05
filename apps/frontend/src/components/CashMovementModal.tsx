@@ -89,12 +89,13 @@ export default function CashMovementModal({
     try {
       const response = await authService.verifySupervisor(supervisorPin, 'cash:movements');
       if (response.success && response.data.supervisor) {
+        const supervisor = response.data.supervisor;
         setSupervisorInfo({
-          id: response.data.supervisor.id,
-          name: response.data.supervisor.name,
+          id: supervisor.id,
+          name: supervisor.name,
         });
-        // Ejecutar el retiro con autorización
-        await executeWithdraw(response.data.supervisor.id);
+        // Ejecutar el retiro con autorización e imprimir comprobante
+        await executeWithdraw(supervisor.id, supervisor.name);
       }
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
@@ -108,7 +109,7 @@ export default function CashMovementModal({
     }
   };
 
-  const executeWithdraw = async (authorizedByUserId: string) => {
+  const executeWithdraw = async (authorizedByUserId: string, supervisorName: string) => {
     try {
       const data = {
         amount: parseFloat(amount),
@@ -122,6 +123,15 @@ export default function CashMovementModal({
       const response = await cashService.withdraw(data);
 
       if (response.success) {
+        // Imprimir comprobante de retiro
+        printWithdrawalReceipt({
+          amount: parseFloat(amount),
+          reason,
+          description: description || undefined,
+          reference: reference || undefined,
+          supervisorName,
+        });
+
         onSuccess();
         handleClose();
       }
@@ -178,6 +188,116 @@ export default function CashMovementModal({
     setStep('form');
     setSupervisorPin('');
     setPinError(null);
+  };
+
+  // Imprimir comprobante de retiro
+  const printWithdrawalReceipt = (withdrawalData: {
+    amount: number;
+    reason: string;
+    description?: string;
+    reference?: string;
+    supervisorName: string;
+  }) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const reasonLabels: Record<string, string> = {
+      'SAFE_DEPOSIT': 'Depósito a caja fuerte',
+      'BANK_DEPOSIT': 'Depósito bancario',
+      'SUPPLIER_PAYMENT': 'Pago a proveedor',
+      'EXPENSE': 'Gasto menor',
+      'OTHER': 'Otro retiro',
+    };
+
+    const now = new Date();
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const tenantName = localStorage.getItem('tenantName') || 'Empresa';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Comprobante de Retiro</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+          .company { font-size: 18px; font-weight: bold; }
+          .title { font-size: 14px; margin-top: 5px; text-transform: uppercase; }
+          .info { margin: 15px 0; }
+          .info-row { display: flex; justify-content: space-between; margin: 8px 0; font-size: 13px; }
+          .label { color: #666; }
+          .amount-box { background: #f5f5f5; padding: 15px; text-align: center; margin: 20px 0; border-radius: 5px; }
+          .amount { font-size: 28px; font-weight: bold; color: #dc2626; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 60px; }
+          .signature { text-align: center; width: 45%; }
+          .signature-line { border-top: 1px solid #000; padding-top: 5px; font-size: 12px; }
+          .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #666; border-top: 1px dashed #ccc; padding-top: 10px; }
+          @media print { body { padding: 10px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="company">${tenantName}</div>
+          <div class="title">Comprobante de Retiro de Efectivo</div>
+        </div>
+
+        <div class="info">
+          <div class="info-row">
+            <span class="label">Fecha:</span>
+            <span>${now.toLocaleDateString('es-AR')} ${now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Cajero:</span>
+            <span>${user.name || 'N/A'}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Motivo:</span>
+            <span>${reasonLabels[withdrawalData.reason] || withdrawalData.reason}</span>
+          </div>
+          ${withdrawalData.description ? `
+          <div class="info-row">
+            <span class="label">Descripción:</span>
+            <span>${withdrawalData.description}</span>
+          </div>
+          ` : ''}
+          ${withdrawalData.reference ? `
+          <div class="info-row">
+            <span class="label">Referencia:</span>
+            <span>${withdrawalData.reference}</span>
+          </div>
+          ` : ''}
+          <div class="info-row">
+            <span class="label">Autorizado por:</span>
+            <span>${withdrawalData.supervisorName}</span>
+          </div>
+        </div>
+
+        <div class="amount-box">
+          <div style="font-size: 12px; color: #666;">Monto Retirado</div>
+          <div class="amount">$${withdrawalData.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>
+        </div>
+
+        <div class="signatures">
+          <div class="signature">
+            <div class="signature-line">Entrega (Cajero)</div>
+          </div>
+          <div class="signature">
+            <div class="signature-line">Recibe (Tesorería)</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          Documento generado el ${now.toLocaleString('es-AR')}
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
   };
 
   if (!isOpen) return null;
