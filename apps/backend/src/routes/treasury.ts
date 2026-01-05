@@ -4,12 +4,13 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient, TreasuryStatus } from '@prisma/client';
+import { PrismaClient, TreasuryStatus, Prisma } from '@prisma/client';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
 import {
   confirmTreasuryPendingSchema,
   rejectTreasuryPendingSchema,
+  createTreasuryMovementSchema,
 } from '../schemas/treasury.schema.js';
 
 const router = Router();
@@ -383,6 +384,192 @@ router.get('/summary', authenticate, async (req: AuthenticatedRequest, res: Resp
           totalReceived,
           totalDifference: totalReceived - totalExpected,
         },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==============================================
+// GET /api/treasury/balance
+// Saldo actual de tesorería
+// ==============================================
+router.get('/balance', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { currency = 'ARS' } = req.query;
+
+    // Ingresos: Retiros confirmados (total o parcial)
+    const incomesAgg = await prisma.treasuryPending.aggregate({
+      where: {
+        tenantId,
+        currency: currency as string,
+        status: { in: [TreasuryStatus.CONFIRMED, TreasuryStatus.PARTIAL] },
+      },
+      _sum: { confirmedAmount: true },
+    });
+
+    // Egresos: Movimientos de tesorería
+    const expensesAgg = await prisma.treasuryMovement.aggregate({
+      where: {
+        tenantId,
+        currency: currency as string,
+      },
+      _sum: { amount: true },
+    });
+
+    const totalIncomes = Number(incomesAgg._sum.confirmedAmount) || 0;
+    const totalExpenses = Number(expensesAgg._sum.amount) || 0;
+    const currentBalance = totalIncomes - totalExpenses;
+
+    res.json({
+      success: true,
+      balance: {
+        currency,
+        currentBalance,
+        totalIncomes,
+        totalExpenses,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==============================================
+// GET /api/treasury/movements
+// Historial de movimientos de tesorería
+// ==============================================
+router.get('/movements', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { type, fromDate, toDate, limit = '50', offset = '0' } = req.query;
+
+    const where: Record<string, unknown> = { tenantId };
+
+    if (type) {
+      where.type = type as string;
+    }
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) (where.createdAt as Record<string, Date>).gte = new Date(fromDate as string);
+      if (toDate) (where.createdAt as Record<string, Date>).lte = new Date(toDate as string);
+    }
+
+    const [movements, total] = await Promise.all([
+      prisma.treasuryMovement.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: parseInt(limit as string),
+        skip: parseInt(offset as string),
+        include: {
+          createdBy: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      }),
+      prisma.treasuryMovement.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      movements: movements.map((m) => ({
+        id: m.id,
+        type: m.type,
+        amount: Number(m.amount),
+        currency: m.currency,
+        description: m.description,
+        reference: m.reference,
+        bankName: m.bankName,
+        bankAccount: m.bankAccount,
+        depositNumber: m.depositNumber,
+        supplierName: m.supplierName,
+        invoiceNumber: m.invoiceNumber,
+        createdBy: m.createdBy,
+        createdAt: m.createdAt,
+      })),
+      total,
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==============================================
+// POST /api/treasury/movements
+// Crear movimiento de tesorería (egreso)
+// ==============================================
+router.post('/movements', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+
+    const parseResult = createTreasuryMovementSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw new ValidationError('Datos inválidos', parseResult.error.errors);
+    }
+
+    const data = parseResult.data;
+
+    // Verificar que hay saldo suficiente
+    const incomesAgg = await prisma.treasuryPending.aggregate({
+      where: {
+        tenantId,
+        currency: data.currency || 'ARS',
+        status: { in: [TreasuryStatus.CONFIRMED, TreasuryStatus.PARTIAL] },
+      },
+      _sum: { confirmedAmount: true },
+    });
+
+    const expensesAgg = await prisma.treasuryMovement.aggregate({
+      where: {
+        tenantId,
+        currency: data.currency || 'ARS',
+      },
+      _sum: { amount: true },
+    });
+
+    const currentBalance = (Number(incomesAgg._sum.confirmedAmount) || 0) - (Number(expensesAgg._sum.amount) || 0);
+
+    if (data.amount > currentBalance) {
+      throw new ValidationError(`Saldo insuficiente. Disponible: $${currentBalance.toFixed(2)}`);
+    }
+
+    const movement = await prisma.treasuryMovement.create({
+      data: {
+        tenantId,
+        type: data.type,
+        amount: new Prisma.Decimal(data.amount),
+        currency: data.currency || 'ARS',
+        description: data.description,
+        reference: data.reference,
+        bankName: data.bankName,
+        bankAccount: data.bankAccount,
+        depositNumber: data.depositNumber,
+        supplierName: data.supplierName,
+        invoiceNumber: data.invoiceNumber,
+        createdById: req.user!.userId,
+      },
+      include: {
+        createdBy: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Movimiento registrado',
+      movement: {
+        id: movement.id,
+        type: movement.type,
+        amount: Number(movement.amount),
+        currency: movement.currency,
+        description: movement.description,
+        createdBy: movement.createdBy,
+        createdAt: movement.createdAt,
       },
     });
   } catch (error) {

@@ -1588,7 +1588,69 @@ export interface TreasurySummary {
   totals: { totalExpected: number; totalReceived: number; totalDifference: number };
 }
 
+// Tipos para saldo y movimientos de tesorería
+export type TreasuryMovementType = 'BANK_DEPOSIT' | 'SUPPLIER_PAYMENT' | 'EXPENSE' | 'TRANSFER' | 'OTHER';
+
+export interface TreasuryBalance {
+  currency: string;
+  currentBalance: number;
+  totalIncomes: number;
+  totalExpenses: number;
+}
+
+export interface TreasuryMovement {
+  id: string;
+  type: TreasuryMovementType;
+  amount: number;
+  currency: string;
+  description?: string;
+  reference?: string;
+  bankName?: string;
+  bankAccount?: string;
+  depositNumber?: string;
+  supplierName?: string;
+  invoiceNumber?: string;
+  createdAt: string;
+  createdBy: { id: string; name: string; email: string };
+}
+
+export interface CreateTreasuryMovementDto {
+  type: TreasuryMovementType;
+  amount: number;
+  currency?: string;
+  description?: string;
+  reference?: string;
+  bankName?: string;
+  bankAccount?: string;
+  depositNumber?: string;
+  supplierName?: string;
+  invoiceNumber?: string;
+}
+
 export const treasuryApi = {
+  // Obtener saldo actual de tesorería
+  getBalance: async (currency?: string): Promise<TreasuryBalance> => {
+    const response = await api.get('/treasury/balance', { params: { currency } });
+    return response.data.balance;
+  },
+
+  // Historial de movimientos (egresos)
+  getMovements: async (params?: {
+    type?: TreasuryMovementType;
+    currency?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ movements: TreasuryMovement[]; total: number }> => {
+    const response = await api.get('/treasury/movements', { params });
+    return { movements: response.data.movements, total: response.data.total };
+  },
+
+  // Crear movimiento (egreso de tesorería)
+  createMovement: async (data: CreateTreasuryMovementDto): Promise<{ success: boolean; message: string; movement: TreasuryMovement }> => {
+    const response = await api.post('/treasury/movements', data);
+    return response.data;
+  },
+
   getPending: async (params?: {
     status?: TreasuryStatus;
     currency?: string;

@@ -12,6 +12,14 @@ import {
   X,
   TrendingDown,
   TrendingUp,
+  Wallet,
+  Plus,
+  Building2,
+  Truck,
+  Receipt,
+  ArrowRightLeft,
+  MoreHorizontal,
+  DollarSign,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -19,11 +27,31 @@ import {
   TreasuryPending,
   TreasurySummary,
   TreasuryStatus,
+  TreasuryBalance,
+  TreasuryMovement,
+  TreasuryMovementType,
+  CreateTreasuryMovementDto,
 } from '../services/api';
 import TreasuryConfirmModal from '../components/TreasuryConfirmModal';
 
+type TabType = 'pending' | 'movements';
+
+const MOVEMENT_TYPES: { value: TreasuryMovementType; label: string; icon: React.ReactNode }[] = [
+  { value: 'BANK_DEPOSIT', label: 'Deposito Bancario', icon: <Building2 className="w-5 h-5" /> },
+  { value: 'SUPPLIER_PAYMENT', label: 'Pago a Proveedor', icon: <Truck className="w-5 h-5" /> },
+  { value: 'EXPENSE', label: 'Gasto/Egreso', icon: <Receipt className="w-5 h-5" /> },
+  { value: 'TRANSFER', label: 'Transferencia', icon: <ArrowRightLeft className="w-5 h-5" /> },
+  { value: 'OTHER', label: 'Otro', icon: <MoreHorizontal className="w-5 h-5" /> },
+];
+
 export default function Treasury() {
   const { tenant } = useAuth();
+  const [activeTab, setActiveTab] = useState<TabType>('pending');
+
+  // Balance
+  const [balance, setBalance] = useState<TreasuryBalance | null>(null);
+
+  // Pending withdrawals
   const [pending, setPending] = useState<TreasuryPending[]>([]);
   const [summary, setSummary] = useState<TreasurySummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,10 +59,24 @@ export default function Treasury() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Modal
+  // Movements
+  const [movements, setMovements] = useState<TreasuryMovement[]>([]);
+  const [movementsTotal, setMovementsTotal] = useState(0);
+  const [movementTypeFilter, setMovementTypeFilter] = useState<TreasuryMovementType | ''>('');
+
+  // Modal confirm/reject
   const [selectedPending, setSelectedPending] = useState<TreasuryPending | null>(null);
   const [modalMode, setModalMode] = useState<'confirm' | 'reject' | 'view'>('view');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Modal create movement
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateTreasuryMovementDto>({
+    type: 'BANK_DEPOSIT',
+    amount: 0,
+  });
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   // Paginacion
   const [page, setPage] = useState(1);
@@ -42,10 +84,27 @@ export default function Treasury() {
   const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    loadData();
-  }, [page, statusFilter, dateFrom, dateTo]);
+    loadBalance();
+  }, []);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (activeTab === 'pending') {
+      loadPendingData();
+    } else {
+      loadMovementsData();
+    }
+  }, [page, statusFilter, movementTypeFilter, dateFrom, dateTo, activeTab]);
+
+  const loadBalance = async () => {
+    try {
+      const balanceData = await treasuryApi.getBalance();
+      setBalance(balanceData);
+    } catch (error) {
+      console.error('Error loading balance:', error);
+    }
+  };
+
+  const loadPendingData = async () => {
     setIsLoading(true);
     try {
       const params: Record<string, unknown> = {
@@ -72,6 +131,35 @@ export default function Treasury() {
     }
   };
 
+  const loadMovementsData = async () => {
+    setIsLoading(true);
+    try {
+      const params: Record<string, unknown> = {
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      };
+
+      if (movementTypeFilter) params.type = movementTypeFilter;
+
+      const response = await treasuryApi.getMovements(params as Parameters<typeof treasuryApi.getMovements>[0]);
+      setMovements(response.movements);
+      setMovementsTotal(response.total);
+    } catch (error) {
+      console.error('Error loading movements:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadData = () => {
+    loadBalance();
+    if (activeTab === 'pending') {
+      loadPendingData();
+    } else {
+      loadMovementsData();
+    }
+  };
+
   const handleOpenModal = (item: TreasuryPending, mode: 'confirm' | 'reject' | 'view') => {
     setSelectedPending(item);
     setModalMode(mode);
@@ -86,6 +174,29 @@ export default function Treasury() {
   const handleConfirmSuccess = () => {
     handleCloseModal();
     loadData();
+  };
+
+  const handleCreateMovement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.amount || createForm.amount <= 0) {
+      setCreateError('Ingrese un monto valido');
+      return;
+    }
+
+    setIsCreating(true);
+    setCreateError('');
+
+    try {
+      await treasuryApi.createMovement(createForm);
+      setIsCreateModalOpen(false);
+      setCreateForm({ type: 'BANK_DEPOSIT', amount: 0 });
+      loadData();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      setCreateError(err.response?.data?.message || 'Error al crear el movimiento');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const getStatusIcon = (status: TreasuryStatus) => {
@@ -133,6 +244,16 @@ export default function Treasury() {
     }
   };
 
+  const getMovementTypeLabel = (type: TreasuryMovementType) => {
+    const found = MOVEMENT_TYPES.find((t) => t.value === type);
+    return found?.label || type;
+  };
+
+  const getMovementTypeIcon = (type: TreasuryMovementType) => {
+    const found = MOVEMENT_TYPES.find((t) => t.value === type);
+    return found?.icon || <MoreHorizontal className="w-5 h-5" />;
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('es-AR', {
@@ -153,7 +274,7 @@ export default function Treasury() {
     }).format(amount);
   };
 
-  const totalPages = Math.ceil(total / pageSize);
+  const totalPages = Math.ceil((activeTab === 'pending' ? total : movementsTotal) / pageSize);
 
   return (
     <div className="space-y-6">
@@ -161,359 +282,571 @@ export default function Treasury() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tesoreria</h1>
-          <p className="text-gray-500">Control de retiros pendientes de {tenant?.name}</p>
+          <p className="text-gray-500">Control de efectivo y movimientos de {tenant?.name}</p>
         </div>
-        <button
-          onClick={loadData}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Actualizar
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo Egreso
+          </button>
+          <button
+            onClick={loadData}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Actualizar
+          </button>
+        </div>
       </div>
 
-      {/* Resumen de tesoreria */}
-      {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-white rounded-lg shadow-sm border p-4">
-            <div className="flex items-center gap-2 text-yellow-600 text-sm mb-1">
-              <Clock className="w-4 h-4" />
-              Pendientes
+      {/* Saldo de Tesoreria - Tarjeta Grande */}
+      {balance && (
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-blue-100 mb-1">
+                <Wallet className="w-5 h-5" />
+                <span className="text-sm font-medium">Saldo Actual de Tesoreria</span>
+              </div>
+              <div className="text-4xl font-bold">
+                {formatCurrency(balance.currentBalance)}
+              </div>
+              <div className="text-blue-200 text-sm mt-1">
+                {balance.currency}
+              </div>
             </div>
-            <div className="text-xl font-bold text-gray-900">
-              {summary.pending.count}
-            </div>
-            <div className="text-sm text-gray-500">
-              {formatCurrency(summary.pending.amount)}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border p-4">
-            <div className="flex items-center gap-2 text-green-600 text-sm mb-1">
-              <CheckCircle className="w-4 h-4" />
-              Confirmados
-            </div>
-            <div className="text-xl font-bold text-gray-900">
-              {summary.confirmed.count}
-            </div>
-            <div className="text-sm text-gray-500">
-              {formatCurrency(summary.confirmed.confirmedAmount)}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border p-4">
-            <div className="flex items-center gap-2 text-orange-600 text-sm mb-1">
-              <AlertTriangle className="w-4 h-4" />
-              Parciales
-            </div>
-            <div className="text-xl font-bold text-gray-900">
-              {summary.partial.count}
-            </div>
-            <div className="text-sm text-gray-500">
-              {formatCurrency(summary.partial.confirmedAmount)}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border p-4">
-            <div className="flex items-center gap-2 text-red-600 text-sm mb-1">
-              <XCircle className="w-4 h-4" />
-              Rechazados
-            </div>
-            <div className="text-xl font-bold text-gray-900">
-              {summary.rejected.count}
-            </div>
-            <div className="text-sm text-gray-500">
-              {formatCurrency(summary.rejected.amount)}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border p-4">
-            <div className="flex items-center gap-2 text-sm mb-1">
-              {summary.totals.totalDifference >= 0 ? (
-                <TrendingUp className="w-4 h-4 text-green-600" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-red-600" />
-              )}
-              <span className="text-gray-600">Diferencia</span>
-            </div>
-            <div
-              className={`text-xl font-bold ${
-                summary.totals.totalDifference >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              {formatCurrency(summary.totals.totalDifference)}
-            </div>
-            <div className="text-xs text-gray-400">
-              Esperado: {formatCurrency(summary.totals.totalExpected)}
+            <div className="text-right space-y-2">
+              <div>
+                <div className="text-blue-200 text-xs">Ingresos (Retiros Confirmados)</div>
+                <div className="text-lg font-semibold flex items-center gap-1 justify-end">
+                  <TrendingUp className="w-4 h-4" />
+                  {formatCurrency(balance.totalIncomes)}
+                </div>
+              </div>
+              <div>
+                <div className="text-blue-200 text-xs">Egresos (Movimientos)</div>
+                <div className="text-lg font-semibold flex items-center gap-1 justify-end">
+                  <TrendingDown className="w-4 h-4" />
+                  {formatCurrency(balance.totalExpenses)}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="bg-white rounded-lg shadow-sm border p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Fecha desde */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Desde
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-4">
+          <button
+            onClick={() => { setActiveTab('pending'); setPage(1); }}
+            className={`py-3 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'pending'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Retiros Pendientes
+            {summary && summary.pending.count > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs">
+                {summary.pending.count}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => { setActiveTab('movements'); setPage(1); }}
+            className={`py-3 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'movements'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Movimientos / Egresos
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab: Retiros Pendientes */}
+      {activeTab === 'pending' && (
+        <>
+          {/* Resumen de tesoreria */}
+          {summary && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="bg-white rounded-lg shadow-sm border p-4">
+                <div className="flex items-center gap-2 text-yellow-600 text-sm mb-1">
+                  <Clock className="w-4 h-4" />
+                  Pendientes
+                </div>
+                <div className="text-xl font-bold text-gray-900">
+                  {summary.pending.count}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {formatCurrency(summary.pending.amount)}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border p-4">
+                <div className="flex items-center gap-2 text-green-600 text-sm mb-1">
+                  <CheckCircle className="w-4 h-4" />
+                  Confirmados
+                </div>
+                <div className="text-xl font-bold text-gray-900">
+                  {summary.confirmed.count}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {formatCurrency(summary.confirmed.confirmedAmount)}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border p-4">
+                <div className="flex items-center gap-2 text-orange-600 text-sm mb-1">
+                  <AlertTriangle className="w-4 h-4" />
+                  Parciales
+                </div>
+                <div className="text-xl font-bold text-gray-900">
+                  {summary.partial.count}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {formatCurrency(summary.partial.confirmedAmount)}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border p-4">
+                <div className="flex items-center gap-2 text-red-600 text-sm mb-1">
+                  <XCircle className="w-4 h-4" />
+                  Rechazados
+                </div>
+                <div className="text-xl font-bold text-gray-900">
+                  {summary.rejected.count}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {formatCurrency(summary.rejected.amount)}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border p-4">
+                <div className="flex items-center gap-2 text-sm mb-1">
+                  {summary.totals.totalDifference >= 0 ? (
+                    <TrendingUp className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <TrendingDown className="w-4 h-4 text-red-600" />
+                  )}
+                  <span className="text-gray-600">Diferencia</span>
+                </div>
+                <div
+                  className={`text-xl font-bold ${
+                    summary.totals.totalDifference >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}
+                >
+                  {formatCurrency(summary.totals.totalDifference)}
+                </div>
+                <div className="text-xs text-gray-400">
+                  Esperado: {formatCurrency(summary.totals.totalExpected)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filtros */}
+          <div className="bg-white rounded-lg shadow-sm border p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Desde
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hasta
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Estado
+                </label>
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as TreasuryStatus | '')}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">Todos</option>
+                    <option value="PENDING">Pendientes</option>
+                    <option value="CONFIRMED">Confirmados</option>
+                    <option value="PARTIAL">Parciales</option>
+                    <option value="REJECTED">Rechazados</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setStatusFilter('');
+                    setDateFrom('');
+                    setDateTo('');
+                    setPage(1);
+                  }}
+                  className="w-full px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Fecha hasta */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Hasta
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
+          {/* Tabla Retiros */}
+          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Fecha
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Punto de Venta
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Cajero
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Motivo
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Monto Esperado
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Monto Recibido
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      Estado
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        Cargando retiros...
+                      </td>
+                    </tr>
+                  ) : pending.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        No se encontraron retiros pendientes
+                      </td>
+                    </tr>
+                  ) : (
+                    pending.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-900">
+                            {formatDate(item.createdAt)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-medium text-gray-900">
+                            {item.cashSession.pointOfSale.name}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-900">
+                            {item.cashSession.user.name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {item.cashSession.user.email}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-900">
+                            {item.cashMovement.reason}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            {formatCurrency(item.amount)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {item.confirmedAmount !== null && item.confirmedAmount !== undefined ? (
+                            <div
+                              className={`text-sm font-medium ${
+                                item.confirmedAmount === item.amount
+                                  ? 'text-green-600'
+                                  : 'text-orange-600'
+                              }`}
+                            >
+                              {formatCurrency(item.confirmedAmount)}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-400">-</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(
+                                item.status
+                              )}`}
+                            >
+                              {getStatusIcon(item.status)}
+                              {getStatusText(item.status)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleOpenModal(item, 'view')}
+                              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                              title="Ver detalle"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            {item.status === 'PENDING' && (
+                              <>
+                                <button
+                                  onClick={() => handleOpenModal(item, 'confirm')}
+                                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                                  title="Confirmar recepcion"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenModal(item, 'reject')}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                  title="Rechazar"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Tab: Movimientos */}
+      {activeTab === 'movements' && (
+        <>
+          {/* Filtros */}
+          <div className="bg-white rounded-lg shadow-sm border p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de Movimiento
+                </label>
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <select
+                    value={movementTypeFilter}
+                    onChange={(e) => setMovementTypeFilter(e.target.value as TreasuryMovementType | '')}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">Todos</option>
+                    {MOVEMENT_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setMovementTypeFilter('');
+                    setPage(1);
+                  }}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Estado */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Estado
-            </label>
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as TreasuryStatus | '')}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Todos</option>
-                <option value="PENDING">Pendientes</option>
-                <option value="CONFIRMED">Confirmados</option>
-                <option value="PARTIAL">Parciales</option>
-                <option value="REJECTED">Rechazados</option>
-              </select>
+          {/* Tabla Movimientos */}
+          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Fecha
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Tipo
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Descripcion
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Referencia
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Monto
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Creado por
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        Cargando movimientos...
+                      </td>
+                    </tr>
+                  ) : movements.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        No se encontraron movimientos
+                      </td>
+                    </tr>
+                  ) : (
+                    movements.map((mov) => (
+                      <tr key={mov.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-900">
+                            {formatDate(mov.createdAt)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">
+                              {getMovementTypeIcon(mov.type)}
+                            </span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {getMovementTypeLabel(mov.type)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-900">
+                            {mov.description || '-'}
+                          </div>
+                          {mov.type === 'BANK_DEPOSIT' && mov.bankName && (
+                            <div className="text-xs text-gray-500">
+                              {mov.bankName} {mov.depositNumber ? `#${mov.depositNumber}` : ''}
+                            </div>
+                          )}
+                          {mov.type === 'SUPPLIER_PAYMENT' && mov.supplierName && (
+                            <div className="text-xs text-gray-500">
+                              {mov.supplierName} {mov.invoiceNumber ? `Fac: ${mov.invoiceNumber}` : ''}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-600">
+                            {mov.reference || '-'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="text-sm font-medium text-red-600">
+                            -{formatCurrency(mov.amount)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-900">
+                            {mov.createdBy.name}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
+        </>
+      )}
 
-          {/* Boton limpiar */}
-          <div className="flex items-end">
+      {/* Paginacion (compartida) */}
+      {totalPages > 1 && (
+        <div className="bg-white rounded-lg shadow-sm border px-4 py-3 flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            Mostrando {(page - 1) * pageSize + 1} a{' '}
+            {Math.min(page * pageSize, activeTab === 'pending' ? total : movementsTotal)} de{' '}
+            {activeTab === 'pending' ? total : movementsTotal} registros
+          </div>
+          <div className="flex gap-2">
             <button
-              onClick={() => {
-                setStatusFilter('');
-                setDateFrom('');
-                setDateTo('');
-                setPage(1);
-              }}
-              className="w-full px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+              onClick={() => setPage(page - 1)}
+              disabled={page === 1}
+              className="px-3 py-1 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Limpiar filtros
+              Anterior
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setPage(pageNum)}
+                    className={`px-3 py-1 border rounded-lg ${
+                      page === pageNum
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setPage(page + 1)}
+              disabled={page === totalPages}
+              className="px-3 py-1 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente
             </button>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Tabla */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Fecha
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Punto de Venta
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Cajero
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Motivo
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Monto Esperado
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Monto Recibido
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                  Estado
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                    Cargando retiros...
-                  </td>
-                </tr>
-              ) : pending.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                    No se encontraron retiros pendientes
-                  </td>
-                </tr>
-              ) : (
-                pending.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900">
-                        {formatDate(item.createdAt)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900">
-                        {item.cashSession.pointOfSale.name}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900">
-                        {item.cashSession.user.name}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {item.cashSession.user.email}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900">
-                        {item.cashMovement.reason}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="text-sm font-medium text-gray-900">
-                        {formatCurrency(item.amount)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {item.confirmedAmount !== null && item.confirmedAmount !== undefined ? (
-                        <div
-                          className={`text-sm font-medium ${
-                            item.confirmedAmount === item.amount
-                              ? 'text-green-600'
-                              : 'text-orange-600'
-                          }`}
-                        >
-                          {formatCurrency(item.confirmedAmount)}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-400">-</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(
-                            item.status
-                          )}`}
-                        >
-                          {getStatusIcon(item.status)}
-                          {getStatusText(item.status)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => handleOpenModal(item, 'view')}
-                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                          title="Ver detalle"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        {item.status === 'PENDING' && (
-                          <>
-                            <button
-                              onClick={() => handleOpenModal(item, 'confirm')}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                              title="Confirmar recepcion"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenModal(item, 'reject')}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                              title="Rechazar"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Paginacion */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 bg-gray-50 border-t flex items-center justify-between">
-            <div className="text-sm text-gray-500">
-              Mostrando {(page - 1) * pageSize + 1} a{' '}
-              {Math.min(page * pageSize, total)} de {total} retiros
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-                className="px-3 py-1 border rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Anterior
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = page - 2 + i;
-                  }
-
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => setPage(pageNum)}
-                      className={`px-3 py-1 border rounded-lg ${
-                        page === pageNum
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'hover:bg-white'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                onClick={() => setPage(page + 1)}
-                disabled={page === totalPages}
-                className="px-3 py-1 border rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Modal */}
+      {/* Modal Confirm/Reject */}
       {isModalOpen && selectedPending && (
         <TreasuryConfirmModal
           pending={selectedPending}
@@ -521,6 +854,186 @@ export default function Treasury() {
           onClose={handleCloseModal}
           onSuccess={handleConfirmSuccess}
         />
+      )}
+
+      {/* Modal Crear Movimiento */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-bold text-gray-900">Nuevo Egreso de Tesoreria</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Registrar salida de dinero de la caja de tesoreria
+              </p>
+            </div>
+
+            <form onSubmit={handleCreateMovement} className="p-6 space-y-4">
+              {/* Tipo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de Movimiento *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {MOVEMENT_TYPES.map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setCreateForm({ ...createForm, type: type.value })}
+                      className={`flex items-center gap-2 p-3 border rounded-lg text-left ${
+                        createForm.type === type.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {type.icon}
+                      <span className="text-sm font-medium">{type.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Monto */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Monto *
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={createForm.amount || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+                {balance && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Saldo disponible: {formatCurrency(balance.currentBalance)}
+                  </p>
+                )}
+              </div>
+
+              {/* Descripcion */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descripcion
+                </label>
+                <input
+                  type="text"
+                  value={createForm.description || ''}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="Descripcion del movimiento"
+                />
+              </div>
+
+              {/* Campos adicionales segun tipo */}
+              {createForm.type === 'BANK_DEPOSIT' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Banco
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.bankName || ''}
+                      onChange={(e) => setCreateForm({ ...createForm, bankName: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      placeholder="Nombre del banco"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nro. Deposito
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.depositNumber || ''}
+                      onChange={(e) => setCreateForm({ ...createForm, depositNumber: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      placeholder="Numero de comprobante"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {createForm.type === 'SUPPLIER_PAYMENT' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Proveedor
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.supplierName || ''}
+                      onChange={(e) => setCreateForm({ ...createForm, supplierName: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      placeholder="Nombre del proveedor"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nro. Factura
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.invoiceNumber || ''}
+                      onChange={(e) => setCreateForm({ ...createForm, invoiceNumber: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      placeholder="Numero de factura"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Referencia */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Referencia
+                </label>
+                <input
+                  type="text"
+                  value={createForm.reference || ''}
+                  onChange={(e) => setCreateForm({ ...createForm, reference: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="Referencia opcional"
+                />
+              </div>
+
+              {/* Error */}
+              {createError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {createError}
+                </div>
+              )}
+
+              {/* Botones */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreateModalOpen(false);
+                    setCreateForm({ type: 'BANK_DEPOSIT', amount: 0 });
+                    setCreateError('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating || !createForm.amount}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCreating ? 'Guardando...' : 'Registrar Egreso'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
