@@ -528,7 +528,7 @@ export default function CashSessionDetail() {
                         </div>
                         <div className="text-right">
                           <div className="font-semibold">
-                            Contado: {formatCurrency(Number(count.totalCounted))}
+                            Contado: {formatCurrency(Number(count.totalCash) + Number(count.vouchers || 0) + Number(count.checks || 0) + Number(count.otherValues || 0))}
                           </div>
                           {count.difference !== null && (
                             <div

@@ -1058,7 +1058,6 @@ export interface CashCount {
   totalBills: number;
   totalCoins: number;
   totalCash: number;
-  totalCounted: number;
   expectedAmount: number;
   difference: number;
   differenceType?: 'SURPLUS' | 'SHORTAGE';
