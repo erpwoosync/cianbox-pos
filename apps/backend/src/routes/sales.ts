@@ -567,6 +567,16 @@ router.post(
           issuedByUserId: userId,
           branchId: data.branchId,
         });
+
+        // Agregar registro de pago para que se vea la forma de pago en la venta
+        await prisma.payment.create({
+          data: {
+            saleId: sale.id,
+            method: 'VOUCHER',
+            amount: creditAmount, // Monto absoluto del vale generado
+            reference: `Vale generado: ${generatedStoreCredit.code}`,
+          },
+        });
       }
 
       res.status(201).json({
