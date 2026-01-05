@@ -133,7 +133,7 @@ export default function CashPanel({
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500 uppercase">Efectivo</p>
-              <p className="font-semibold text-green-600">{formatCurrency(Number(session.totalCash))}</p>
+              <p className="font-semibold text-green-600">{formatCurrency(expectedCash - Number(session.openingAmount))}</p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500 uppercase">Debito</p>
