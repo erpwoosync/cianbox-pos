@@ -210,8 +210,14 @@ router.post(
       let totalTax = new Prisma.Decimal(0);
 
       const itemsWithCalculations = data.items.map((item) => {
+        // Normalizar cantidad: si es devolucion, asegurar que sea negativa
+        const isReturnItem = item.isReturn === true || item.quantity < 0;
+        const normalizedQuantity = isReturnItem
+          ? -Math.abs(item.quantity)
+          : Math.abs(item.quantity);
+
         const itemSubtotal = new Prisma.Decimal(item.unitPrice)
-          .times(item.quantity)
+          .times(normalizedQuantity)
           .minus(item.discount);
         const taxAmount = itemSubtotal.times(item.taxRate).dividedBy(121); // IVA incluido
 
@@ -221,6 +227,7 @@ router.post(
 
         return {
           ...item,
+          quantity: normalizedQuantity, // Usar cantidad normalizada
           subtotal: itemSubtotal,
           taxAmount,
         };
