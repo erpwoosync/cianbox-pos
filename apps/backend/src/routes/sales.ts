@@ -298,6 +298,9 @@ router.post(
         (p) => p.method === 'VOUCHER' && p.storeCreditCode
       );
 
+      // Mapeo de código de vale -> ID del vale para guardar en payments
+      const storeCreditCodeToIdMap = new Map<string, string>();
+
       for (const scPayment of storeCreditPayments) {
         // Verificar saldo disponible
         const balance = await StoreCreditService.checkBalance({
@@ -319,6 +322,9 @@ router.post(
             `Disponible: $${balance.currentBalance}, Requerido: $${scPayment.amount}`
           );
         }
+
+        // Guardar el ID del vale para usarlo al crear el pago
+        storeCreditCodeToIdMap.set(scPayment.storeCreditCode!, balance.id);
       }
 
       // Buscar sesión de caja abierta del usuario
@@ -395,6 +401,10 @@ router.post(
                     : null,
                 transactionId: payment.transactionId,
                 status: 'COMPLETED',
+                // ID del vale de crédito usado
+                storeCreditId: payment.method === 'VOUCHER' && payment.storeCreditCode
+                  ? storeCreditCodeToIdMap.get(payment.storeCreditCode)
+                  : undefined,
                 // Campos de Mercado Pago
                 mpPaymentId: payment.mpPaymentId,
                 mpOrderId: payment.mpOrderId,
