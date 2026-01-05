@@ -1196,7 +1196,7 @@ router.get(
 router.post(
   '/count',
   authenticate,
-  authorize('cash:movements'),
+  authorize('cash:count'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const validation = countSchema.safeParse(req.body);

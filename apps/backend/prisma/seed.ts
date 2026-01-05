@@ -124,6 +124,7 @@ async function main() {
         'customers:edit',
         'cash:open',
         'cash:close',
+        'cash:count',
         'cash:movements',
       ],
     },
@@ -136,6 +137,7 @@ async function main() {
         'pos:discount:limited', // Descuento limitado
         'cash:open',
         'cash:close',
+        'cash:count', // Arqueo de caja
         'customers:view',
       ],
     },
