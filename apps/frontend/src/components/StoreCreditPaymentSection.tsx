@@ -28,6 +28,13 @@ export interface AppliedStoreCredit {
   originalBalance: number;
 }
 
+interface CustomerCreditDetail {
+  id: string;
+  code: string;
+  currentBalance: number;
+  expiresAt?: string;
+}
+
 interface StoreCreditPaymentSectionProps {
   /** Monto total a pagar */
   totalAmount: number;
@@ -46,6 +53,8 @@ interface StoreCreditPaymentSectionProps {
     totalAvailable: number;
     count: number;
   } | null;
+  /** ID del cliente seleccionado */
+  customerId?: string;
 }
 
 export default function StoreCreditPaymentSection({
@@ -56,6 +65,7 @@ export default function StoreCreditPaymentSection({
   onRemoveStoreCredit,
   disabled = false,
   customerCredits,
+  customerId,
 }: StoreCreditPaymentSectionProps) {
   // Expandir automáticamente si el cliente tiene créditos disponibles
   const [isExpanded, setIsExpanded] = useState(!!customerCredits?.totalAvailable);
@@ -67,12 +77,62 @@ export default function StoreCreditPaymentSection({
       setIsExpanded(true);
     }
   }, [customerCredits?.totalAvailable]);
+
+  // Estado para lista de vales del cliente
+  const [showCustomerCredits, setShowCustomerCredits] = useState(false);
+  const [customerCreditsList, setCustomerCreditsList] = useState<CustomerCreditDetail[]>([]);
+  const [isLoadingCustomerCredits, setIsLoadingCustomerCredits] = useState(false);
+
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<StoreCreditBalance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [amountToApply, setAmountToApply] = useState('');
 
   const remainingAmount = totalAmount - storeCreditAmount;
+
+  /**
+   * Cargar lista de vales del cliente
+   */
+  const loadCustomerCreditsList = useCallback(async () => {
+    if (!customerId) return;
+
+    setIsLoadingCustomerCredits(true);
+    try {
+      const response = await api.get(`/store-credits/customer/${customerId}`);
+      if (response.data.success) {
+        // Filtrar los que ya fueron aplicados
+        const availableCredits = response.data.credits.filter(
+          (c: CustomerCreditDetail) => !appliedStoreCredits.some(ac => ac.code === c.code)
+        );
+        setCustomerCreditsList(availableCredits);
+        setShowCustomerCredits(true);
+      }
+    } catch (err) {
+      console.error('Error cargando vales del cliente:', err);
+    } finally {
+      setIsLoadingCustomerCredits(false);
+    }
+  }, [customerId, appliedStoreCredits]);
+
+  /**
+   * Seleccionar un vale de la lista del cliente
+   */
+  const handleSelectCustomerCredit = useCallback((credit: CustomerCreditDetail) => {
+    // Pre-cargar el código y simular búsqueda exitosa
+    setCode(credit.code);
+    setSearchResult({
+      code: credit.code,
+      balance: credit.currentBalance,
+      originalAmount: credit.currentBalance,
+      status: 'ACTIVE',
+      expiresAt: credit.expiresAt,
+      isExpired: false,
+      isValid: true,
+    });
+    const maxApplicable = Math.min(credit.currentBalance, remainingAmount);
+    setAmountToApply(maxApplicable.toString());
+    setShowCustomerCredits(false);
+  }, [remainingAmount]);
 
   /**
    * Buscar saldo de vale
@@ -253,7 +313,7 @@ export default function StoreCreditPaymentSection({
       {isExpanded && (
         <div className="p-3 space-y-3 bg-white border-t border-orange-100">
           {/* Banner de créditos disponibles del cliente */}
-          {customerCredits && customerCredits.totalAvailable > 0 && appliedStoreCredits.length === 0 && (
+          {customerCredits && customerCredits.totalAvailable > 0 && appliedStoreCredits.length === 0 && !showCustomerCredits && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <Ticket className="w-5 h-5 text-amber-600" />
@@ -264,9 +324,57 @@ export default function StoreCreditPaymentSection({
               <p className="text-lg font-bold text-amber-900">
                 Saldo total: ${customerCredits.totalAvailable.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-xs text-amber-700 mt-1">
-                Ingresá el código del vale para aplicarlo a esta venta
-              </p>
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={loadCustomerCreditsList}
+                  disabled={isLoadingCustomerCredits}
+                  className="flex-1 py-2 px-3 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isLoadingCustomerCredits ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Ticket className="w-4 h-4" />
+                  )}
+                  Ver vales del cliente
+                </button>
+                <span className="text-xs text-amber-600">o ingresá el código</span>
+              </div>
+            </div>
+          )}
+
+          {/* Lista de vales del cliente */}
+          {showCustomerCredits && customerCreditsList.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-amber-800">Seleccioná un vale:</span>
+                <button
+                  onClick={() => setShowCustomerCredits(false)}
+                  className="text-amber-600 hover:text-amber-800"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {customerCreditsList.map((credit) => (
+                  <button
+                    key={credit.id}
+                    onClick={() => handleSelectCustomerCredit(credit)}
+                    className="w-full p-2 bg-white border border-amber-200 rounded-lg hover:bg-amber-100 flex items-center justify-between transition-colors"
+                  >
+                    <div className="text-left">
+                      <p className="font-mono text-sm font-medium text-gray-800">{credit.code}</p>
+                      {credit.expiresAt && (
+                        <p className="text-xs text-gray-500">
+                          Vence: {new Date(credit.expiresAt).toLocaleDateString('es-AR')}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-lg font-bold text-amber-700">
+                      ${credit.currentBalance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
