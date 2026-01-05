@@ -29,6 +29,10 @@ interface SessionDetail extends CashSession {
     saleDate: string;
     total: number;
     status: string;
+    payments: Array<{
+      method: string;
+      amount: number;
+    }>;
   }>;
 }
 
@@ -148,6 +152,36 @@ export default function CashSessionDetail() {
       OTHER: 'Otro',
     };
     return reasons[reason] || reason;
+  };
+
+  const getPaymentMethodLabel = (method: string) => {
+    const methods: Record<string, string> = {
+      CASH: 'Efectivo',
+      CREDIT_CARD: 'Crédito',
+      DEBIT_CARD: 'Débito',
+      QR: 'QR',
+      TRANSFER: 'Transferencia',
+      MP_POINT: 'MP Point',
+      MP_QR: 'MP QR',
+      GIFT_CARD: 'Gift Card',
+      VOUCHER: 'Vale',
+    };
+    return methods[method] || method;
+  };
+
+  const getPaymentMethodColor = (method: string) => {
+    const colors: Record<string, string> = {
+      CASH: 'bg-green-100 text-green-700',
+      CREDIT_CARD: 'bg-purple-100 text-purple-700',
+      DEBIT_CARD: 'bg-blue-100 text-blue-700',
+      QR: 'bg-cyan-100 text-cyan-700',
+      TRANSFER: 'bg-orange-100 text-orange-700',
+      MP_POINT: 'bg-sky-100 text-sky-700',
+      MP_QR: 'bg-sky-100 text-sky-700',
+      GIFT_CARD: 'bg-pink-100 text-pink-700',
+      VOUCHER: 'bg-amber-100 text-amber-700',
+    };
+    return colors[method] || 'bg-gray-100 text-gray-700';
   };
 
   if (isLoading) {
@@ -577,6 +611,9 @@ export default function CashSessionDetail() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Fecha
                       </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Pagos
+                      </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                         Total
                       </th>
@@ -596,6 +633,18 @@ export default function CashSessionDetail() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {formatDate(sale.saleDate)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {sale.payments?.map((payment, idx) => (
+                              <span
+                                key={idx}
+                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getPaymentMethodColor(payment.method)}`}
+                              >
+                                {getPaymentMethodLabel(payment.method)}: {formatCurrency(Number(payment.amount))}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm font-semibold text-right text-gray-900">
                           {formatCurrency(sale.total)}
