@@ -3,10 +3,11 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, PaymentMethod } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, ValidationError, NotFoundError, AuthorizationError } from '../utils/errors.js';
+import GiftCardService from '../services/gift-card.service.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -41,11 +42,13 @@ const paymentSchema = z.object({
     'CREDIT',
     'VOUCHER',
     'GIFTCARD',
+    'GIFT_CARD', // Alias para compatibilidad con frontend
     'POINTS',
     'OTHER',
   ]),
   amount: z.number().positive(),
   reference: z.string().optional(),
+  giftCardCode: z.string().optional(), // Codigo de gift card para canje
   cardBrand: z.string().optional(),
   cardLastFour: z.string().optional(),
   installments: z.number().int().min(1).default(1),
@@ -237,6 +240,34 @@ router.post(
         data.pointOfSaleId
       );
 
+      // Procesar gift cards: verificar y canjear antes de crear la venta
+      const giftCardPayments = data.payments.filter(
+        (p) => (p.method === 'GIFT_CARD' || p.method === 'GIFTCARD') && p.giftCardCode
+      );
+
+      for (const gcPayment of giftCardPayments) {
+        // Verificar saldo disponible
+        const balance = await GiftCardService.checkBalance({
+          tenantId,
+          code: gcPayment.giftCardCode!,
+        });
+
+        if (balance.status !== 'ACTIVE') {
+          throw ApiError.badRequest(`Gift card ${gcPayment.giftCardCode} no está activa`);
+        }
+
+        if (balance.isExpired) {
+          throw ApiError.badRequest(`Gift card ${gcPayment.giftCardCode} está expirada`);
+        }
+
+        if (Number(balance.currentBalance) < gcPayment.amount) {
+          throw ApiError.badRequest(
+            `Gift card ${gcPayment.giftCardCode} no tiene saldo suficiente. ` +
+            `Disponible: $${balance.currentBalance}, Requerido: $${gcPayment.amount}`
+          );
+        }
+      }
+
       // Buscar sesión de caja abierta del usuario
       const cashSession = await prisma.cashSession.findFirst({
         where: {
@@ -297,7 +328,8 @@ router.post(
             },
             payments: {
               create: data.payments.map((payment) => ({
-                method: payment.method,
+                // Normalizar GIFT_CARD -> GIFTCARD para Prisma
+                method: (payment.method === 'GIFT_CARD' ? 'GIFTCARD' : payment.method) as PaymentMethod,
                 amount: payment.amount,
                 reference: payment.reference,
                 cardBrand: payment.cardBrand,
@@ -404,6 +436,11 @@ router.post(
               case 'TRANSFER':
                 paymentTotals.totalTransfer += payment.amount;
                 break;
+              case 'GIFT_CARD':
+              case 'GIFTCARD':
+                // Gift cards van a "otros" por ahora
+                paymentTotals.totalOther += payment.amount;
+                break;
               default:
                 paymentTotals.totalOther += payment.amount;
             }
@@ -437,6 +474,17 @@ router.post(
               data: { saleId: newSale.id },
             });
           }
+        }
+
+        // Canjear gift cards
+        for (const gcPayment of giftCardPayments) {
+          await GiftCardService.redeemGiftCard({
+            tenantId,
+            code: gcPayment.giftCardCode!,
+            amount: gcPayment.amount,
+            saleId: newSale.id,
+            userId,
+          });
         }
 
         return newSale;
