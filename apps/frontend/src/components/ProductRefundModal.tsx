@@ -198,8 +198,11 @@ export default function ProductRefundModal({
         return true;
       }
     } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.error || err.message || 'Error al procesar devolucion';
+      // El error puede venir como objeto {code, message} o como string
+      const errorData = err.response?.data?.error;
+      const errorMessage = typeof errorData === 'object'
+        ? errorData?.message || 'Error al procesar devolucion'
+        : errorData || err.message || 'Error al procesar devolucion';
 
       // Detectar error de autorizacion
       if (isAuthorizationError(errorMessage)) {
