@@ -179,6 +179,12 @@ button:focus {
   max-height: 100vh;
   overflow: hidden;
   width: 100%;
+  transition: grid-template-columns 0.3s ease;
+}
+
+/* Panel expandido para modo pago */
+.pos-layout-payment {
+  grid-template-columns: 1fr 520px;
 }
 
 @media (max-width: 768px) {
@@ -194,6 +200,16 @@ button:focus {
 @media (min-width: 769px) {
   .pos-layout {
     grid-template-columns: 1fr 380px;
+  }
+
+  .pos-layout.pos-layout-payment {
+    grid-template-columns: 1fr 520px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .pos-layout.pos-layout-payment {
+    grid-template-columns: 1fr 580px;
   }
 }
 

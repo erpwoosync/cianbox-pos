@@ -1576,7 +1576,7 @@ export default function POS() {
     : products;
 
   return (
-    <div className="pos-layout">
+    <div className={`pos-layout ${showPayment ? 'pos-layout-payment' : ''}`}>
       {/* Modal selector de Punto de Venta */}
       {showPOSSelector && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
