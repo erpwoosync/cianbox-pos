@@ -1078,6 +1078,17 @@ router.post(
         },
       });
 
+      // Crear registro en tesorería para control
+      await prisma.treasuryPending.create({
+        data: {
+          tenantId,
+          cashSessionId: session.id,
+          cashMovementId: movement.id,
+          amount: new Prisma.Decimal(amount),
+          status: 'PENDING',
+        },
+      });
+
       res.status(201).json({
         success: true,
         message: 'Retiro registrado',
