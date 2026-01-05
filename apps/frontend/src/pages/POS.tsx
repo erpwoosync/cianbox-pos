@@ -2369,6 +2369,7 @@ export default function POS() {
                 onApplyStoreCredit={(sc) => setAppliedStoreCredits(prev => [...prev, sc])}
                 onRemoveStoreCredit={(code) => setAppliedStoreCredits(prev => prev.filter(sc => sc.code !== code))}
                 disabled={isProcessing}
+                customerCredits={customerCredits}
               />
 
               {/* Mostrar monto pendiente si hay gift cards o vales aplicados */}

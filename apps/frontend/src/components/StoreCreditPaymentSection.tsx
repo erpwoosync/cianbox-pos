@@ -3,8 +3,8 @@
  * Permite consultar saldo y aplicar vales como metodo de pago
  */
 
-import { useState, useCallback } from 'react';
-import { CreditCard, Search, X, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { CreditCard, Search, X, CheckCircle, AlertCircle, Loader2, Trash2, Ticket } from 'lucide-react';
 import api from '../services/api';
 
 interface StoreCreditBalance {
@@ -41,6 +41,11 @@ interface StoreCreditPaymentSectionProps {
   onRemoveStoreCredit: (code: string) => void;
   /** Si esta deshabilitado */
   disabled?: boolean;
+  /** Info de créditos disponibles del cliente (para sugerir uso) */
+  customerCredits?: {
+    totalAvailable: number;
+    count: number;
+  } | null;
 }
 
 export default function StoreCreditPaymentSection({
@@ -50,9 +55,18 @@ export default function StoreCreditPaymentSection({
   onApplyStoreCredit,
   onRemoveStoreCredit,
   disabled = false,
+  customerCredits,
 }: StoreCreditPaymentSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Expandir automáticamente si el cliente tiene créditos disponibles
+  const [isExpanded, setIsExpanded] = useState(!!customerCredits?.totalAvailable);
   const [code, setCode] = useState('');
+
+  // Expandir cuando cambian los créditos del cliente
+  useEffect(() => {
+    if (customerCredits?.totalAvailable && customerCredits.totalAvailable > 0) {
+      setIsExpanded(true);
+    }
+  }, [customerCredits?.totalAvailable]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<StoreCreditBalance | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -179,21 +193,37 @@ export default function StoreCreditPaymentSection({
     return null;
   }
 
+  // Determinar si hay créditos disponibles sin aplicar
+  const hasAvailableCredits = customerCredits && customerCredits.totalAvailable > 0 && appliedStoreCredits.length === 0;
+
   return (
-    <div className="border border-orange-200 rounded-lg overflow-hidden">
+    <div className={`rounded-lg overflow-hidden ${
+      hasAvailableCredits
+        ? 'border-2 border-amber-400 ring-2 ring-amber-200'
+        : 'border border-orange-200'
+    }`}>
       {/* Header colapsable */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={`w-full flex items-center justify-between p-3 transition-colors ${
-          appliedStoreCredits.length > 0
-            ? 'bg-orange-50 hover:bg-orange-100'
-            : 'bg-gray-50 hover:bg-gray-100'
+          hasAvailableCredits
+            ? 'bg-amber-100 hover:bg-amber-200'
+            : appliedStoreCredits.length > 0
+              ? 'bg-orange-50 hover:bg-orange-100'
+              : 'bg-gray-50 hover:bg-gray-100'
         }`}
         disabled={disabled}
       >
         <div className="flex items-center gap-2">
-          <CreditCard className="w-5 h-5 text-orange-600" />
-          <span className="font-medium text-gray-700">Vales de Credito</span>
+          <CreditCard className={`w-5 h-5 ${hasAvailableCredits ? 'text-amber-600' : 'text-orange-600'}`} />
+          <span className={`font-medium ${hasAvailableCredits ? 'text-amber-800' : 'text-gray-700'}`}>
+            Vales de Credito
+          </span>
+          {hasAvailableCredits && (
+            <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium animate-pulse">
+              ${customerCredits.totalAvailable.toLocaleString('es-AR', { minimumFractionDigits: 2 })} disponible
+            </span>
+          )}
           {appliedStoreCredits.length > 0 && (
             <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
               {appliedStoreCredits.length} aplicado{appliedStoreCredits.length > 1 ? 's' : ''}
@@ -222,6 +252,24 @@ export default function StoreCreditPaymentSection({
       {/* Contenido expandido */}
       {isExpanded && (
         <div className="p-3 space-y-3 bg-white border-t border-orange-100">
+          {/* Banner de créditos disponibles del cliente */}
+          {customerCredits && customerCredits.totalAvailable > 0 && appliedStoreCredits.length === 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Ticket className="w-5 h-5 text-amber-600" />
+                <span className="font-medium text-amber-800">
+                  Este cliente tiene {customerCredits.count === 1 ? 'un vale' : `${customerCredits.count} vales`} disponible{customerCredits.count > 1 ? 's' : ''}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-amber-900">
+                Saldo total: ${customerCredits.totalAvailable.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                Ingresá el código del vale para aplicarlo a esta venta
+              </p>
+            </div>
+          )}
+
           {/* Vales aplicados */}
           {appliedStoreCredits.length > 0 && (
             <div className="space-y-2">
