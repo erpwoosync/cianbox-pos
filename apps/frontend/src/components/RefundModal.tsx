@@ -170,8 +170,11 @@ export default function RefundModal({
         throw new Error(response.data.error || 'Error al procesar devolucion');
       }
     } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.error || err.message || 'Error al procesar devolucion';
+      // El error puede venir como objeto {code, message} o como string
+      const errorData = err.response?.data?.error;
+      const errorMessage = typeof errorData === 'object'
+        ? errorData?.message
+        : errorData || err.message || 'Error al procesar devolucion';
       throw new Error(errorMessage);
     }
   };
