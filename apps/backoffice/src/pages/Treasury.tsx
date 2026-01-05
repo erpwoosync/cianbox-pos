@@ -20,6 +20,7 @@ import {
   ArrowRightLeft,
   MoreHorizontal,
   DollarSign,
+  Printer,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -272,6 +273,271 @@ export default function Treasury() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  // Imprimir comprobante de retiro
+  const printWithdrawal = (item: TreasuryPending) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Comprobante de Retiro</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+          .title { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+          .subtitle { font-size: 12px; color: #666; }
+          .company { font-size: 14px; font-weight: bold; margin-bottom: 10px; }
+          .section { margin-bottom: 15px; }
+          .label { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 3px; }
+          .value { font-size: 14px; font-weight: 500; }
+          .amount-box { background: #f5f5f5; padding: 15px; text-align: center; margin: 20px 0; border: 1px solid #ddd; }
+          .amount { font-size: 28px; font-weight: bold; }
+          .status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+          .status-pending { background: #fef3c7; color: #92400e; }
+          .status-confirmed { background: #d1fae5; color: #065f46; }
+          .status-partial { background: #fed7aa; color: #9a3412; }
+          .status-rejected { background: #fee2e2; color: #991b1b; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 60px; padding-top: 20px; }
+          .signature { text-align: center; width: 45%; }
+          .signature-line { border-top: 1px solid #000; margin-bottom: 5px; }
+          .signature-label { font-size: 11px; color: #666; }
+          .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 15px; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+          .print-date { font-size: 10px; color: #999; text-align: right; margin-bottom: 10px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="print-date">Impreso: ${new Date().toLocaleString('es-AR')}</div>
+        <div class="header">
+          <div class="company">${tenant?.name || 'EMPRESA'}</div>
+          <div class="title">COMPROBANTE DE RETIRO DE CAJA</div>
+          <div class="subtitle">Tesoreria</div>
+        </div>
+
+        <div class="row">
+          <div class="section">
+            <div class="label">Fecha del Retiro</div>
+            <div class="value">${formatDate(item.createdAt)}</div>
+          </div>
+          <div class="section" style="text-align: right;">
+            <div class="label">Estado</div>
+            <span class="status status-${item.status.toLowerCase()}">${getStatusText(item.status)}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="label">Punto de Venta</div>
+          <div class="value">${item.cashSession.pointOfSale.name}</div>
+        </div>
+
+        <div class="section">
+          <div class="label">Cajero</div>
+          <div class="value">${item.cashSession.user.name}</div>
+        </div>
+
+        <div class="section">
+          <div class="label">Motivo</div>
+          <div class="value">${item.cashMovement.reason}</div>
+        </div>
+
+        <div class="amount-box">
+          <div class="label">Monto del Retiro</div>
+          <div class="amount">${formatCurrency(item.amount)}</div>
+        </div>
+
+        ${item.confirmedAmount !== null && item.confirmedAmount !== undefined ? `
+        <div class="row">
+          <div class="section">
+            <div class="label">Monto Recibido</div>
+            <div class="value" style="color: ${item.confirmedAmount === item.amount ? '#065f46' : '#9a3412'};">
+              ${formatCurrency(item.confirmedAmount)}
+            </div>
+          </div>
+          ${item.confirmedAmount !== item.amount ? `
+          <div class="section" style="text-align: right;">
+            <div class="label">Diferencia</div>
+            <div class="value" style="color: #991b1b;">${formatCurrency(item.confirmedAmount - item.amount)}</div>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+
+        ${item.differenceNotes ? `
+        <div class="section">
+          <div class="label">Observaciones</div>
+          <div class="value">${item.differenceNotes}</div>
+        </div>
+        ` : ''}
+
+        <div class="signatures">
+          <div class="signature">
+            <div class="signature-line"></div>
+            <div class="signature-label">Entrega</div>
+            <div style="font-size: 10px; margin-top: 3px;">${item.cashSession.user.name}</div>
+          </div>
+          <div class="signature">
+            <div class="signature-line"></div>
+            <div class="signature-label">Recibe (Tesoreria)</div>
+            ${item.confirmedBy ? `<div style="font-size: 10px; margin-top: 3px;">${item.confirmedBy.name}</div>` : ''}
+          </div>
+        </div>
+
+        <div class="footer">
+          <div>Documento interno - Conservar como comprobante</div>
+          <div style="margin-top: 5px;">ID: ${item.id.slice(-8).toUpperCase()}</div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
+
+  // Imprimir comprobante de egreso
+  const printMovement = (mov: TreasuryMovement) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    let detailsHtml = '';
+    if (mov.type === 'BANK_DEPOSIT' && mov.bankName) {
+      detailsHtml = `
+        <div class="row">
+          <div class="section">
+            <div class="label">Banco</div>
+            <div class="value">${mov.bankName}</div>
+          </div>
+          ${mov.depositNumber ? `
+          <div class="section" style="text-align: right;">
+            <div class="label">Nro. Deposito</div>
+            <div class="value">${mov.depositNumber}</div>
+          </div>
+          ` : ''}
+        </div>
+      `;
+    } else if (mov.type === 'SUPPLIER_PAYMENT' && mov.supplierName) {
+      detailsHtml = `
+        <div class="row">
+          <div class="section">
+            <div class="label">Proveedor</div>
+            <div class="value">${mov.supplierName}</div>
+          </div>
+          ${mov.invoiceNumber ? `
+          <div class="section" style="text-align: right;">
+            <div class="label">Nro. Factura</div>
+            <div class="value">${mov.invoiceNumber}</div>
+          </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Comprobante de Egreso</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+          .title { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+          .subtitle { font-size: 12px; color: #666; }
+          .company { font-size: 14px; font-weight: bold; margin-bottom: 10px; }
+          .section { margin-bottom: 15px; }
+          .label { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 3px; }
+          .value { font-size: 14px; font-weight: 500; }
+          .amount-box { background: #fef2f2; padding: 15px; text-align: center; margin: 20px 0; border: 1px solid #fecaca; }
+          .amount { font-size: 28px; font-weight: bold; color: #dc2626; }
+          .type-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #e0e7ff; color: #3730a3; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 60px; padding-top: 20px; }
+          .signature { text-align: center; width: 45%; }
+          .signature-line { border-top: 1px solid #000; margin-bottom: 5px; }
+          .signature-label { font-size: 11px; color: #666; }
+          .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 15px; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+          .print-date { font-size: 10px; color: #999; text-align: right; margin-bottom: 10px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="print-date">Impreso: ${new Date().toLocaleString('es-AR')}</div>
+        <div class="header">
+          <div class="company">${tenant?.name || 'EMPRESA'}</div>
+          <div class="title">COMPROBANTE DE EGRESO</div>
+          <div class="subtitle">Tesoreria</div>
+        </div>
+
+        <div class="row">
+          <div class="section">
+            <div class="label">Fecha</div>
+            <div class="value">${formatDate(mov.createdAt)}</div>
+          </div>
+          <div class="section" style="text-align: right;">
+            <div class="label">Tipo</div>
+            <span class="type-badge">${getMovementTypeLabel(mov.type)}</span>
+          </div>
+        </div>
+
+        ${mov.description ? `
+        <div class="section">
+          <div class="label">Descripcion</div>
+          <div class="value">${mov.description}</div>
+        </div>
+        ` : ''}
+
+        ${detailsHtml}
+
+        ${mov.reference ? `
+        <div class="section">
+          <div class="label">Referencia</div>
+          <div class="value">${mov.reference}</div>
+        </div>
+        ` : ''}
+
+        <div class="amount-box">
+          <div class="label">Monto del Egreso</div>
+          <div class="amount">-${formatCurrency(mov.amount)}</div>
+        </div>
+
+        <div class="section">
+          <div class="label">Registrado por</div>
+          <div class="value">${mov.createdBy.name}</div>
+        </div>
+
+        <div class="signatures">
+          <div class="signature">
+            <div class="signature-line"></div>
+            <div class="signature-label">Autoriza</div>
+          </div>
+          <div class="signature">
+            <div class="signature-line"></div>
+            <div class="signature-label">Recibe</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div>Documento interno - Conservar como comprobante</div>
+          <div style="margin-top: 5px;">ID: ${mov.id.slice(-8).toUpperCase()}</div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
   };
 
   const totalPages = Math.ceil((activeTab === 'pending' ? total : movementsTotal) / pageSize);
@@ -624,6 +890,13 @@ export default function Treasury() {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
+                            <button
+                              onClick={() => printWithdrawal(item)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                              title="Imprimir comprobante"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
                             {item.status === 'PENDING' && (
                               <>
                                 <button
@@ -718,18 +991,21 @@ export default function Treasury() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Creado por
                     </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      Acciones
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         Cargando movimientos...
                       </td>
                     </tr>
                   ) : movements.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         No se encontraron movimientos
                       </td>
                     </tr>
@@ -779,6 +1055,17 @@ export default function Treasury() {
                         <td className="px-4 py-3">
                           <div className="text-sm text-gray-900">
                             {mov.createdBy.name}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center">
+                            <button
+                              onClick={() => printMovement(mov)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                              title="Imprimir comprobante"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
