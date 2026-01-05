@@ -1203,6 +1203,66 @@ router.post(
           }
         }
 
+        // === CREAR MOVIMIENTO DE CAJA SI LA VENTA ORIGINAL FUE EN EFECTIVO ===
+        // Calcular monto en efectivo a devolver
+        const originalCashPayments = originalSale.payments.filter(
+          (p) => p.method === 'CASH' && p.status === 'COMPLETED'
+        );
+
+        if (originalCashPayments.length > 0) {
+          // Calcular proporción de efectivo
+          const totalOriginalCash = originalCashPayments.reduce(
+            (sum, p) => sum + Number(p.amount),
+            0
+          );
+          const saleTotal = Number(originalSale.total);
+          const cashRatio = saleTotal > 0 ? totalOriginalCash / saleTotal : 0;
+          const cashRefundAmount = refundTotal.toNumber() * cashRatio;
+
+          if (cashRefundAmount > 0) {
+            // Buscar sesión de caja activa del usuario
+            const cashSession = await tx.cashSession.findFirst({
+              where: {
+                tenantId,
+                userId,
+                status: { in: ['OPEN', 'SUSPENDED', 'COUNTING'] },
+              },
+            });
+
+            if (cashSession) {
+              // Crear movimiento de retiro por devolución
+              await tx.cashMovement.create({
+                data: {
+                  cashSessionId: cashSession.id,
+                  type: 'WITHDRAWAL',
+                  amount: new Prisma.Decimal(cashRefundAmount),
+                  reason: 'SALE_REFUND',
+                  description: `Devolución venta ${originalSale.saleNumber}`,
+                  reference: refundSale.saleNumber,
+                  createdByUserId: userId,
+                  authorizedByUserId: supervisorId,
+                  requiresAuth: !!supervisorId,
+                },
+              });
+
+              // Actualizar totales de la sesión
+              await tx.cashSession.update({
+                where: { id: cashSession.id },
+                data: {
+                  withdrawalsTotal: {
+                    increment: cashRefundAmount,
+                  },
+                  totalCash: {
+                    decrement: cashRefundAmount,
+                  },
+                },
+              });
+            }
+            // Si no hay sesión de caja, la devolución se procesa igual pero sin movimiento
+            // (podría ser una devolución desde backoffice)
+          }
+        }
+
         return refundSale;
       });
 

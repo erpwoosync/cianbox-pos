@@ -1290,6 +1290,7 @@ enum CashMovementReason {
   BANK_DEPOSIT    // Depósito bancario
   SUPPLIER_PAYMENT // Pago a proveedor
   EXPENSE         // Gasto menor
+  SALE_REFUND     // Devolución de venta (egreso efectivo)
 
   // Ingresos
   CHANGE_FUND     // Fondo para cambio
