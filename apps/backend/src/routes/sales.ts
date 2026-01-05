@@ -476,19 +476,19 @@ router.post(
           }
         }
 
-        // Canjear gift cards
-        for (const gcPayment of giftCardPayments) {
-          await GiftCardService.redeemGiftCard({
-            tenantId,
-            code: gcPayment.giftCardCode!,
-            amount: gcPayment.amount,
-            saleId: newSale.id,
-            userId,
-          });
-        }
-
         return newSale;
       });
+
+      // Canjear gift cards DESPUÉS de la transacción (la venta ya existe)
+      for (const gcPayment of giftCardPayments) {
+        await GiftCardService.redeemGiftCard({
+          tenantId,
+          code: gcPayment.giftCardCode!,
+          amount: gcPayment.amount,
+          saleId: sale.id,
+          userId,
+        });
+      }
 
       res.status(201).json({ success: true, data: sale });
     } catch (error) {
