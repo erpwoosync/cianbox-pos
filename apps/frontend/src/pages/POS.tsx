@@ -672,7 +672,17 @@ export default function POS() {
     const calculatePromotions = async () => {
       setIsCalculatingPromotions(true);
       try {
-        const itemsForCalculation = cart.map((item: CartItem) => ({
+        // Excluir items de devolución del cálculo de promociones
+        const regularItems = cart.filter((item: CartItem) => !item.isReturn);
+
+        if (regularItems.length === 0) {
+          // Si solo hay devoluciones, no calcular promociones
+          lastCalculatedCartKeyRef.current = cartKey;
+          setIsCalculatingPromotions(false);
+          return;
+        }
+
+        const itemsForCalculation = regularItems.map((item: CartItem) => ({
           productId: item.product.id,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -691,6 +701,11 @@ export default function POS() {
                 ? {
                     ...ticket,
                     items: ticket.items.map((item: CartItem) => {
+                      // NUNCA aplicar promociones a items de devolución
+                      if (item.isReturn) {
+                        return item;
+                      }
+
                       const promoItem = response.data.items?.find(
                         (pi: { productId: string; discount?: number; promotion?: { id: string; name: string; type: string } | null; promotions?: AppliedPromotion[] }) =>
                           pi.productId === item.product.id
