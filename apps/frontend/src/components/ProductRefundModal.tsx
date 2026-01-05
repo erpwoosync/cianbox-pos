@@ -11,6 +11,7 @@ import {
   User,
   Calendar,
   Receipt,
+  ShoppingCart,
 } from 'lucide-react';
 import api from '../services/api';
 import SupervisorPinModal from './SupervisorPinModal';
@@ -50,16 +51,35 @@ interface Sale {
   items: SaleItem[];
 }
 
+interface ReturnItem {
+  product: {
+    id: string;
+    name: string;
+    sku?: string;
+    barcode?: string;
+    taxRate?: number;
+  };
+  quantity: number;
+  unitPrice: number;
+  unitPriceNet: number;
+  subtotal: number;
+  originalSaleId: string;
+  originalSaleItemId: string;
+  returnReason?: string;
+}
+
 interface ProductRefundModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRefundComplete: () => void;
+  onAddToCart?: (returnItem: ReturnItem) => void; // Para agregar al carrito como devolución
 }
 
 export default function ProductRefundModal({
   isOpen,
   onClose,
   onRefundComplete,
+  onAddToCart,
 }: ProductRefundModalProps) {
   // Estados de busqueda
   const [searchQuery, setSearchQuery] = useState('');
@@ -556,6 +576,45 @@ export default function ProductRefundModal({
               >
                 Cancelar
               </button>
+
+              {/* Boton para agregar al carrito (flujo de cambio) */}
+              {onAddToCart && selectedItem && (
+                <button
+                  onClick={() => {
+                    if (!reason.trim()) {
+                      setError('Debe ingresar el motivo de la devolucion');
+                      return;
+                    }
+                    // Calcular precio unitario
+                    const unitPrice = selectedItem.subtotal / Math.abs(selectedItem.quantity);
+                    const taxRate = 21; // Default IVA
+                    const unitPriceNet = unitPrice / (1 + taxRate / 100);
+
+                    onAddToCart({
+                      product: {
+                        id: selectedItem.productId,
+                        name: selectedItem.productName,
+                        sku: product?.sku,
+                        barcode: product?.barcode,
+                        taxRate,
+                      },
+                      quantity,
+                      unitPrice,
+                      unitPriceNet,
+                      subtotal: unitPrice * quantity,
+                      originalSaleId: selectedSale.id,
+                      originalSaleItemId: selectedItem.id,
+                      returnReason: reason.trim(),
+                    });
+                  }}
+                  disabled={isProcessing || !reason.trim()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  Agregar Cambio
+                </button>
+              )}
+
               <button
                 onClick={handleSubmit}
                 disabled={isProcessing || !reason.trim()}
@@ -569,7 +628,7 @@ export default function ProductRefundModal({
                 ) : (
                   <>
                     <RotateCcw className="w-4 h-4" />
-                    Procesar Devolucion
+                    Generar Vale
                   </>
                 )}
               </button>

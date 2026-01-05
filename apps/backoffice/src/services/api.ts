@@ -1753,4 +1753,67 @@ export const giftCardsApi = {
   },
 };
 
+// ==================== Store Credits (Vales de Credito) ====================
+
+export type StoreCreditStatus = 'ACTIVE' | 'USED' | 'EXPIRED' | 'CANCELLED';
+
+export interface StoreCredit {
+  id: string;
+  code: string;
+  barcode: string;
+  originalAmount: number;
+  currentBalance: number;
+  status: StoreCreditStatus;
+  expiresAt?: string;
+  isExpired?: boolean;
+  customer?: { id: string; name: string; docNumber?: string };
+  branch?: { id: string; name: string };
+  issuedBy?: { id: string; name: string };
+  createdAt: string;
+}
+
+export interface StoreCreditTransaction {
+  id: string;
+  type: 'ISSUED' | 'REDEEMED' | 'EXPIRED' | 'CANCELLED' | 'ADJUSTED';
+  amount: number;
+  balanceAfter: number;
+  notes?: string;
+  user?: { id: string; name: string };
+  sale?: { id: string; saleNumber: string };
+  createdAt: string;
+}
+
+export const storeCreditsApi = {
+  create: async (data: { amount: number; customerId?: string; expiresAt?: string; notes?: string }): Promise<StoreCredit> => {
+    const response = await api.post('/store-credits', data);
+    return response.data.storeCredit;
+  },
+
+  getAll: async (params?: {
+    status?: StoreCreditStatus;
+    customerId?: string;
+    branchId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ storeCredits: StoreCredit[]; total: number }> => {
+    const response = await api.get('/store-credits', { params });
+    return { storeCredits: response.data.storeCredits, total: response.data.total };
+  },
+
+  getTransactions: async (id: string): Promise<{ storeCredit: StoreCredit; transactions: StoreCreditTransaction[] }> => {
+    const response = await api.get(`/store-credits/${id}/transactions`);
+    return { storeCredit: response.data.storeCredit, transactions: response.data.transactions };
+  },
+
+  checkBalance: async (code: string): Promise<StoreCredit & { isValid: boolean; message?: string }> => {
+    const response = await api.post('/store-credits/balance', { code });
+    return response.data.data;
+  },
+
+  cancel: async (code: string, reason?: string): Promise<{ success: boolean; storeCredit: { id: string; code: string; status: string } }> => {
+    const response = await api.post('/store-credits/cancel', { code, reason });
+    return response.data;
+  },
+};
+
 export default api;

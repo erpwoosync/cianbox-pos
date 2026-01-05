@@ -42,7 +42,9 @@ import CustomerSelectorModal from '../components/CustomerSelectorModal';
 import InvoiceModal from '../components/InvoiceModal';
 import SalesHistoryModal from '../components/SalesHistoryModal';
 import ProductRefundModal from '../components/ProductRefundModal';
+import StoreCreditModal from '../components/StoreCreditModal';
 import GiftCardPaymentSection, { AppliedGiftCard } from '../components/GiftCardPaymentSection';
+import StoreCreditPaymentSection, { AppliedStoreCredit } from '../components/StoreCreditPaymentSection';
 import CashRequiredOverlay from '../components/CashRequiredOverlay';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 import { offlineSyncService } from '../services/offlineSync';
@@ -144,6 +146,11 @@ interface CartItem {
   promotionId?: string;
   promotionName?: string;
   promotions?: AppliedPromotion[];
+  // Propiedades de devolución
+  isReturn?: boolean;
+  originalSaleId?: string;
+  originalSaleItemId?: string;
+  returnReason?: string;
 }
 
 interface Ticket {
@@ -179,7 +186,7 @@ interface PointOfSale {
   mpDeviceName?: string;
 }
 
-type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR' | 'TRANSFER' | 'GIFT_CARD';
+type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR' | 'TRANSFER' | 'GIFT_CARD' | 'VOUCHER';
 
 interface SaleData {
   branchId: string;
@@ -276,6 +283,9 @@ export default function POS() {
   const [mpPointAvailable, setMpPointAvailable] = useState(false);
   const [mpQRAvailable, setMpQRAvailable] = useState(false);
 
+  // Estado de Store Credit (Vales)
+  const [showStoreCreditModal, setShowStoreCreditModal] = useState(false);
+
   // Estado de curva de talles (productos variables)
   const [showSizeCurveModal, setShowSizeCurveModal] = useState(false);
   const [selectedParentProduct, setSelectedParentProduct] = useState<Product | null>(null);
@@ -338,6 +348,10 @@ export default function POS() {
   // Estado de gift cards
   const [appliedGiftCards, setAppliedGiftCards] = useState<AppliedGiftCard[]>([]);
   const giftCardAmount = appliedGiftCards.reduce((sum, gc) => sum + gc.amountApplied, 0);
+
+  // Estado de store credits (vales)
+  const [appliedStoreCredits, setAppliedStoreCredits] = useState<AppliedStoreCredit[]>([]);
+  const storeCreditAmount = appliedStoreCredits.reduce((sum, sc) => sum + sc.amountApplied, 0);
 
   // Estado de promociones
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
@@ -846,6 +860,51 @@ export default function POS() {
     setSearchResults([]);
   };
 
+  // Agregar item de devolución al carrito (negativo para cambio)
+  const addReturnItemToCart = (returnItem: {
+    product: {
+      id: string;
+      name: string;
+      sku?: string;
+      barcode?: string;
+      taxRate?: number;
+    };
+    quantity: number;
+    unitPrice: number;
+    unitPriceNet: number;
+    subtotal: number;
+    originalSaleId: string;
+    originalSaleItemId: string;
+    returnReason?: string;
+  }) => {
+    updateCart((prev) => {
+      // Crear item negativo (devolución)
+      const returnCartItem: CartItem = {
+        id: generateId(),
+        product: {
+          id: returnItem.product.id,
+          name: returnItem.product.name,
+          sku: returnItem.product.sku || '',
+          barcode: returnItem.product.barcode || '',
+          taxRate: returnItem.product.taxRate || 21,
+        } as Product,
+        quantity: returnItem.quantity,
+        unitPrice: returnItem.unitPrice,
+        unitPriceNet: returnItem.unitPriceNet,
+        discount: 0,
+        subtotal: -returnItem.subtotal, // Negativo porque es devolución
+        isReturn: true,
+        originalSaleId: returnItem.originalSaleId,
+        originalSaleItemId: returnItem.originalSaleItemId,
+        returnReason: returnItem.returnReason,
+      };
+      return [...prev, returnCartItem];
+    });
+
+    // Cerrar el modal de devolución
+    setShowProductRefundModal(false);
+  };
+
   // Handler para clic en producto - maneja productos padre (curva de talles)
   const handleProductClick = (product: Product) => {
     if (product.isParent) {
@@ -923,7 +982,7 @@ export default function POS() {
   const subtotal = cart.reduce((sum: number, item: CartItem) => sum + item.subtotal, 0);
   const totalDiscount = cart.reduce((sum: number, item: CartItem) => sum + item.discount, 0);
   const total = subtotal;
-  const totalAfterGiftCards = total - giftCardAmount; // Monto pendiente despues de gift cards
+  const totalAfterGiftCards = total - giftCardAmount - storeCreditAmount; // Monto pendiente despues de gift cards y vales
   const itemCount = cart.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
 
   // Agrupar descuentos por promoción
@@ -993,9 +1052,9 @@ export default function POS() {
     }
   };
 
-  // Calcular vuelto (considerando gift cards aplicadas)
+  // Calcular vuelto (considerando gift cards y vales aplicados)
   const tenderedAmount = parseFloat(amountTendered) || 0;
-  const amountToPay = total - giftCardAmount; // Monto pendiente despues de gift cards
+  const amountToPay = total - giftCardAmount - storeCreditAmount; // Monto pendiente despues de gift cards y vales
   const change = tenderedAmount - amountToPay;
 
   // Sincronizar ventas pendientes
@@ -1215,6 +1274,7 @@ export default function POS() {
         setShowPayment(false);
         setAmountTendered('');
         setAppliedGiftCards([]);
+        setAppliedStoreCredits([]);
         const mpType = isQR ? 'Mercado Pago QR' : 'Mercado Pago Point';
         alert(`Venta #${response.data.saleNumber} registrada correctamente con ${mpType}`);
 
@@ -1255,12 +1315,13 @@ export default function POS() {
 
     setIsProcessing(true);
     try {
-      // Construir array de pagos incluyendo gift cards
+      // Construir array de pagos incluyendo gift cards y vales
       const payments: Array<{
-        method: PaymentMethod | 'GIFT_CARD';
+        method: PaymentMethod | 'GIFT_CARD' | 'VOUCHER';
         amount: number;
         amountTendered?: number;
         giftCardCode?: string;
+        storeCreditCode?: string;
       }> = [];
 
       // Agregar pagos con gift cards
@@ -1272,8 +1333,17 @@ export default function POS() {
         });
       }
 
+      // Agregar pagos con vales de credito
+      for (const sc of appliedStoreCredits) {
+        payments.push({
+          method: 'VOUCHER',
+          amount: sc.amountApplied,
+          storeCreditCode: sc.code,
+        });
+      }
+
       // Agregar pago principal si hay monto pendiente
-      const pendingAmount = total - giftCardAmount;
+      const pendingAmount = total - giftCardAmount - storeCreditAmount;
       if (pendingAmount > 0) {
         payments.push({
           method: selectedPaymentMethod,
@@ -1325,6 +1395,7 @@ export default function POS() {
         setShowPayment(false);
         setAmountTendered('');
         setAppliedGiftCards([]);
+        setAppliedStoreCredits([]);
         alert('Venta guardada. Se sincronizará cuando vuelva la conexión.');
         return;
       }
@@ -1340,6 +1411,7 @@ export default function POS() {
         setShowPayment(false);
         setAmountTendered('');
         setAppliedGiftCards([]);
+        setAppliedStoreCredits([]);
 
         // Mostrar modal de facturación con datos de la venta completada
         setCompletedSaleData({
@@ -1361,6 +1433,75 @@ export default function POS() {
     } catch (error) {
       console.error('Error procesando venta:', error);
       alert('Error al procesar la venta');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Procesar cambio exacto (total = 0)
+  const handleExactExchange = async () => {
+    if (cart.length === 0) return;
+
+    if (!selectedPOS) {
+      setShowPOSSelector(true);
+      return;
+    }
+
+    // Verificar que haya items de devolución
+    const hasReturnItems = cart.some(item => item.isReturn);
+    if (!hasReturnItems) {
+      alert('No hay items de devolución en el carrito');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const saleData = {
+        branchId: selectedPOS.branch?.id || user?.branch?.id || '',
+        pointOfSaleId: selectedPOS.id,
+        customerId: selectedCustomer?.id !== CONSUMIDOR_FINAL.id ? selectedCustomer?.id : undefined,
+        customerName: selectedCustomer?.name,
+        receiptType: 'NDP_X',
+        items: cart.map((item: CartItem) => ({
+          productId: item.product.id,
+          productCode: item.product.sku || undefined,
+          productName: item.product.name,
+          productBarcode: item.product.barcode || undefined,
+          quantity: item.isReturn ? -Math.abs(item.quantity) : Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          unitPriceNet: Number(item.unitPriceNet),
+          discount: Number(item.discount || 0),
+          taxRate: Number(item.product.taxRate || 21),
+          promotionId: item.promotionId || undefined,
+          promotionName: item.promotionName || undefined,
+          priceListId: selectedPOS.priceList?.id || undefined,
+          branchId: selectedPOS.branch?.id || user?.branch?.id || '',
+          isReturn: item.isReturn,
+          originalSaleId: item.originalSaleId,
+          originalSaleItemId: item.originalSaleItemId,
+        })),
+        payments: [
+          {
+            method: 'VOUCHER' as const,
+            amount: 0,
+          },
+        ],
+      };
+
+      const response = await salesService.create(saleData);
+
+      if (response.success) {
+        if (currentTicketId) {
+          deleteTicket(currentTicketId);
+        }
+        setAppliedGiftCards([]);
+        setAppliedStoreCredits([]);
+        alert(`Cambio exacto procesado - Ticket #${response.data.saleNumber}`);
+        loadCashSession();
+      }
+    } catch (error) {
+      console.error('Error procesando cambio exacto:', error);
+      alert('Error al procesar el cambio');
     } finally {
       setIsProcessing(false);
     }
@@ -1899,29 +2040,42 @@ export default function POS() {
               {cart.map((item: CartItem) => (
                 <div
                   key={item.id}
-                  className="bg-gray-50 rounded-lg p-3 flex gap-3"
+                  className={`rounded-lg p-3 flex gap-3 ${
+                    item.isReturn
+                      ? 'bg-red-50 border border-red-200'
+                      : 'bg-gray-50'
+                  }`}
                 >
                   <div className="flex-1">
-                    <p className="font-medium text-sm line-clamp-1">
-                      {item.product.name}
-                    </p>
+                    <div className="flex items-center gap-1">
+                      {item.isReturn && (
+                        <RotateCcw className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                      )}
+                      <p className={`font-medium text-sm line-clamp-1 ${item.isReturn ? 'text-red-700' : ''}`}>
+                        {item.product.name}
+                      </p>
+                    </div>
                     {/* Mostrar talle y color si existen */}
                     {(item.product.size || item.product.color) && (
                       <div className="flex items-center gap-1.5 mt-0.5">
                         {item.product.size && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded ${
+                            item.isReturn ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'
+                          }`}>
                             T: {item.product.size}
                           </span>
                         )}
                         {item.product.color && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded ${
+                            item.isReturn ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
                             {item.product.color}
                           </span>
                         )}
                       </div>
                     )}
-                    <p className="text-xs text-gray-500">
-                      ${item.unitPrice.toFixed(2)} c/u
+                    <p className={`text-xs ${item.isReturn ? 'text-red-500' : 'text-gray-500'}`}>
+                      {item.isReturn ? '-' : ''}${Math.abs(item.unitPrice).toFixed(2)} c/u
                     </p>
                     {item.promotionName && (
                       <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
@@ -1929,28 +2083,45 @@ export default function POS() {
                         {item.promotionName}
                       </p>
                     )}
+                    {item.isReturn && item.returnReason && (
+                      <p className="text-xs text-red-500 mt-1 italic">
+                        {item.returnReason}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateQuantity(item.id, -1)}
-                      className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="w-8 text-center font-medium">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateQuantity(item.id, 1)}
-                      className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
+                    {item.isReturn ? (
+                      /* Para devoluciones, mostrar cantidad fija (no editable) */
+                      <span className={`px-3 py-1 text-center font-bold text-red-600 bg-red-100 rounded-lg`}>
+                        {item.quantity < 0 ? '' : '-'}{Math.abs(item.quantity)}
+                      </span>
+                    ) : (
+                      /* Para items normales, mostrar controles de cantidad */
+                      <>
+                        <button
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="w-8 text-center font-medium">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="w-8 h-8 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-100"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   <div className="text-right">
-                    <p className="font-semibold">${item.subtotal.toFixed(2)}</p>
+                    <p className={`font-semibold ${item.isReturn ? 'text-red-600' : ''}`}>
+                      {item.isReturn ? '-' : ''}${Math.abs(item.subtotal).toFixed(2)}
+                    </p>
                     <button
                       onClick={() => removeItem(item.id)}
                       className="text-red-500 hover:text-red-600 mt-1"
@@ -1995,20 +2166,41 @@ export default function POS() {
                 <span>-${totalDiscount.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-xl font-bold pt-2 border-t">
+            <div className={`flex justify-between text-xl font-bold pt-2 border-t ${total < 0 ? 'text-red-600' : ''}`}>
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>{total < 0 ? '-' : ''}${Math.abs(total).toFixed(2)}</span>
             </div>
           </div>
 
-          {/* Botón de cobrar */}
+          {/* Botón de cobrar / Generar Vale */}
           {!showPayment ? (
             <button
-              onClick={() => setShowPayment(true)}
+              onClick={() => {
+                if (total < 0) {
+                  // Total negativo = generar vale
+                  setShowStoreCreditModal(true);
+                } else if (total === 0) {
+                  // Cambio exacto = confirmar sin pago
+                  handleExactExchange();
+                } else {
+                  // Total positivo = cobrar normal
+                  setShowPayment(true);
+                }
+              }}
               disabled={cart.length === 0}
-              className="w-full btn btn-success py-4 text-lg disabled:opacity-50"
+              className={`w-full py-4 text-lg disabled:opacity-50 rounded-lg font-medium ${
+                total < 0
+                  ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                  : total === 0
+                    ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                    : 'btn btn-success'
+              }`}
             >
-              Cobrar ${total.toFixed(2)}
+              {total < 0
+                ? `Generar Vale $${Math.abs(total).toFixed(2)}`
+                : total === 0
+                  ? 'Cambio Exacto - Confirmar'
+                  : `Cobrar $${total.toFixed(2)}`}
             </button>
           ) : (
             <div className="space-y-4">
@@ -2088,8 +2280,18 @@ export default function POS() {
                 disabled={isProcessing}
               />
 
-              {/* Mostrar monto pendiente si hay gift cards aplicadas */}
-              {giftCardAmount > 0 && (
+              {/* Seccion de Vales de Credito */}
+              <StoreCreditPaymentSection
+                totalAmount={total - giftCardAmount}
+                storeCreditAmount={storeCreditAmount}
+                appliedStoreCredits={appliedStoreCredits}
+                onApplyStoreCredit={(sc) => setAppliedStoreCredits(prev => [...prev, sc])}
+                onRemoveStoreCredit={(code) => setAppliedStoreCredits(prev => prev.filter(sc => sc.code !== code))}
+                disabled={isProcessing}
+              />
+
+              {/* Mostrar monto pendiente si hay gift cards o vales aplicados */}
+              {(giftCardAmount > 0 || storeCreditAmount > 0) && (
                 <div className="flex justify-between items-center p-2 bg-purple-50 rounded-lg">
                   <span className="text-sm text-purple-700">Pendiente a pagar:</span>
                   <span className="font-bold text-lg text-purple-900">
@@ -2301,6 +2503,36 @@ export default function POS() {
           setShowProductRefundModal(false);
           // Opcional: refrescar datos si es necesario
         }}
+        onAddToCart={addReturnItemToCart}
+      />
+
+      {/* Modal de generacion de vale (cuando total < 0) */}
+      <StoreCreditModal
+        isOpen={showStoreCreditModal}
+        onClose={() => setShowStoreCreditModal(false)}
+        onComplete={() => {
+          // Limpiar carrito y cerrar modal
+          if (currentTicketId) {
+            deleteTicket(currentTicketId);
+          }
+          setShowStoreCreditModal(false);
+          loadCashSession();
+        }}
+        amount={Math.abs(total)}
+        customer={selectedCustomer}
+        returnItems={cart
+          .filter((item: CartItem) => item.isReturn)
+          .map((item: CartItem) => ({
+            productId: item.product.id,
+            productName: item.product.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            originalSaleId: item.originalSaleId,
+            originalSaleItemId: item.originalSaleItemId,
+            returnReason: item.returnReason,
+          }))}
+        branchId={selectedPOS?.branch?.id || user?.branch?.id}
+        pointOfSaleId={selectedPOS?.id}
       />
 
       {/* Overlay de caja requerida */}

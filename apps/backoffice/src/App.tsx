@@ -32,6 +32,7 @@ const CustomerDetail = lazy(() => import('./pages/CustomerDetail'));
 const AfipConfig = lazy(() => import('./pages/AfipConfig'));
 const Treasury = lazy(() => import('./pages/Treasury'));
 const GiftCards = lazy(() => import('./pages/GiftCards'));
+const StoreCredits = lazy(() => import('./pages/StoreCredits'));
 
 // Loading spinner para Suspense
 function PageLoader() {
@@ -94,6 +95,7 @@ export default function App() {
                   <Route path="/afip" element={<AfipConfig />} />
                   <Route path="/treasury" element={<Treasury />} />
                   <Route path="/gift-cards" element={<GiftCards />} />
+                  <Route path="/store-credits" element={<StoreCredits />} />
                 </Routes>
               </Suspense>
             </Layout>

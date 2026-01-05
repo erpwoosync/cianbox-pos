@@ -852,6 +852,7 @@ router.post(
               'pos:cash_drawer', 'pos:close_shift',
               'inventory:view', 'stock:view',
               'reports:sales', 'reports:inventory',
+              'storecredits:view', 'storecredits:create',
             ],
           },
         });
@@ -1954,6 +1955,10 @@ const AVAILABLE_PERMISSIONS = [
   { code: 'admin:settings', name: 'Configuración general', category: 'Administración' },
   { code: 'pos:write', name: 'Gestionar puntos de venta', category: 'Administración' },
   { code: 'pos:delete', name: 'Eliminar puntos de venta', category: 'Administración' },
+  // Vales de Crédito
+  { code: 'storecredits:view', name: 'Ver vales de crédito', category: 'Vales' },
+  { code: 'storecredits:create', name: 'Crear vales de crédito', category: 'Vales' },
+  { code: 'storecredits:cancel', name: 'Cancelar vales de crédito', category: 'Vales' },
   // Acceso total
   { code: '*', name: 'Acceso total (superadmin)', category: 'Sistema' },
 ];

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, ValidationError, NotFoundError, AuthorizationError } from '../utils/errors.js';
 import GiftCardService from '../services/gift-card.service.js';
+import StoreCreditService from '../services/store-credit.service.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -49,6 +50,7 @@ const paymentSchema = z.object({
   amount: z.number().positive(),
   reference: z.string().optional(),
   giftCardCode: z.string().optional(), // Codigo de gift card para canje
+  storeCreditCode: z.string().optional(), // Codigo de vale de credito para canje
   cardBrand: z.string().optional(),
   cardLastFour: z.string().optional(),
   installments: z.number().int().min(1).default(1),
@@ -264,6 +266,34 @@ router.post(
           throw ApiError.badRequest(
             `Gift card ${gcPayment.giftCardCode} no tiene saldo suficiente. ` +
             `Disponible: $${balance.currentBalance}, Requerido: $${gcPayment.amount}`
+          );
+        }
+      }
+
+      // Procesar vales de credito: verificar antes de crear la venta
+      const storeCreditPayments = data.payments.filter(
+        (p) => p.method === 'VOUCHER' && p.storeCreditCode
+      );
+
+      for (const scPayment of storeCreditPayments) {
+        // Verificar saldo disponible
+        const balance = await StoreCreditService.checkBalance({
+          tenantId,
+          code: scPayment.storeCreditCode!,
+        });
+
+        if (balance.status !== 'ACTIVE') {
+          throw ApiError.badRequest(`Vale ${scPayment.storeCreditCode} no está activo`);
+        }
+
+        if (balance.isExpired) {
+          throw ApiError.badRequest(`Vale ${scPayment.storeCreditCode} está vencido`);
+        }
+
+        if (Number(balance.currentBalance) < scPayment.amount) {
+          throw ApiError.badRequest(
+            `Vale ${scPayment.storeCreditCode} no tiene saldo suficiente. ` +
+            `Disponible: $${balance.currentBalance}, Requerido: $${scPayment.amount}`
           );
         }
       }
@@ -485,6 +515,17 @@ router.post(
           tenantId,
           code: gcPayment.giftCardCode!,
           amount: gcPayment.amount,
+          saleId: sale.id,
+          userId,
+        });
+      }
+
+      // Canjear vales de credito DESPUÉS de la transacción (la venta ya existe)
+      for (const scPayment of storeCreditPayments) {
+        await StoreCreditService.redeemStoreCredit({
+          tenantId,
+          code: scPayment.storeCreditCode!,
+          amount: scPayment.amount,
           saleId: sale.id,
           userId,
         });
@@ -958,9 +999,11 @@ const refundItemSchema = z.object({
 const refundSchema = z.object({
   items: z.array(refundItemSchema).min(1, 'Debe incluir al menos un item a devolver'),
   reason: z.string().min(1, 'Debe indicar el motivo de la devolución'),
+  refundType: z.enum(['STORE_CREDIT', 'CASH', 'EXCHANGE']).default('STORE_CREDIT'),
   emitCreditNote: z.boolean().default(true),
   salesPointId: z.string().optional(), // Para nota de crédito AFIP
   supervisorPin: z.string().length(4).optional(), // PIN de supervisor para autorización
+  customerId: z.string().optional(), // Cliente para asociar vale
 });
 
 /**
@@ -1019,6 +1062,18 @@ router.post(
         supervisorId = supervisor.id;
         supervisorName = supervisor.name;
         console.log(`[Refund] Autorizado por supervisor: ${supervisorName} (${supervisor.email})`);
+      }
+
+      // Para devolución en EFECTIVO siempre se requiere autorización de supervisor
+      if (data.refundType === 'CASH' && !supervisorId) {
+        // Verificar si tiene permiso especial de devolución en efectivo
+        const hasCashRefundPermission = userPermissions.includes('pos:cash-refund') || userPermissions.includes('*');
+        if (!hasCashRefundPermission) {
+          if (!data.supervisorPin) {
+            throw new AuthorizationError('La devolución en efectivo requiere autorización de un supervisor.');
+          }
+          // Ya se validó el PIN arriba, supervisorId ya está seteado
+        }
       }
 
       // Obtener venta original con items y factura
@@ -1298,6 +1353,25 @@ router.post(
         }
       }
 
+      // Generar vale de crédito si el tipo de devolución es STORE_CREDIT
+      let storeCredit = null;
+      if (data.refundType === 'STORE_CREDIT') {
+        try {
+          storeCredit = await StoreCreditService.createStoreCredit({
+            tenantId,
+            amount: refundTotal.toNumber(),
+            issuedByUserId: userId,
+            branchId: originalSale.branchId,
+            customerId: data.customerId || originalSale.customerId || undefined,
+            originSaleId: result.id, // Venta de devolución
+          });
+          console.log(`[Refund] Vale generado: ${storeCredit.code} por $${refundTotal.toNumber()}`);
+        } catch (error) {
+          console.error('[Refund] Error generando vale:', error);
+          // No revertir la devolución si falla la generación del vale
+        }
+      }
+
       res.status(201).json({
         success: true,
         data: {
@@ -1308,8 +1382,17 @@ router.post(
             caeExpiration: creditNoteResult.caeExpiration,
             voucherNumber: creditNoteResult.voucherNumber,
           } : null,
+          storeCredit: storeCredit ? {
+            id: storeCredit.id,
+            code: storeCredit.code,
+            barcode: storeCredit.barcode,
+            amount: Number(storeCredit.originalAmount),
+            expiresAt: storeCredit.expiresAt,
+            customer: storeCredit.customer,
+          } : null,
           isFullRefund,
           refundAmount: refundTotal.toNumber(),
+          refundType: data.refundType,
         },
         message: isFullRefund
           ? 'Devolución total procesada correctamente'
