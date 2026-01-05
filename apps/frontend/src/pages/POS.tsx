@@ -22,9 +22,10 @@ import {
   User,
   Receipt,
   RotateCcw,
+  Ticket,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useIndexedDB } from '../hooks/useIndexedDB';
 import { STORES } from '../services/indexedDB';
@@ -353,6 +354,12 @@ export default function POS() {
   const [appliedStoreCredits, setAppliedStoreCredits] = useState<AppliedStoreCredit[]>([]);
   const storeCreditAmount = appliedStoreCredits.reduce((sum, sc) => sum + sc.amountApplied, 0);
 
+  // Estado de créditos disponibles del cliente (para sugerir uso)
+  const [customerCredits, setCustomerCredits] = useState<{
+    totalAvailable: number;
+    count: number;
+  } | null>(null);
+
   // Estado de promociones
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
   const [isCalculatingPromotions, setIsCalculatingPromotions] = useState(false);
@@ -395,6 +402,34 @@ export default function POS() {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Cargar créditos disponibles del cliente cuando cambia
+  useEffect(() => {
+    const loadCustomerCredits = async () => {
+      // Si no hay cliente o es Consumidor Final, limpiar créditos
+      if (!selectedCustomer || selectedCustomer.id === CONSUMIDOR_FINAL.id) {
+        setCustomerCredits(null);
+        return;
+      }
+
+      try {
+        const result = await storeCreditsService.getCustomerCredits(selectedCustomer.id);
+        if (result.success && result.totalAvailable > 0) {
+          setCustomerCredits({
+            totalAvailable: result.totalAvailable,
+            count: result.count,
+          });
+        } else {
+          setCustomerCredits(null);
+        }
+      } catch (error) {
+        console.error('Error cargando créditos del cliente:', error);
+        setCustomerCredits(null);
+      }
+    };
+
+    loadCustomerCredits();
+  }, [selectedCustomer?.id]);
 
   // Cargar sesión de caja cuando se selecciona POS
   useEffect(() => {
@@ -2030,6 +2065,24 @@ export default function POS() {
             </div>
             <span className="text-xs text-gray-400">Cambiar</span>
           </button>
+
+          {/* Notificación de créditos disponibles */}
+          {customerCredits && customerCredits.totalAvailable > 0 && (
+            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+              <div className="w-7 h-7 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Ticket className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-amber-800">
+                  {customerCredits.count === 1 ? 'Tiene un vale disponible' : `Tiene ${customerCredits.count} vales disponibles`}
+                </p>
+                <p className="text-sm font-bold text-amber-900">
+                  ${customerCredits.totalAvailable.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <span className="text-xs text-amber-600 flex-shrink-0">Usar al pagar</span>
+            </div>
+          )}
         </div>
 
         {/* Header del carrito */}

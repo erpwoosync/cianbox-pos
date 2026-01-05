@@ -296,4 +296,43 @@ router.get(
   }
 });
 
+// ==============================================
+// GET /api/store-credits/customer/:customerId
+// Obtener vales activos de un cliente (para POS)
+// ==============================================
+router.get(
+  '/customer/:customerId',
+  authenticate,
+  authorize('pos:sell', 'storecredits:view', '*'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { customerId } = req.params;
+
+    const credits = await StoreCreditService.getCustomerActiveCredits(
+      req.user!.tenantId,
+      customerId
+    );
+
+    // Calcular total disponible
+    const totalAvailable = credits.reduce(
+      (sum, c) => sum + Number(c.currentBalance),
+      0
+    );
+
+    res.json({
+      success: true,
+      credits: credits.map(c => ({
+        id: c.id,
+        code: c.code,
+        currentBalance: Number(c.currentBalance),
+        expiresAt: c.expiresAt,
+      })),
+      totalAvailable,
+      count: credits.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

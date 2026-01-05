@@ -981,4 +981,61 @@ export const giftCardsService = {
   },
 };
 
+// Store Credits (Vales de crédito)
+export const storeCreditsService = {
+  /**
+   * Consultar saldo de un vale por código
+   */
+  checkBalance: async (code: string): Promise<ApiResponse<{
+    code: string;
+    balance: number;
+    currentBalance: number;
+    originalAmount: number;
+    status: string;
+    expiresAt?: string;
+    isExpired: boolean;
+    isValid: boolean;
+    message?: string;
+    customer?: { id: string; name: string };
+  }>> => {
+    const response = await api.post('/store-credits/balance', { code });
+    return response.data;
+  },
+
+  /**
+   * Canjear saldo de un vale
+   */
+  redeem: async (code: string, amount: number, saleId: string): Promise<ApiResponse<{
+    amountRedeemed: number;
+    remainingBalance: number;
+    storeCredit: {
+      id: string;
+      code: string;
+      currentBalance: number;
+      status: string;
+    };
+  }>> => {
+    const response = await api.post('/store-credits/redeem', { code, amount, saleId });
+    return response.data;
+  },
+
+  /**
+   * Obtener vales activos de un cliente
+   */
+  getCustomerCredits: async (customerId: string): Promise<{
+    success: boolean;
+    credits: Array<{
+      id: string;
+      code: string;
+      currentBalance: number;
+      expiresAt?: string;
+    }>;
+    totalAvailable: number;
+    count: number;
+  }> => {
+    const response = await api.get(`/store-credits/customer/${customerId}`);
+    return response.data;
+  },
+};
+
 export default api;

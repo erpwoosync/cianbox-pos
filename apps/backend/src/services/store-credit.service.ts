@@ -413,6 +413,30 @@ class StoreCreditService {
       })),
     };
   }
+
+  /**
+   * Obtener vales activos de un cliente
+   * Para mostrar sugerencia en POS
+   */
+  async getCustomerActiveCredits(tenantId: string, customerId: string) {
+    const now = new Date();
+
+    const credits = await prisma.storeCredit.findMany({
+      where: {
+        tenantId,
+        customerId,
+        status: 'ACTIVE',
+        currentBalance: { gt: 0 },
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: now } },
+        ],
+      },
+      orderBy: { expiresAt: 'asc' }, // Los que vencen primero, primero
+    });
+
+    return credits;
+  }
 }
 
 export default new StoreCreditService();
