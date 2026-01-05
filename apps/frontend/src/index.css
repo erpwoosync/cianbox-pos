@@ -184,7 +184,7 @@ button:focus {
 
 /* Panel expandido para modo pago */
 .pos-layout-payment {
-  grid-template-columns: 1fr 520px;
+  grid-template-columns: 1fr 680px;
 }
 
 @media (max-width: 768px) {
@@ -203,13 +203,19 @@ button:focus {
   }
 
   .pos-layout.pos-layout-payment {
-    grid-template-columns: 1fr 520px;
+    grid-template-columns: 1fr 680px;
   }
 }
 
 @media (min-width: 1280px) {
   .pos-layout.pos-layout-payment {
-    grid-template-columns: 1fr 580px;
+    grid-template-columns: 1fr 780px;
+  }
+}
+
+@media (min-width: 1536px) {
+  .pos-layout.pos-layout-payment {
+    grid-template-columns: 1fr 880px;
   }
 }
 
