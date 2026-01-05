@@ -893,7 +893,7 @@ export default function POS() {
     returnReason?: string;
   }) => {
     updateCart((prev) => {
-      // Crear item negativo (devolución)
+      // Crear item negativo (devolución) - SIN promociones
       const returnCartItem: CartItem = {
         id: generateId(),
         product: {
@@ -906,12 +906,16 @@ export default function POS() {
         quantity: returnItem.quantity,
         unitPrice: returnItem.unitPrice,
         unitPriceNet: returnItem.unitPriceNet,
-        discount: 0,
+        discount: 0, // Sin descuento - precio original
         subtotal: -returnItem.subtotal, // Negativo porque es devolución
         isReturn: true,
         originalSaleId: returnItem.originalSaleId,
         originalSaleItemId: returnItem.originalSaleItemId,
         returnReason: returnItem.returnReason,
+        // Explícitamente sin promociones
+        promotionId: undefined,
+        promotionName: undefined,
+        promotions: [],
       };
       return [...prev, returnCartItem];
     });
@@ -2092,7 +2096,7 @@ export default function POS() {
                     <p className={`text-xs ${item.isReturn ? 'text-red-500' : 'text-gray-500'}`}>
                       {item.isReturn ? '-' : ''}${Math.abs(item.unitPrice).toFixed(2)} c/u
                     </p>
-                    {item.promotionName && (
+                    {item.promotionName && !item.isReturn && (
                       <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
                         <Tag className="w-3 h-3" />
                         {item.promotionName}
