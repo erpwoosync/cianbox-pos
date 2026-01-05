@@ -20,7 +20,7 @@ const saleItemSchema = z.object({
   productCode: z.string().optional(),
   productName: z.string(),
   productBarcode: z.string().optional(),
-  quantity: z.number().positive(),
+  quantity: z.number().refine((n) => n !== 0, { message: 'Quantity cannot be zero' }), // Permite negativos para devoluciones
   unitPrice: z.number().min(0), // Precio CON IVA
   unitPriceNet: z.number().min(0).optional(), // Precio SIN IVA
   discount: z.number().min(0).default(0),
@@ -29,6 +29,11 @@ const saleItemSchema = z.object({
   promotionName: z.string().optional(),
   priceListId: z.string().optional(), // ID de lista de precios usada
   branchId: z.string().optional(), // ID de sucursal (heredado de la venta)
+  // Campos para devoluciones
+  isReturn: z.boolean().optional(), // true si es item de devolucion
+  originalSaleId: z.string().optional(), // ID de venta original
+  originalSaleItemId: z.string().optional(), // ID del item original
+  returnReason: z.string().optional(), // Motivo de devolucion
 });
 
 const paymentSchema = z.object({
@@ -102,7 +107,7 @@ const saleCreateSchema = z.object({
     ])
     .default('NDP_X'),
   items: z.array(saleItemSchema).min(1, 'Debe incluir al menos un item'),
-  payments: z.array(paymentSchema).min(1, 'Debe incluir al menos un pago'),
+  payments: z.array(paymentSchema).default([]), // Puede estar vacio si total <= 0
   notes: z.string().optional(),
 });
 
@@ -223,15 +228,26 @@ router.post(
 
       const total = subtotal;
 
-      // Verificar que los pagos cubran el total
+      // Determinar si hay items de devolución
+      const hasReturnItems = data.items.some((item) => item.quantity < 0 || item.isReturn);
+
+      // Verificar que los pagos cubran el total (solo si total > 0)
       const totalPaid = data.payments.reduce(
         (sum, p) => sum + p.amount,
         0
       );
 
-      if (new Prisma.Decimal(totalPaid).lessThan(total)) {
+      // Solo requerir pagos si el total es positivo
+      if (total.greaterThan(0) && new Prisma.Decimal(totalPaid).lessThan(total)) {
         throw ApiError.badRequest(
           `El total de pagos ($${totalPaid}) es menor al total de la venta ($${total})`
+        );
+      }
+
+      // Si total <= 0 y hay pagos, validar que no excedan
+      if (total.lessThanOrEqualTo(0) && data.payments.length > 0) {
+        throw ApiError.badRequest(
+          'No se deben incluir pagos cuando el total es menor o igual a cero'
         );
       }
 
@@ -531,7 +547,26 @@ router.post(
         });
       }
 
-      res.status(201).json({ success: true, data: sale });
+      // Si el total es negativo, generar vale de crédito automáticamente
+      let generatedStoreCredit = null;
+      if (total.lessThan(0)) {
+        const creditAmount = total.abs().toNumber();
+
+        generatedStoreCredit = await StoreCreditService.createStoreCredit({
+          tenantId,
+          amount: creditAmount,
+          customerId: data.customerId,
+          originSaleId: sale.id,
+          issuedByUserId: userId,
+          branchId: data.branchId,
+        });
+      }
+
+      res.status(201).json({
+        success: true,
+        data: sale,
+        ...(generatedStoreCredit && { storeCredit: generatedStoreCredit }),
+      });
     } catch (error) {
       next(error);
     }

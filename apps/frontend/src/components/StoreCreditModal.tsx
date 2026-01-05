@@ -1,6 +1,7 @@
 /**
- * StoreCreditModal - Modal para generar vale de credito
- * Se muestra cuando el total del carrito es negativo (devolucion sin cambio)
+ * StoreCreditModal - Modal para transacciones con total negativo
+ * Se muestra cuando el total del carrito es negativo (devolucion > compras)
+ * Crea una venta con todos los items y genera un vale de credito automaticamente
  */
 
 import { useState, useEffect } from 'react';
@@ -14,9 +15,31 @@ import {
   Printer,
   Copy,
   Check,
+  ShoppingBag,
+  RotateCcw,
 } from 'lucide-react';
 import api from '../services/api';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
+
+interface CartItem {
+  product: {
+    id: string;
+    sku?: string;
+    barcode?: string;
+    name: string;
+    taxRate?: number;
+  };
+  quantity: number;
+  unitPrice: number;
+  unitPriceNet?: number;
+  discount: number;
+  isReturn?: boolean;
+  originalSaleId?: string;
+  originalSaleItemId?: string;
+  returnReason?: string;
+  promotionId?: string;
+  promotionName?: string;
+}
 
 interface StoreCreditModalProps {
   isOpen: boolean;
@@ -24,17 +47,10 @@ interface StoreCreditModalProps {
   onComplete: () => void;
   amount: number; // Monto absoluto del vale (positivo)
   customer?: Customer | null;
-  returnItems: Array<{
-    productId: string;
-    productName: string;
-    quantity: number;
-    unitPrice: number;
-    originalSaleId?: string;
-    originalSaleItemId?: string;
-    returnReason?: string;
-  }>;
-  branchId?: string;
-  pointOfSaleId?: string;
+  cartItems: CartItem[]; // Todos los items del carrito
+  branchId: string;
+  pointOfSaleId: string;
+  priceListId?: string;
 }
 
 interface GeneratedCredit {
@@ -45,54 +61,98 @@ interface GeneratedCredit {
   expiresAt?: string;
 }
 
+interface SaleResult {
+  id: string;
+  saleNumber: string;
+}
+
 export default function StoreCreditModal({
   isOpen,
   onClose,
   onComplete,
   amount,
   customer,
-  returnItems,
-  branchId: _branchId,
-  pointOfSaleId: _pointOfSaleId,
+  cartItems,
+  branchId,
+  pointOfSaleId,
+  priceListId,
 }: StoreCreditModalProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedCredit, setGeneratedCredit] = useState<GeneratedCredit | null>(null);
+  const [saleResult, setSaleResult] = useState<SaleResult | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Separar items de compra y devolucion para mostrar
+  const purchaseItems = cartItems.filter(item => !item.isReturn && item.quantity > 0);
+  const returnItems = cartItems.filter(item => item.isReturn || item.quantity < 0);
 
   // Reset al cerrar
   useEffect(() => {
     if (!isOpen) {
       setError(null);
       setGeneratedCredit(null);
+      setSaleResult(null);
       setCopied(false);
     }
   }, [isOpen]);
 
-  const handleGenerateCredit = async () => {
+  const handleConfirmTransaction = async () => {
     setIsProcessing(true);
     setError(null);
 
     try {
-      // Crear el vale de credito
-      const response = await api.post('/store-credits', {
-        amount,
+      // Crear la venta con todos los items (el backend genera el vale automaticamente)
+      const saleData = {
+        branchId,
+        pointOfSaleId,
         customerId: customer?.id !== CONSUMIDOR_FINAL.id ? customer?.id : undefined,
-        notes: `Generado por devolucion - ${returnItems.map(i => `${i.productName} x${i.quantity}`).join(', ')}`,
-      });
+        items: cartItems.map((item) => ({
+          productId: item.product.id,
+          productCode: item.product.sku || undefined,
+          productName: item.product.name,
+          productBarcode: item.product.barcode || undefined,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          unitPriceNet: Number(item.unitPriceNet || item.unitPrice / 1.21),
+          discount: Number(item.discount || 0),
+          taxRate: Number(item.product.taxRate || 21),
+          promotionId: item.promotionId || undefined,
+          promotionName: item.promotionName || undefined,
+          priceListId: priceListId || undefined,
+          branchId: branchId,
+          // Campos de devolucion
+          isReturn: item.isReturn || item.quantity < 0,
+          originalSaleId: item.originalSaleId || undefined,
+          originalSaleItemId: item.originalSaleItemId || undefined,
+          returnReason: item.returnReason || undefined,
+        })),
+        payments: [], // Sin pagos porque el total es negativo
+      };
+
+      const response = await api.post('/sales', saleData);
 
       if (response.data.success) {
-        const credit = response.data.storeCredit;
-        setGeneratedCredit({
-          id: credit.id,
-          code: credit.code,
-          barcode: credit.barcode,
-          amount: credit.originalAmount,
-          expiresAt: credit.expiresAt,
+        const sale = response.data.data;
+        setSaleResult({
+          id: sale.id,
+          saleNumber: sale.saleNumber,
         });
+
+        // El backend genera el vale automaticamente cuando total < 0
+        if (response.data.storeCredit) {
+          const credit = response.data.storeCredit;
+          setGeneratedCredit({
+            id: credit.id,
+            code: credit.code,
+            barcode: credit.barcode,
+            amount: Number(credit.originalAmount),
+            expiresAt: credit.expiresAt,
+          });
+        }
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || err.message || 'Error al generar vale';
+      const msg = err.response?.data?.error?.message || err.message || 'Error al procesar transaccion';
       setError(msg);
     } finally {
       setIsProcessing(false);
@@ -187,6 +247,7 @@ export default function StoreCreditModal({
           ` : ''}
 
           <div class="info"><strong>Fecha:</strong> ${new Date().toLocaleDateString('es-AR')}</div>
+          ${saleResult ? `<div class="info"><strong>Transaccion:</strong> ${saleResult.saleNumber}</div>` : ''}
 
           ${generatedCredit.expiresAt ? `
             <div class="info"><strong>Vence:</strong> ${new Date(generatedCredit.expiresAt).toLocaleDateString('es-AR')}</div>
@@ -226,7 +287,7 @@ export default function StoreCreditModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
         {/* Header */}
         <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-amber-50">
           <div className="flex items-center gap-4">
@@ -234,9 +295,9 @@ export default function StoreCreditModal({
               <CreditCard className="w-5 h-5 text-orange-600" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-lg">Generar Vale de Credito</h3>
+              <h3 className="font-semibold text-lg">Transaccion Mixta</h3>
               <p className="text-sm text-gray-500">
-                {generatedCredit ? 'Vale generado exitosamente' : 'Devolucion sin cambio por producto'}
+                {generatedCredit ? 'Vale generado exitosamente' : 'Devolucion con compras - Generar vale por diferencia'}
               </p>
             </div>
             <button
@@ -256,6 +317,12 @@ export default function StoreCreditModal({
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
+
+              {saleResult && (
+                <p className="text-sm text-gray-500">
+                  Transaccion #{saleResult.saleNumber} completada
+                </p>
+              )}
 
               <div>
                 <p className="text-gray-600 mb-2">Codigo del vale:</p>
@@ -311,10 +378,11 @@ export default function StoreCreditModal({
               </div>
             </div>
           ) : (
-            // Formulario de generacion
+            // Formulario de confirmacion
             <div className="space-y-4">
+              {/* Resumen de la transaccion */}
               <div className="text-center">
-                <p className="text-gray-600 mb-2">Monto del vale a generar:</p>
+                <p className="text-gray-600 mb-2">Vale a generar por diferencia:</p>
                 <div className="text-4xl font-bold text-orange-600">
                   ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                 </div>
@@ -330,16 +398,48 @@ export default function StoreCreditModal({
                 </div>
               )}
 
-              <div className="bg-orange-50 rounded-lg p-3">
-                <p className="text-sm text-orange-800 font-medium mb-2">Productos a devolver:</p>
-                <ul className="text-sm text-orange-700 space-y-1">
-                  {returnItems.map((item, idx) => (
-                    <li key={idx}>
-                      {item.productName} x{item.quantity} - ${(item.unitPrice * item.quantity).toFixed(2)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* Items de devolucion */}
+              {returnItems.length > 0 && (
+                <div className="bg-red-50 rounded-lg p-3">
+                  <p className="text-sm text-red-800 font-medium mb-2 flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4" />
+                    Devoluciones:
+                  </p>
+                  <ul className="text-sm text-red-700 space-y-1">
+                    {returnItems.map((item, idx) => (
+                      <li key={idx} className="flex justify-between">
+                        <span>{item.product.name} x{Math.abs(item.quantity)}</span>
+                        <span className="font-medium">
+                          -${(item.unitPrice * Math.abs(item.quantity)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Items de compra */}
+              {purchaseItems.length > 0 && (
+                <div className="bg-green-50 rounded-lg p-3">
+                  <p className="text-sm text-green-800 font-medium mb-2 flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4" />
+                    Compras:
+                  </p>
+                  <ul className="text-sm text-green-700 space-y-1">
+                    {purchaseItems.map((item, idx) => {
+                      const lineTotal = (item.unitPrice * item.quantity) - item.discount;
+                      return (
+                        <li key={idx} className="flex justify-between">
+                          <span>{item.product.name} x{item.quantity}</span>
+                          <span className="font-medium">
+                            ${lineTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
 
               {error && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
@@ -357,19 +457,19 @@ export default function StoreCreditModal({
                   Cancelar
                 </button>
                 <button
-                  onClick={handleGenerateCredit}
+                  onClick={handleConfirmTransaction}
                   disabled={isProcessing}
                   className="flex-1 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Generando...
+                      Procesando...
                     </>
                   ) : (
                     <>
                       <CreditCard className="w-5 h-5" />
-                      Generar Vale
+                      Confirmar y Generar Vale
                     </>
                   )}
                 </button>

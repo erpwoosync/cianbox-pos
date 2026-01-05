@@ -2534,7 +2534,7 @@ export default function POS() {
         onAddToCart={addReturnItemToCart}
       />
 
-      {/* Modal de generacion de vale (cuando total < 0) */}
+      {/* Modal de transaccion mixta (cuando total < 0) */}
       <StoreCreditModal
         isOpen={showStoreCreditModal}
         onClose={() => setShowStoreCreditModal(false)}
@@ -2548,19 +2548,10 @@ export default function POS() {
         }}
         amount={Math.abs(total)}
         customer={selectedCustomer}
-        returnItems={cart
-          .filter((item: CartItem) => item.isReturn)
-          .map((item: CartItem) => ({
-            productId: item.product.id,
-            productName: item.product.name,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            originalSaleId: item.originalSaleId,
-            originalSaleItemId: item.originalSaleItemId,
-            returnReason: item.returnReason,
-          }))}
-        branchId={selectedPOS?.branch?.id || user?.branch?.id}
-        pointOfSaleId={selectedPOS?.id}
+        cartItems={cart}
+        branchId={selectedPOS?.branch?.id || user?.branch?.id || ''}
+        pointOfSaleId={selectedPOS?.id || ''}
+        priceListId={selectedPOS?.priceList?.id}
       />
 
       {/* Overlay de caja requerida */}
