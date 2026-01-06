@@ -419,6 +419,9 @@ export interface ProductStock {
   available: number;
 }
 
+// Tipo de visualización de recargo financiero
+export type SurchargeDisplayMode = 'SEPARATE_ITEM' | 'DISTRIBUTED';
+
 // Point of Sale Types
 export interface PointOfSale {
   id: string;
@@ -432,6 +435,7 @@ export interface PointOfSale {
   priceList?: { id: string; name: string; currency: string };
   mpDeviceId?: string | null;
   mpDeviceName?: string | null;
+  surchargeDisplayMode?: SurchargeDisplayMode | null; // Override del modo de recargo (null = usar config tenant)
   createdAt: string;
   updatedAt: string;
 }
@@ -445,6 +449,7 @@ export interface CreatePointOfSaleDto {
   isActive?: boolean;
   mpDeviceId?: string | null;
   mpDeviceName?: string | null;
+  surchargeDisplayMode?: SurchargeDisplayMode | null;
 }
 
 export interface UpdatePointOfSaleDto {
@@ -456,6 +461,7 @@ export interface UpdatePointOfSaleDto {
   isActive?: boolean;
   mpDeviceId?: string | null;
   mpDeviceName?: string | null;
+  surchargeDisplayMode?: SurchargeDisplayMode | null;
 }
 
 // Permissions API

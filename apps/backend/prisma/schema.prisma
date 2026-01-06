@@ -97,6 +97,9 @@ model Tenant {
   status           TenantStatus @default(TRIAL)
   settings         Json         @default("{}") // Configuración JSON flexible
 
+  // Recargo financiero: modo de visualización por defecto para todos los POS
+  surchargeDisplayMode SurchargeDisplayMode @default(SEPARATE_ITEM)
+
   // Sharding: Servidor de DB asignado (null = servidor por defecto)
   databaseServerId String?
   databaseServer   DatabaseServer? @relation(fields: [databaseServerId], references: [id])
@@ -156,6 +159,12 @@ enum TenantStatus {
   ACTIVE
   SUSPENDED
   CANCELLED
+}
+
+// Modo de visualización de recargo financiero en ventas con tarjeta
+enum SurchargeDisplayMode {
+  SEPARATE_ITEM   // Mostrar como item separado "Recargo financiero"
+  DISTRIBUTED     // Distribuir proporcionalmente en el precio de los productos
 }
 
 // ==============================================
@@ -349,6 +358,9 @@ model PointOfSale {
   printPointId  String?  // Punto de impresión por defecto
   isActive      Boolean  @default(true)
   settings      Json     @default("{}") // Configuración específica del POS
+
+  // Recargo financiero: override del modo de visualización (null = usar config del tenant)
+  surchargeDisplayMode SurchargeDisplayMode?
 
   // Mercado Pago Point
   mpDeviceId    String?  // device_id del terminal MP Point

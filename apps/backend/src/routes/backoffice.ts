@@ -1244,6 +1244,7 @@ const createPointOfSaleSchema = z.object({
   description: z.string().optional(),
   priceListId: z.string().optional(),
   isActive: z.boolean().optional().default(true),
+  surchargeDisplayMode: z.enum(['SEPARATE_ITEM', 'DISTRIBUTED']).nullable().optional(),
 });
 
 // Función para generar código de POS automático
@@ -1369,7 +1370,7 @@ router.post(
         throw new ApiError(422, 'VALIDATION_ERROR', 'Datos inválidos', validation.error.errors);
       }
 
-      const { branchId, name, description, priceListId, isActive } = validation.data;
+      const { branchId, name, description, priceListId, isActive, surchargeDisplayMode } = validation.data;
       let { code } = validation.data;
 
       // Verificar que la sucursal pertenece al tenant
@@ -1415,6 +1416,7 @@ router.post(
           description,
           priceListId,
           isActive,
+          surchargeDisplayMode,
         },
         include: {
           branch: { select: { id: true, name: true, code: true } },
@@ -1443,6 +1445,7 @@ const updatePointOfSaleSchema = z.object({
   isActive: z.boolean().optional(),
   mpDeviceId: z.string().nullable().optional(),
   mpDeviceName: z.string().nullable().optional(),
+  surchargeDisplayMode: z.enum(['SEPARATE_ITEM', 'DISTRIBUTED']).nullable().optional(),
 });
 
 router.put(
@@ -1467,7 +1470,7 @@ router.put(
         throw new ApiError(404, 'NOT_FOUND', 'Punto de venta no encontrado');
       }
 
-      const { branchId, code, name, description, priceListId, isActive, mpDeviceId, mpDeviceName } = validation.data;
+      const { branchId, code, name, description, priceListId, isActive, mpDeviceId, mpDeviceName, surchargeDisplayMode } = validation.data;
 
       // Verificar sucursal si se cambia
       if (branchId && branchId !== existing.branchId) {
@@ -1521,6 +1524,7 @@ router.put(
           ...(isActive !== undefined && { isActive }),
           ...(mpDeviceId !== undefined && { mpDeviceId }),
           ...(mpDeviceName !== undefined && { mpDeviceName }),
+          ...(surchargeDisplayMode !== undefined && { surchargeDisplayMode }),
         },
         include: {
           branch: { select: { id: true, name: true, code: true } },

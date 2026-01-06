@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { pointsOfSaleApi, stockApi, pricesApi, mercadoPagoApi, PointOfSale, CreatePointOfSaleDto, MercadoPagoDevice } from '../services/api';
+import { pointsOfSaleApi, stockApi, pricesApi, mercadoPagoApi, PointOfSale, CreatePointOfSaleDto, MercadoPagoDevice, SurchargeDisplayMode } from '../services/api';
 import { Monitor, RefreshCw, Search, Plus, Pencil, Trash2, X, Store, ListOrdered, Smartphone } from 'lucide-react';
 
 interface Branch {
@@ -39,6 +39,7 @@ export default function PointsOfSale() {
     isActive: true,
     mpDeviceId: null,
     mpDeviceName: null,
+    surchargeDisplayMode: null,
   });
 
   useEffect(() => {
@@ -106,6 +107,7 @@ export default function PointsOfSale() {
       isActive: pos.isActive,
       mpDeviceId: pos.mpDeviceId || null,
       mpDeviceName: pos.mpDeviceName || null,
+      surchargeDisplayMode: pos.surchargeDisplayMode || null,
     });
     setShowModal(true);
   };
@@ -122,6 +124,7 @@ export default function PointsOfSale() {
       isActive: true,
       mpDeviceId: null,
       mpDeviceName: null,
+      surchargeDisplayMode: null,
     });
   };
 
@@ -506,6 +509,28 @@ export default function PointsOfSale() {
                   </p>
                 </div>
               )}
+
+              {/* Modo de visualización de recargo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Recargo financiero <span className="text-gray-400 font-normal">(tarjetas con cuotas)</span>
+                </label>
+                <select
+                  value={formData.surchargeDisplayMode || ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    surchargeDisplayMode: e.target.value ? e.target.value as SurchargeDisplayMode : null
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Usar configuración del comercio</option>
+                  <option value="SEPARATE_ITEM">Mostrar como item separado (Recargo financiero)</option>
+                  <option value="DISTRIBUTED">Distribuir en precio de productos</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Cómo se muestra el recargo por cuotas en el ticket
+                </p>
+              </div>
 
               <div className="flex items-center gap-2">
                 <input

@@ -450,6 +450,7 @@ router.get(
             name: user.tenant.name,
             slug: user.tenant.slug,
             logo: user.tenant.logo,
+            surchargeDisplayMode: user.tenant.surchargeDisplayMode,
           },
         },
       });

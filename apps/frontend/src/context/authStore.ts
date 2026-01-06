@@ -23,6 +23,7 @@ interface Tenant {
   name: string;
   slug: string;
   logo?: string;
+  surchargeDisplayMode?: 'SEPARATE_ITEM' | 'DISTRIBUTED';
 }
 
 interface AuthState {

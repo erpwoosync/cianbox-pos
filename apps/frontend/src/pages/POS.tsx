@@ -156,6 +156,10 @@ interface CartItem {
   returnReason?: string;
   // Propiedad de recargo financiero
   isSurcharge?: boolean;
+  // Propiedades para modo DISTRIBUTED (recargo distribuido en precios)
+  originalUnitPrice?: number;      // Precio original antes del recargo
+  originalUnitPriceNet?: number;   // Precio neto original antes del recargo
+  appliedSurchargeRate?: number;   // Tasa de recargo aplicada (ej: 7 para 7%)
 }
 
 interface Ticket {
@@ -180,6 +184,8 @@ interface QuickAccessCategory {
   _count?: { products: number };
 }
 
+type SurchargeDisplayMode = 'SEPARATE_ITEM' | 'DISTRIBUTED';
+
 interface PointOfSale {
   id: string;
   code: string;
@@ -189,6 +195,7 @@ interface PointOfSale {
   priceList?: { id: string; name: string; currency: string };
   mpDeviceId?: string;
   mpDeviceName?: string;
+  surchargeDisplayMode?: SurchargeDisplayMode; // Override del modo (null = usar config del tenant)
 }
 
 type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR' | 'TRANSFER' | 'GIFT_CARD' | 'VOUCHER';
@@ -233,7 +240,7 @@ interface PendingSale {
 
 export default function POS() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, tenant } = useAuthStore();
 
   // Estado de tickets (múltiples ventas en paralelo) - persistido en IndexedDB
   const initialTicket: Ticket = {
@@ -969,43 +976,109 @@ export default function POS() {
     setShowProductRefundModal(false);
   };
 
-  // Agregar o actualizar recargo financiero al carrito
-  const updateSurchargeItem = (surchargeAmount: number, installments: number, cardBrandName: string) => {
-    updateCart((prev) => {
-      // Primero remover cualquier recargo existente
-      const itemsWithoutSurcharge = prev.filter((item) => !item.isSurcharge);
+  // Obtener el modo efectivo de visualización de recargo (POS override > tenant default)
+  const getEffectiveSurchargeDisplayMode = (): SurchargeDisplayMode => {
+    // Prioridad: POS override > tenant default > 'SEPARATE_ITEM'
+    if (selectedPOS?.surchargeDisplayMode) {
+      return selectedPOS.surchargeDisplayMode;
+    }
+    return tenant?.surchargeDisplayMode || 'SEPARATE_ITEM';
+  };
 
-      // Si no hay recargo, retornar sin agregar
-      if (surchargeAmount <= 0) {
+  // Agregar o actualizar recargo financiero al carrito
+  const updateSurchargeItem = (surchargeAmount: number, installments: number, cardBrandName: string, surchargeRate: number = 0) => {
+    const displayMode = getEffectiveSurchargeDisplayMode();
+
+    updateCart((prev) => {
+      // Primero restaurar precios originales si había recargo distribuido
+      const itemsRestored = prev.map((item) => {
+        if (item.originalUnitPrice !== undefined && !item.isSurcharge && !item.isReturn) {
+          return {
+            ...item,
+            unitPrice: item.originalUnitPrice,
+            unitPriceNet: item.originalUnitPriceNet || item.originalUnitPrice / 1.21,
+            subtotal: item.quantity * item.originalUnitPrice - item.discount,
+            originalUnitPrice: undefined,
+            originalUnitPriceNet: undefined,
+            appliedSurchargeRate: undefined,
+          };
+        }
+        return item;
+      });
+
+      // Filtrar items de recargo existentes
+      const itemsWithoutSurcharge = itemsRestored.filter((item) => !item.isSurcharge);
+
+      // Si no hay recargo, retornar items restaurados
+      if (surchargeAmount <= 0 || surchargeRate <= 0) {
         return itemsWithoutSurcharge;
       }
 
-      // Crear item de recargo
-      const surchargeItem: CartItem = {
-        id: generateId(),
-        product: {
-          id: 'surcharge',
-          sku: 'RECARGO',
-          barcode: '',
-          name: `Recargo financiero - ${cardBrandName} ${installments} cuotas`,
-          cianboxProductId: 0, // Producto ficticio para sincronización
-          taxRate: 21,
-        } as Product,
-        quantity: 1,
-        unitPrice: surchargeAmount,
-        unitPriceNet: surchargeAmount / 1.21, // Asumimos IVA 21%
-        discount: 0,
-        subtotal: surchargeAmount,
-        isSurcharge: true,
-      };
+      if (displayMode === 'DISTRIBUTED') {
+        // MODO DISTRIBUIDO: aumentar precios de productos proporcionalmente
+        const multiplier = 1 + (surchargeRate / 100);
+        return itemsWithoutSurcharge.map((item) => {
+          if (item.isReturn) return item; // No aplicar a devoluciones
 
-      return [...itemsWithoutSurcharge, surchargeItem];
+          const newUnitPrice = item.unitPrice * multiplier;
+          const newUnitPriceNet = item.unitPriceNet * multiplier;
+          return {
+            ...item,
+            originalUnitPrice: item.unitPrice,
+            originalUnitPriceNet: item.unitPriceNet,
+            unitPrice: newUnitPrice,
+            unitPriceNet: newUnitPriceNet,
+            subtotal: item.quantity * newUnitPrice - item.discount,
+            appliedSurchargeRate: surchargeRate,
+          };
+        });
+      } else {
+        // MODO ITEM SEPARADO (comportamiento actual)
+        const surchargeItem: CartItem = {
+          id: generateId(),
+          product: {
+            id: 'surcharge',
+            sku: 'RECARGO',
+            barcode: '',
+            name: `Recargo financiero - ${cardBrandName} ${installments} cuotas`,
+            cianboxProductId: 0, // Producto ficticio para sincronización
+            taxRate: 21,
+          } as Product,
+          quantity: 1,
+          unitPrice: surchargeAmount,
+          unitPriceNet: surchargeAmount / 1.21, // Asumimos IVA 21%
+          discount: 0,
+          subtotal: surchargeAmount,
+          isSurcharge: true,
+        };
+
+        return [...itemsWithoutSurcharge, surchargeItem];
+      }
     });
   };
 
-  // Remover recargo del carrito
+  // Remover recargo del carrito (ambos modos)
   const removeSurchargeItem = () => {
-    updateCart((prev) => prev.filter((item) => !item.isSurcharge));
+    updateCart((prev) => {
+      // Restaurar precios originales si había recargo distribuido
+      const itemsRestored = prev.map((item) => {
+        if (item.originalUnitPrice !== undefined && !item.isSurcharge && !item.isReturn) {
+          return {
+            ...item,
+            unitPrice: item.originalUnitPrice,
+            unitPriceNet: item.originalUnitPriceNet || item.originalUnitPrice / 1.21,
+            subtotal: item.quantity * item.originalUnitPrice - item.discount,
+            originalUnitPrice: undefined,
+            originalUnitPriceNet: undefined,
+            appliedSurchargeRate: undefined,
+          };
+        }
+        return item;
+      });
+
+      // Filtrar items de recargo (modo SEPARATE_ITEM)
+      return itemsRestored.filter((item) => !item.isSurcharge);
+    });
   };
 
   // Handler para clic en producto - maneja productos padre (curva de talles)
@@ -2797,8 +2870,8 @@ export default function POS() {
           setShowCardPaymentModal(false);
           setPendingCardPaymentMethod(null);
           // Agregar o remover recargo según corresponda
-          if (data.surchargeAmount && data.surchargeAmount > 0 && data.cardBrand) {
-            updateSurchargeItem(data.surchargeAmount, data.installments, data.cardBrand);
+          if (data.surchargeAmount && data.surchargeAmount > 0 && data.cardBrand && data.surchargeRate) {
+            updateSurchargeItem(data.surchargeAmount, data.installments, data.cardBrand, data.surchargeRate);
           } else {
             removeSurchargeItem();
           }
