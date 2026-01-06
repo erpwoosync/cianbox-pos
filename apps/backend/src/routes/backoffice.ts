@@ -2275,6 +2275,13 @@ router.get('/sales/:id', async (req: AuthenticatedRequest, res: Response, next: 
                 status: true,
               },
             },
+            cardTerminal: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
           },
         },
         customer: true,

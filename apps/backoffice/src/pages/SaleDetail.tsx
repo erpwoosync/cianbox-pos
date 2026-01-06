@@ -108,6 +108,15 @@ interface Payment {
     currentBalance: number;
     status: string;
   };
+  // Terminal de tarjeta no integrado
+  cardTerminalId?: string;
+  cardTerminal?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  voucherNumber?: string;
+  batchNumber?: string;
 }
 
 interface Sale {
@@ -794,6 +803,54 @@ export default function SaleDetail() {
                         <span className="text-gray-500">Saldo actual:</span>{' '}
                         <span className="font-medium">{formatCurrency(payment.storeCredit.currentBalance)}</span>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Datos de Terminal de Tarjeta no integrado */}
+                {payment.cardTerminal && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-purple-600">
+                      <CreditCard className="w-4 h-4" />
+                      Terminal: {payment.cardTerminal.name}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {payment.authorizationCode && (
+                        <div className="bg-purple-50 p-2 rounded">
+                          <span className="text-gray-500">Autorización:</span>{' '}
+                          <span className="font-mono font-medium">{payment.authorizationCode}</span>
+                        </div>
+                      )}
+                      {payment.voucherNumber && (
+                        <div className="bg-purple-50 p-2 rounded">
+                          <span className="text-gray-500">N° Cupón:</span>{' '}
+                          <span className="font-mono font-medium">{payment.voucherNumber}</span>
+                        </div>
+                      )}
+                      {payment.batchNumber && (
+                        <div className="bg-purple-50 p-2 rounded">
+                          <span className="text-gray-500">N° Lote:</span>{' '}
+                          <span className="font-mono font-medium">{payment.batchNumber}</span>
+                        </div>
+                      )}
+                      {payment.installments > 1 && (
+                        <div className="bg-purple-50 p-2 rounded">
+                          <span className="text-gray-500">Cuotas:</span>{' '}
+                          <span className="font-medium">{payment.installments}</span>
+                        </div>
+                      )}
+                      {payment.cardBrand && (
+                        <div className="bg-purple-50 p-2 rounded">
+                          <span className="text-gray-500">Marca:</span>{' '}
+                          <span className="font-medium">{payment.cardBrand}</span>
+                        </div>
+                      )}
+                      {payment.cardLastFour && (
+                        <div className="bg-purple-50 p-2 rounded">
+                          <span className="text-gray-500">Últimos 4:</span>{' '}
+                          <span className="font-mono font-medium">**** {payment.cardLastFour}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
