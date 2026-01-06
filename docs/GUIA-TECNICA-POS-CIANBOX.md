@@ -1,7 +1,7 @@
 # Guia Tecnica: Desarrollo de POS con Integracion Cianbox
 
-**Version:** 1.0.0
-**Fecha:** 2025-12-14
+**Version:** 2.0.0
+**Fecha:** 2026-01-06
 **Proposito:** Documentacion tecnica para el desarrollo de una aplicacion POS (Point of Sale) con integracion a Cianbox ERP.
 
 ---

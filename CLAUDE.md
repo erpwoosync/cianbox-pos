@@ -23,12 +23,19 @@
 Sistema POS (Point of Sale) multi-tenant con integracion a Cianbox ERP.
 
 **Funcionalidades principales:**
-- Registro de ventas
-- Cobros y pagos
-- Consulta de precios
+- Registro de ventas con productos simples y variables (talles/colores)
+- Cobros multiples: efectivo, tarjeta, QR, transferencia, gift cards, vales de credito
+- Terminales Mercado Pago Point integradas (modo PDV)
+- Pagos con tarjeta en cuotas con recargo financiero configurable
 - Promociones: 2x1, 2da unidad al 50%, descuentos por fecha
+- Promociones bancarias: cuotas sin interes por banco/tarjeta
 - Promociones especiales: BlackFriday, CyberMonday (activables por fecha)
-- Sincronizacion con Cianbox (productos, categorias, marcas)
+- Gift Cards: venta, activacion y redencion
+- Vales de Credito (Store Credits): para devoluciones y cortesias
+- Gestion de caja: apertura, cierre, arqueos detallados por denominacion
+- Liquidacion de cupones de tarjeta con conciliacion bancaria
+- Facturacion electronica AFIP (Facturas A, B, C)
+- Sincronizacion con Cianbox (productos, categorias, marcas, precios)
 
 ## Stack Tecnologico
 
@@ -118,9 +125,19 @@ const products = await prisma.product.findMany();
 ### Entidades POS
 - `Sale` - Ventas
 - `SaleItem` - Items de venta
-- `Payment` - Pagos
-- `Promotion` - Promociones
+- `Payment` - Pagos (efectivo, tarjeta, QR, transferencia, gift card, store credit)
+- `Promotion` - Promociones de producto
 - `PromotionProduct` - Productos en promocion
+- `CashSession` - Sesiones de caja (apertura/cierre)
+- `CashMovement` - Movimientos de caja (ingresos/retiros)
+- `GiftCard` - Tarjetas de regalo
+- `StoreCredit` - Vales de credito
+- `CardTerminal` - Terminales de tarjeta
+- `CardBrand` - Marcas de tarjeta (Visa, Mastercard, etc)
+- `Bank` - Bancos
+- `BankPromotion` - Promociones bancarias (cuotas sin interes)
+- `CardVoucher` - Cupones de tarjeta pendientes de liquidar
+- `VoucherSettlement` - Liquidaciones de cupones
 
 ## Promociones
 
@@ -140,6 +157,63 @@ const products = await prisma.product.findMany();
 // 2. startDate <= now <= endDate
 // 3. Aplica al producto
 ```
+
+## Integracion Mercado Pago Point
+
+Terminales integradas en modo PDV para cobro directo desde el POS.
+
+### Configuracion
+- Se configura en `Integraciones > MercadoPago`
+- Requiere Access Token de produccion
+- Los dispositivos Point se asignan a cada Punto de Venta
+
+### Flujo de Cobro
+1. Usuario selecciona pago con tarjeta
+2. POS envia monto a la terminal asignada via API
+3. Cliente pasa tarjeta en la terminal
+4. Terminal devuelve resultado al POS
+5. Se registra el pago con datos de la transaccion
+
+## Pagos con Tarjeta y Cuotas
+
+### Configuracion de Recargo Financiero
+- Se configura por cantidad de cuotas (3, 6, 12, 18 cuotas)
+- Cada plan tiene su tasa de recargo (ej: 3 cuotas = 7%)
+- Configuracion a nivel de Tenant con override por POS
+
+### Modos de Visualizacion de Recargo
+| Modo | Descripcion |
+|------|-------------|
+| `SEPARATE_ITEM` | Muestra linea separada "Recargo financiero" |
+| `DISTRIBUTED` | Suma el recargo al precio de cada producto |
+
+## Promociones Bancarias
+
+Cuotas sin interes y descuentos por banco/tarjeta.
+
+### Configuracion
+- Banco emisor (Galicia, Santander, Macro, etc)
+- Marca de tarjeta (Visa, Mastercard, Amex)
+- Cantidad de cuotas sin interes
+- Dias de la semana activos
+- Rango de fechas de vigencia
+
+## Facturacion AFIP
+
+Emision de comprobantes electronicos (Facturas A, B, C).
+
+### Configuracion
+- Certificado digital (.p12)
+- CUIT del contribuyente
+- Punto de venta fiscal
+- Condicion frente al IVA
+
+### Tipos de Comprobante
+| Tipo | Uso |
+|------|-----|
+| Factura A | Responsable Inscripto a Responsable Inscripto |
+| Factura B | Responsable Inscripto a Consumidor Final |
+| Factura C | Monotributista |
 
 ## Comandos de Desarrollo
 
