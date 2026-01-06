@@ -45,6 +45,7 @@ interface CardPaymentModalProps {
   onConfirm: (data: CardPaymentData) => void;
   amount: number;
   paymentMethod: 'CREDIT_CARD' | 'DEBIT_CARD';
+  initialData?: CardPaymentData | null;
 }
 
 // Marcas de tarjeta disponibles
@@ -75,6 +76,7 @@ export default function CardPaymentModal({
   onConfirm,
   amount,
   paymentMethod,
+  initialData,
 }: CardPaymentModalProps) {
   // Estado de terminales
   const [terminals, setTerminals] = useState<CardTerminal[]>([]);
@@ -141,9 +143,20 @@ export default function CardPaymentModal({
     }
   }, [isOpen, loadTerminals]);
 
-  // Reset al cerrar
+  // Inicializar con datos existentes o resetear al cerrar
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen && initialData) {
+      // Pre-cargar datos existentes
+      setSelectedTerminalId(initialData.cardTerminalId || '');
+      setAuthorizationCode(initialData.authorizationCode || '');
+      setVoucherNumber(initialData.voucherNumber || '');
+      setBatchNumber(initialData.batchNumber || '');
+      setInstallments(initialData.installments || 1);
+      setCardBrand(initialData.cardBrand || '');
+      setCardLastFour(initialData.cardLastFour || '');
+      setValidationError(null);
+    } else if (!isOpen) {
+      // Resetear al cerrar solo si no hay datos iniciales
       setSelectedTerminalId('');
       setAuthorizationCode('');
       setVoucherNumber('');
@@ -153,7 +166,7 @@ export default function CardPaymentModal({
       setCardLastFour('');
       setValidationError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   // Validar formulario
   const validateForm = (): boolean => {

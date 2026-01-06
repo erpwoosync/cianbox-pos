@@ -2354,10 +2354,14 @@ export default function POS() {
                     onClick={() => {
                       // Para crédito y débito, abrir modal de datos de cupón
                       if (method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
-                        // Limpiar método actual mientras el modal está abierto
-                        // para que no pueda confirmar sin completar los datos
-                        setSelectedPaymentMethod(null);
-                        setCardPaymentData(null);
+                        // Si hace clic en el mismo tipo de tarjeta que ya tiene,
+                        // abrir modal para editar pero mantener datos existentes
+                        const isSameMethod = selectedPaymentMethod === method;
+                        if (!isSameMethod) {
+                          // Cambió de método, limpiar datos anteriores
+                          setSelectedPaymentMethod(null);
+                          setCardPaymentData(null);
+                        }
                         setPendingCardPaymentMethod(method);
                         setShowCardPaymentModal(true);
                       } else {
@@ -2717,6 +2721,7 @@ export default function POS() {
         }}
         amount={totalAfterGiftCards}
         paymentMethod={pendingCardPaymentMethod || 'CREDIT_CARD'}
+        initialData={cardPaymentData}
       />
 
       {/* Overlay de caja requerida */}
