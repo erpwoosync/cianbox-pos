@@ -50,21 +50,29 @@ Este documento detalla el plan de refactoring para mejorar la arquitectura del b
 
 ### Fase 2: Capa de Repositorios (Prioridad ALTA)
 
-- [ ] **2.1 Crear BaseRepository**
+- [x] **2.1 Crear BaseRepository** ✅ COMPLETADO (2026-01-06)
   - Crear `apps/backend/src/repositories/base.repository.ts`
   - Implementar métodos genéricos:
-    - `findByIdAndTenant()`
-    - `findByIdAndTenantOrFail()`
-    - `findManyWithPagination()`
-    - `create()`
-    - `update()`
-    - `delete()`
+    - [x] `findById()`
+    - [x] `findByIdOrFail()`
+    - [x] `findMany()` con paginación
+    - [x] `findAll()` sin paginación
+    - [x] `create()`
+    - [x] `update()`
+    - [x] `delete()`
+    - [x] `count()`
+    - [x] `exists()`
 
 - [ ] **2.2 Crear Repositorios Específicos**
-  - [ ] `src/repositories/product.repository.ts`
-  - [ ] `src/repositories/customer.repository.ts`
+  - [x] `src/repositories/product.repository.ts` ✅
+  - [x] `src/repositories/customer.repository.ts` ✅
+  - [x] `src/repositories/index.ts` (exportaciones) ✅
   - [ ] `src/repositories/sale.repository.ts`
   - [ ] `src/repositories/promotion.repository.ts`
+
+- [x] **2.3 Refactorizar Rutas con Repositorios** (Parcial)
+  - [x] `src/routes/customers.ts` - Refactorizado (349→227 líneas)
+  - [ ] `src/routes/products.ts` - Pendiente
 
 ### Fase 3: Capa de Servicios (Prioridad ALTA)
 
@@ -270,8 +278,8 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 | Fase | Estado | Progreso | Notas |
 |------|--------|----------|-------|
 | Fase 1 | ✅ Completado | 100% | Singleton PrismaClient + Errores unificados |
-| Fase 2 | Pendiente | 0% | Siguiente: BaseRepository |
-| Fase 3 | Pendiente | 0% | Depende de Fase 1 |
+| Fase 2 | 🔄 En progreso | 60% | BaseRepository + CustomerRepository + ProductRepository |
+| Fase 3 | Pendiente | 0% | Depende de Fase 2 |
 | Fase 4 | Pendiente | 0% | Depende de Fase 2 y 3 |
 | Fase 5 | Pendiente | 0% | Depende de Fase 4 |
 
@@ -292,3 +300,4 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 |-------|--------|-------|
 | 2026-01-06 | Creación del documento | Claude |
 | 2026-01-06 | Fase 1 completada: Singleton PrismaClient (20 archivos) + Errores unificados (customers.ts) | Claude |
+| 2026-01-06 | Fase 2 parcial: BaseRepository + ProductRepository + CustomerRepository + customers.ts refactorizado | Claude |
