@@ -357,6 +357,33 @@ export default function CashSessionDetail() {
                       {formatCurrency(Number(session.totalQr))}
                     </span>
                   </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-sky-600" />
+                      <span>MP Point</span>
+                    </div>
+                    <span className="font-semibold text-sky-600">
+                      {formatCurrency(Number(session.totalMpPoint))}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-orange-600" />
+                      <span>Transferencia</span>
+                    </div>
+                    <span className="font-semibold text-orange-600">
+                      {formatCurrency(Number(session.totalTransfer))}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-amber-600" />
+                      <span>Otros (Vale/GiftCard)</span>
+                    </div>
+                    <span className="font-semibold text-amber-600">
+                      {formatCurrency(Number(session.totalOther))}
+                    </span>
+                  </div>
                   <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-center gap-2 font-medium">
                       <DollarSign className="w-5 h-5 text-blue-600" />
