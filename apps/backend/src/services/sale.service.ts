@@ -44,6 +44,10 @@ export interface PaymentInput {
   installments: number;
   amountTendered?: number;
   transactionId?: string;
+  // Campos de terminal de tarjeta no integrado
+  cardTerminalId?: string;
+  voucherNumber?: string;
+  batchNumber?: string;
   // Mercado Pago fields
   mpPaymentId?: string;
   mpOrderId?: string;
@@ -381,6 +385,10 @@ class SaleService {
       storeCreditId: payment.method === 'VOUCHER' && payment.storeCreditCode
         ? storeCreditCodeToIdMap.get(payment.storeCreditCode)
         : undefined,
+      // Campos de terminal de tarjeta no integrado
+      cardTerminalId: payment.cardTerminalId,
+      voucherNumber: payment.voucherNumber,
+      batchNumber: payment.batchNumber,
       // Campos de Mercado Pago
       mpPaymentId: payment.mpPaymentId,
       mpOrderId: payment.mpOrderId,

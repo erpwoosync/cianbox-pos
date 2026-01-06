@@ -359,7 +359,44 @@ async function main() {
   }
 
   // ==============================================
-  // 13. SAMPLE PROMOTION
+  // 13. CARD TERMINALS (Terminales de Tarjetas no integrados)
+  // ==============================================
+  console.log('\n💳 Creando terminales de tarjeta de sistema...');
+
+  const systemTerminals = [
+    { name: 'Posnet', code: 'POSNET' },
+    { name: 'Lapos', code: 'LAPOS' },
+    { name: 'Payway', code: 'PAYWAY' },
+    { name: 'Getnet', code: 'GETNET' },
+    { name: 'Clover', code: 'CLOVER' },
+    { name: 'NaranjaX', code: 'NARANJAX' },
+    { name: 'Ualá', code: 'UALA' },
+    { name: 'Viumi Macro', code: 'VIUMI' },
+  ];
+
+  for (const terminalData of systemTerminals) {
+    const terminal = await prisma.cardTerminal.upsert({
+      where: { tenantId_code: { tenantId: tenant.id, code: terminalData.code } },
+      update: {},
+      create: {
+        tenantId: tenant.id,
+        name: terminalData.name,
+        code: terminalData.code,
+        isActive: true,
+        isSystem: true,
+        requiresAuthCode: true,
+        requiresVoucherNumber: true,
+        requiresCardBrand: false,
+        requiresLastFour: false,
+        requiresInstallments: true,
+        requiresBatchNumber: true,
+      },
+    });
+    console.log(`   ✅ Terminal: ${terminal.name} (${terminal.code})`);
+  }
+
+  // ==============================================
+  // 14. SAMPLE PROMOTION
   // ==============================================
   console.log('\n🎉 Creando promoción de ejemplo...');
 

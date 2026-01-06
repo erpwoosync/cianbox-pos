@@ -59,7 +59,8 @@ const menuGroups: MenuGroup[] = [
       { path: '/branches', label: 'Sucursales', icon: Store },
       { path: '/price-lists', label: 'Listas de Precio', icon: ListOrdered },
       { path: '/points-of-sale', label: 'Puntos de Venta', icon: Monitor },
-      { path: '/terminals', label: 'Terminales POS', icon: Laptop },
+      { path: '/terminals', label: 'Terminales MP Point', icon: Laptop },
+      { path: '/card-terminals', label: 'Terminales Tarjetas', icon: CreditCard },
     ],
   },
   {

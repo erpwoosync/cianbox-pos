@@ -134,6 +134,7 @@ model Tenant {
   treasuryPendings  TreasuryPending[]    // Retiros pendientes tesoreria
   treasuryMovements TreasuryMovement[]   // Movimientos de tesoreria
   storeCredits      StoreCredit[]        // Vales de crédito
+  cardTerminals     CardTerminal[]       // Terminales de tarjeta no integrados
 
   @@map("tenants")
 }
@@ -1034,6 +1035,12 @@ model Payment {
   storeCreditId String?
   storeCredit   StoreCredit?  @relation(fields: [storeCreditId], references: [id])
 
+  // Terminal de tarjeta no integrado
+  cardTerminalId String?
+  cardTerminal   CardTerminal? @relation(fields: [cardTerminalId], references: [id])
+  voucherNumber  String?       // Número de cupón
+  batchNumber    String?       // Número de lote
+
   createdAt     DateTime      @default(now())
 
   // Relaciones
@@ -1042,6 +1049,7 @@ model Payment {
   @@index([saleId])
   @@index([mpPaymentId])
   @@index([storeCreditId])
+  @@index([cardTerminalId])
   @@map("payments")
 }
 
@@ -1058,6 +1066,38 @@ enum PaymentMethod {
   GIFTCARD      // Tarjeta de regalo
   POINTS        // Puntos de fidelidad
   OTHER         // Otro
+}
+
+// ========================================
+// TERMINALES DE TARJETA NO INTEGRADOS
+// ========================================
+
+model CardTerminal {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String   // "Posnet", "Lapos", "Getnet", etc.
+  code        String   // "POSNET", "LAPOS", etc.
+  isActive    Boolean  @default(true)
+  isSystem    Boolean  @default(false) // true = viene precargado, no se puede borrar
+
+  // Configuración de campos requeridos en el POS
+  requiresAuthCode      Boolean @default(true)  // Nro autorización
+  requiresVoucherNumber Boolean @default(true)  // Nro cupón
+  requiresCardBrand     Boolean @default(false) // Visa, MC, etc.
+  requiresLastFour      Boolean @default(false) // Últimos 4 dígitos
+  requiresInstallments  Boolean @default(true)  // Cuotas
+  requiresBatchNumber   Boolean @default(true)  // Nro de lote
+
+  payments    Payment[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("card_terminals")
 }
 
 enum PaymentStatus {

@@ -44,6 +44,7 @@ import InvoiceModal from '../components/InvoiceModal';
 import SalesHistoryModal from '../components/SalesHistoryModal';
 import ProductRefundModal from '../components/ProductRefundModal';
 import StoreCreditModal from '../components/StoreCreditModal';
+import CardPaymentModal, { CardPaymentData } from '../components/CardPaymentModal';
 import GiftCardPaymentSection, { AppliedGiftCard } from '../components/GiftCardPaymentSection';
 import StoreCreditPaymentSection, { AppliedStoreCredit } from '../components/StoreCreditPaymentSection';
 import CashRequiredOverlay from '../components/CashRequiredOverlay';
@@ -286,6 +287,11 @@ export default function POS() {
 
   // Estado de Store Credit (Vales)
   const [showStoreCreditModal, setShowStoreCreditModal] = useState(false);
+
+  // Estado de pago con tarjeta (terminales no integrados)
+  const [showCardPaymentModal, setShowCardPaymentModal] = useState(false);
+  const [pendingCardPaymentMethod, setPendingCardPaymentMethod] = useState<'CREDIT_CARD' | 'DEBIT_CARD' | null>(null);
+  const [cardPaymentData, setCardPaymentData] = useState<CardPaymentData | null>(null);
 
   // Estado de curva de talles (productos variables)
   const [showSizeCurveModal, setShowSizeCurveModal] = useState(false);
@@ -1338,6 +1344,7 @@ export default function POS() {
         setAmountTendered('');
         setAppliedGiftCards([]);
         setAppliedStoreCredits([]);
+        setCardPaymentData(null);
         const mpType = isQR ? 'Mercado Pago QR' : 'Mercado Pago Point';
         alert(`Venta #${response.data.saleNumber} registrada correctamente con ${mpType}`);
 
@@ -1385,6 +1392,14 @@ export default function POS() {
         amountTendered?: number;
         giftCardCode?: string;
         storeCreditCode?: string;
+        // Campos de terminal de tarjeta no integrado
+        cardTerminalId?: string;
+        authorizationCode?: string;
+        voucherNumber?: string;
+        batchNumber?: string;
+        installments?: number;
+        cardBrand?: string;
+        cardLastFour?: string;
       }> = [];
 
       // Agregar pagos con gift cards
@@ -1408,11 +1423,22 @@ export default function POS() {
       // Agregar pago principal si hay monto pendiente
       const pendingAmount = total - giftCardAmount - storeCreditAmount;
       if (pendingAmount > 0) {
+        const isCardPayment = selectedPaymentMethod === 'CREDIT_CARD' || selectedPaymentMethod === 'DEBIT_CARD';
         payments.push({
           method: selectedPaymentMethod,
           amount: Number(pendingAmount),
           amountTendered:
             selectedPaymentMethod === 'CASH' ? Number(tenderedAmount) : undefined,
+          // Datos del terminal de tarjeta (solo para crédito/débito)
+          ...(isCardPayment && cardPaymentData ? {
+            cardTerminalId: cardPaymentData.cardTerminalId,
+            authorizationCode: cardPaymentData.authorizationCode,
+            voucherNumber: cardPaymentData.voucherNumber,
+            batchNumber: cardPaymentData.batchNumber,
+            installments: cardPaymentData.installments,
+            cardBrand: cardPaymentData.cardBrand,
+            cardLastFour: cardPaymentData.cardLastFour,
+          } : {}),
         });
       }
 
@@ -1459,6 +1485,7 @@ export default function POS() {
         setAmountTendered('');
         setAppliedGiftCards([]);
         setAppliedStoreCredits([]);
+        setCardPaymentData(null);
         alert('Venta guardada. Se sincronizará cuando vuelva la conexión.');
         return;
       }
@@ -1475,6 +1502,7 @@ export default function POS() {
         setAmountTendered('');
         setAppliedGiftCards([]);
         setAppliedStoreCredits([]);
+        setCardPaymentData(null);
 
         // Mostrar modal de facturación con datos de la venta completada
         setCompletedSaleData({
@@ -1559,6 +1587,7 @@ export default function POS() {
         }
         setAppliedGiftCards([]);
         setAppliedStoreCredits([]);
+        setCardPaymentData(null);
         alert(`Cambio exacto procesado - Ticket #${response.data.saleNumber}`);
         loadCashSession();
       }
@@ -2321,7 +2350,15 @@ export default function POS() {
                 ].map(({ method, icon: Icon, label }) => (
                   <button
                     key={method}
-                    onClick={() => setSelectedPaymentMethod(method)}
+                    onClick={() => {
+                      // Para crédito y débito, abrir modal de datos de cupón
+                      if (method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
+                        setPendingCardPaymentMethod(method);
+                        setShowCardPaymentModal(true);
+                      } else {
+                        setSelectedPaymentMethod(method);
+                      }
+                    }}
                     className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-colors ${
                       selectedPaymentMethod === method
                         ? 'border-primary-600 bg-primary-50'
@@ -2635,6 +2672,23 @@ export default function POS() {
         branchId={selectedPOS?.branch?.id || user?.branch?.id || ''}
         pointOfSaleId={selectedPOS?.id || ''}
         priceListId={selectedPOS?.priceList?.id}
+      />
+
+      {/* Modal de datos de cupón para pago con tarjeta */}
+      <CardPaymentModal
+        isOpen={showCardPaymentModal}
+        onClose={() => {
+          setShowCardPaymentModal(false);
+          setPendingCardPaymentMethod(null);
+        }}
+        onConfirm={(data) => {
+          setCardPaymentData(data);
+          setSelectedPaymentMethod(pendingCardPaymentMethod!);
+          setShowCardPaymentModal(false);
+          setPendingCardPaymentMethod(null);
+        }}
+        amount={totalAfterGiftCards}
+        paymentMethod={pendingCardPaymentMethod || 'CREDIT_CARD'}
       />
 
       {/* Overlay de caja requerida */}
