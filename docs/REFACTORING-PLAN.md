@@ -63,16 +63,18 @@ Este documento detalla el plan de refactoring para mejorar la arquitectura del b
     - [x] `count()`
     - [x] `exists()`
 
-- [ ] **2.2 Crear Repositorios Específicos**
+- [x] **2.2 Crear Repositorios Específicos** ✅ COMPLETADO
   - [x] `src/repositories/product.repository.ts` ✅
   - [x] `src/repositories/customer.repository.ts` ✅
+  - [x] `src/repositories/promotion.repository.ts` ✅
+  - [x] `src/repositories/combo.repository.ts` ✅
   - [x] `src/repositories/index.ts` (exportaciones) ✅
-  - [ ] `src/repositories/sale.repository.ts`
-  - [ ] `src/repositories/promotion.repository.ts`
+  - [ ] `src/repositories/sale.repository.ts` (opcional - sales.ts necesita SaleService)
 
-- [x] **2.3 Refactorizar Rutas con Repositorios** (Parcial)
+- [x] **2.3 Refactorizar Rutas con Repositorios** ✅ COMPLETADO
   - [x] `src/routes/customers.ts` - Refactorizado (349→227 líneas)
   - [x] `src/routes/products.ts` - Refactorizado (730→660 líneas)
+  - [x] `src/routes/promotions.ts` - Refactorizado (935→879 líneas)
 
 ### Fase 3: Capa de Servicios (Prioridad ALTA)
 
@@ -278,7 +280,7 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 | Fase | Estado | Progreso | Notas |
 |------|--------|----------|-------|
 | Fase 1 | ✅ Completado | 100% | Singleton PrismaClient + Errores unificados |
-| Fase 2 | 🔄 En progreso | 75% | BaseRepository + CustomerRepository + ProductRepository + rutas refactorizadas |
+| Fase 2 | ✅ Completado | 100% | 4 Repositorios + 3 rutas refactorizadas (-192 líneas total) |
 | Fase 3 | Pendiente | 0% | Depende de Fase 2 |
 | Fase 4 | Pendiente | 0% | Depende de Fase 2 y 3 |
 | Fase 5 | Pendiente | 0% | Depende de Fase 4 |
@@ -302,3 +304,4 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 | 2026-01-06 | Fase 1 completada: Singleton PrismaClient (20 archivos) + Errores unificados (customers.ts) | Claude |
 | 2026-01-06 | Fase 2 parcial: BaseRepository + ProductRepository + CustomerRepository + customers.ts refactorizado | Claude |
 | 2026-01-06 | Fase 2 continúa: ProductRepository extendido + products.ts refactorizado (730→660 líneas) | Claude |
+| 2026-01-06 | Fase 2 completada: PromotionRepository + ComboRepository + promotions.ts refactorizado | Claude |
