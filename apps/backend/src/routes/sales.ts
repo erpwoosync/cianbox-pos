@@ -1,5 +1,6 @@
 /**
  * Rutas de ventas
+ * Refactorizado para usar SaleService
  */
 
 import { Router, Response, NextFunction } from 'express';
@@ -9,6 +10,7 @@ import { authenticate, authorize, AuthenticatedRequest } from '../middleware/aut
 import { ApiError, ValidationError, NotFoundError, AuthorizationError } from '../utils/errors.js';
 import GiftCardService from '../services/gift-card.service.js';
 import StoreCreditService from '../services/store-credit.service.js';
+import { saleService } from '../services/sale.service.js';
 import prisma from '../lib/prisma.js';
 
 const router = Router();
@@ -125,47 +127,6 @@ const saleQuerySchema = z.object({
 });
 
 /**
- * Genera número de venta secuencial
- * Formato: SUC-CODE-POS-CODE-YYYYMMDD-NNNN
- */
-async function generateSaleNumber(
-  tenantId: string,
-  branchId: string,
-  pointOfSaleId: string
-): Promise<string> {
-  // Obtener punto de venta y sucursal para el prefijo
-  const pos = await prisma.pointOfSale.findUnique({
-    where: { id: pointOfSaleId },
-    include: { branch: true },
-  });
-
-  if (!pos) {
-    throw new NotFoundError('Punto de venta');
-  }
-
-  // Fecha actual en formato YYYYMMDD
-  const today = new Date();
-  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-
-  // Contar ventas del día en este POS para la secuencia diaria
-  const startOfDay = new Date(today);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const count = await prisma.sale.count({
-    where: {
-      tenantId,
-      pointOfSaleId,
-      createdAt: { gte: startOfDay },
-    },
-  });
-
-  const sequence = String(count + 1).padStart(4, '0');
-
-  // Formato: SUC-1-CAJA-01-20251222-0001
-  return `${pos.branch.code}-${pos.code}-${dateStr}-${sequence}`;
-}
-
-/**
  * POST /api/sales
  * Crear nueva venta
  */
@@ -184,82 +145,22 @@ router.post(
       const tenantId = req.user!.tenantId;
       const userId = req.user!.userId;
 
-      // Verificar que el branch pertenece al tenant
-      const branch = await prisma.branch.findFirst({
-        where: { id: data.branchId, tenantId },
-      });
-      if (!branch) {
-        throw new NotFoundError('Sucursal');
-      }
-
-      // Verificar punto de venta
-      const pos = await prisma.pointOfSale.findFirst({
-        where: {
-          id: data.pointOfSaleId,
-          tenantId,
-          branchId: data.branchId,
-        },
-      });
-      if (!pos) {
-        throw new NotFoundError('Punto de venta');
-      }
-
-      // Calcular totales
-      let subtotal = new Prisma.Decimal(0);
-      let totalDiscount = new Prisma.Decimal(0);
-      let totalTax = new Prisma.Decimal(0);
-
-      const itemsWithCalculations = data.items.map((item) => {
-        // Normalizar cantidad: si es devolucion, asegurar que sea negativa
-        const isReturnItem = item.isReturn === true || item.quantity < 0;
-        const normalizedQuantity = isReturnItem
-          ? -Math.abs(item.quantity)
-          : Math.abs(item.quantity);
-
-        const itemSubtotal = new Prisma.Decimal(item.unitPrice)
-          .times(normalizedQuantity)
-          .minus(item.discount);
-        const taxAmount = itemSubtotal.times(item.taxRate).dividedBy(121); // IVA incluido
-
-        subtotal = subtotal.plus(itemSubtotal);
-        totalDiscount = totalDiscount.plus(item.discount);
-        totalTax = totalTax.plus(taxAmount);
-
-        return {
-          ...item,
-          quantity: normalizedQuantity, // Usar cantidad normalizada
-          subtotal: itemSubtotal,
-          taxAmount,
-        };
-      });
-
-      const total = subtotal;
-
-      // Determinar si hay items de devolución
-      const hasReturnItems = data.items.some((item) => item.quantity < 0 || item.isReturn);
-
-      // Verificar que los pagos cubran el total (solo si total > 0)
-      const totalPaid = data.payments.reduce(
-        (sum, p) => sum + p.amount,
-        0
+      // Validar branch y POS usando el servicio
+      const { pos } = await saleService.validateBranchAndPOS(
+        tenantId,
+        data.branchId,
+        data.pointOfSaleId
       );
 
-      // Solo requerir pagos si el total es positivo
-      if (total.greaterThan(0) && new Prisma.Decimal(totalPaid).lessThan(total)) {
-        throw ApiError.badRequest(
-          `El total de pagos ($${totalPaid}) es menor al total de la venta ($${total})`
-        );
-      }
+      // Calcular totales usando el servicio
+      const { calculatedItems: itemsWithCalculations, totals } = saleService.calculateTotals(data.items);
+      const { subtotal, totalDiscount, totalTax, total } = totals;
 
-      // Si total <= 0 y hay pagos, validar que no excedan
-      if (total.lessThanOrEqualTo(0) && data.payments.length > 0) {
-        throw ApiError.badRequest(
-          'No se deben incluir pagos cuando el total es menor o igual a cero'
-        );
-      }
+      // Validar pagos usando el servicio
+      saleService.validatePayments(data.payments, total);
 
-      // Generar número de venta
-      const saleNumber = await generateSaleNumber(
+      // Generar número de venta usando el servicio
+      const saleNumber = await saleService.generateSaleNumber(
         tenantId,
         data.branchId,
         data.pointOfSaleId
@@ -328,14 +229,11 @@ router.post(
       }
 
       // Buscar sesión de caja abierta del usuario
-      const cashSession = await prisma.cashSession.findFirst({
-        where: {
-          tenantId,
-          userId,
-          pointOfSaleId: data.pointOfSaleId,
-          status: 'OPEN',
-        },
-      });
+      const cashSession = await saleService.findOpenCashSession(
+        tenantId,
+        userId,
+        data.pointOfSaleId
+      );
 
       // Crear venta con items y pagos en una transacción
       const sale = await prisma.$transaction(async (tx) => {
@@ -442,87 +340,13 @@ router.post(
           },
         });
 
-        // Actualizar stock si corresponde
-        for (const item of itemsWithCalculations) {
-          if (item.productId) {
-            const product = await tx.product.findUnique({
-              where: { id: item.productId },
-            });
-
-            if (product?.trackStock) {
-              await tx.productStock.updateMany({
-                where: {
-                  productId: item.productId,
-                  branchId: data.branchId,
-                },
-                data: {
-                  quantity: { decrement: item.quantity },
-                  available: { decrement: item.quantity },
-                },
-              });
-            }
-          }
-        }
+        // Actualizar stock usando el servicio
+        await saleService.updateStock(tx, itemsWithCalculations, data.branchId);
 
         // Actualizar totales de la sesión de caja si existe
         if (cashSession) {
-          // Calcular totales por método de pago
-          const paymentTotals = {
-            totalCash: 0,
-            totalDebit: 0,
-            totalCredit: 0,
-            totalQr: 0,
-            totalMpPoint: 0,
-            totalTransfer: 0,
-            totalOther: 0,
-          };
-
-          for (const payment of data.payments) {
-            switch (payment.method) {
-              case 'CASH':
-                // Para efectivo, restamos el vuelto
-                paymentTotals.totalCash += payment.amount;
-                break;
-              case 'DEBIT_CARD':
-                paymentTotals.totalDebit += payment.amount;
-                break;
-              case 'CREDIT_CARD':
-              case 'CREDIT':
-                paymentTotals.totalCredit += payment.amount;
-                break;
-              case 'QR':
-                paymentTotals.totalQr += payment.amount;
-                break;
-              case 'MP_POINT':
-                paymentTotals.totalMpPoint += payment.amount;
-                break;
-              case 'TRANSFER':
-                paymentTotals.totalTransfer += payment.amount;
-                break;
-              case 'GIFT_CARD':
-              case 'GIFTCARD':
-                // Gift cards van a "otros" por ahora
-                paymentTotals.totalOther += payment.amount;
-                break;
-              default:
-                paymentTotals.totalOther += payment.amount;
-            }
-          }
-
-          await tx.cashSession.update({
-            where: { id: cashSession.id },
-            data: {
-              salesCount: { increment: 1 },
-              salesTotal: { increment: total.toNumber() },
-              totalCash: { increment: paymentTotals.totalCash },
-              totalDebit: { increment: paymentTotals.totalDebit },
-              totalCredit: { increment: paymentTotals.totalCredit },
-              totalQr: { increment: paymentTotals.totalQr },
-              totalMpPoint: { increment: paymentTotals.totalMpPoint },
-              totalTransfer: { increment: paymentTotals.totalTransfer },
-              totalOther: { increment: paymentTotals.totalOther },
-            },
-          });
+          const paymentTotals = saleService.calculatePaymentTotals(data.payments);
+          await saleService.updateCashSession(tx, cashSession.id, total, paymentTotals);
         }
 
         // Vincular MercadoPagoOrder si existe mpOrderId en algún pago
