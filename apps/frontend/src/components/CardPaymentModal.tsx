@@ -1,16 +1,19 @@
 /**
  * CardPaymentModal - Modal para datos de cupón de tarjeta
  * Se muestra cuando se paga con crédito o débito usando terminales no integrados
- * (Posnet, Lapos, Payway, Getnet, Clover, NaranjaX, Ualá, Viumi Macro, etc.)
+ * Incluye selección de banco y detección de promociones bancarias
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X,
   CreditCard,
   CheckCircle,
   AlertTriangle,
   Terminal,
+  Building2,
+  Gift,
+  Percent,
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -29,6 +32,40 @@ interface CardTerminal {
   requiresBatchNumber: boolean;
 }
 
+interface InstallmentRate {
+  installment: number;
+  rate: number;
+}
+
+interface CardBrand {
+  id: string;
+  name: string;
+  code: string;
+  maxInstallments: number;
+  installmentRates: InstallmentRate[];
+}
+
+interface Bank {
+  id: string;
+  name: string;
+  code: string;
+}
+
+interface BankPromotion {
+  id: string;
+  name: string;
+  description: string | null;
+  bankId: string;
+  cardBrandId: string;
+  bank: Bank;
+  cardBrand: CardBrand;
+  interestFreeInstallments: number[];
+  cashbackPercent: number | null;
+  cashbackDescription: string | null;
+  daysOfWeek: number[];
+  isActive: boolean;
+}
+
 export interface CardPaymentData {
   cardTerminalId: string;
   authorizationCode?: string;
@@ -36,7 +73,12 @@ export interface CardPaymentData {
   batchNumber?: string;
   installments: number;
   cardBrand?: string;
+  cardBrandId?: string;
   cardLastFour?: string;
+  bankId?: string;
+  bankPromotionId?: string;
+  surchargeRate?: number;
+  surchargeAmount?: number;
 }
 
 interface CardPaymentModalProps {
@@ -48,28 +90,6 @@ interface CardPaymentModalProps {
   initialData?: CardPaymentData | null;
 }
 
-// Marcas de tarjeta disponibles
-const CARD_BRANDS = [
-  { value: 'VISA', label: 'Visa' },
-  { value: 'MASTERCARD', label: 'Mastercard' },
-  { value: 'AMEX', label: 'American Express' },
-  { value: 'CABAL', label: 'Cabal' },
-  { value: 'NARANJA', label: 'Naranja' },
-  { value: 'MAESTRO', label: 'Maestro' },
-  { value: 'OTHER', label: 'Otra' },
-];
-
-// Opciones de cuotas
-const INSTALLMENT_OPTIONS = [
-  { value: 1, label: '1 cuota' },
-  { value: 3, label: '3 cuotas' },
-  { value: 6, label: '6 cuotas' },
-  { value: 9, label: '9 cuotas' },
-  { value: 12, label: '12 cuotas' },
-  { value: 18, label: '18 cuotas' },
-  { value: 24, label: '24 cuotas' },
-];
-
 export default function CardPaymentModal({
   isOpen,
   onClose,
@@ -78,10 +98,13 @@ export default function CardPaymentModal({
   paymentMethod,
   initialData,
 }: CardPaymentModalProps) {
-  // Estado de terminales
+  // Estado de datos maestros
   const [terminals, setTerminals] = useState<CardTerminal[]>([]);
-  const [loadingTerminals, setLoadingTerminals] = useState(true);
-  const [terminalsError, setTerminalsError] = useState<string | null>(null);
+  const [cardBrands, setCardBrands] = useState<CardBrand[]>([]);
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [promotions, setPromotions] = useState<BankPromotion[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   // Estado del formulario
   const [selectedTerminalId, setSelectedTerminalId] = useState<string>('');
@@ -89,81 +112,158 @@ export default function CardPaymentModal({
   const [voucherNumber, setVoucherNumber] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
   const [installments, setInstallments] = useState(1);
-  const [cardBrand, setCardBrand] = useState('');
+  const [cardBrandId, setCardBrandId] = useState('');
   const [cardLastFour, setCardLastFour] = useState('');
+  const [bankId, setBankId] = useState('');
 
   // Estado de validación
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Terminal seleccionado
+  // Derivados
   const selectedTerminal = terminals.find((t) => t.id === selectedTerminalId);
+  const selectedCardBrand = cardBrands.find((c) => c.id === cardBrandId);
+  const isCredit = paymentMethod === 'CREDIT_CARD';
 
-  // Cargar terminales al abrir
-  const loadTerminals = useCallback(async () => {
-    setLoadingTerminals(true);
-    setTerminalsError(null);
+  // Promoción aplicable para la combinación banco+tarjeta
+  const applicablePromotion = useMemo(() => {
+    if (!isCredit || !cardBrandId || !bankId) return null;
+    return promotions.find(
+      (p) => p.cardBrandId === cardBrandId && p.bankId === bankId && p.isActive
+    );
+  }, [isCredit, cardBrandId, bankId, promotions]);
+
+  // Verificar si las cuotas seleccionadas son sin interés
+  const isInterestFree = useMemo(() => {
+    if (!applicablePromotion) return false;
+    return applicablePromotion.interestFreeInstallments.includes(installments);
+  }, [applicablePromotion, installments]);
+
+  // Calcular recargo
+  const surchargeInfo = useMemo(() => {
+    if (!isCredit || installments === 1) {
+      return { rate: 0, amount: 0, total: amount };
+    }
+
+    // Si hay promoción y las cuotas están sin interés
+    if (isInterestFree) {
+      return { rate: 0, amount: 0, total: amount };
+    }
+
+    // Buscar recargo de la tarjeta
+    if (selectedCardBrand?.installmentRates) {
+      const rateConfig = selectedCardBrand.installmentRates.find(
+        (r) => r.installment === installments
+      );
+      if (rateConfig && rateConfig.rate > 0) {
+        const surchargeAmount = (amount * rateConfig.rate) / 100;
+        return {
+          rate: rateConfig.rate,
+          amount: surchargeAmount,
+          total: amount + surchargeAmount,
+        };
+      }
+    }
+
+    return { rate: 0, amount: 0, total: amount };
+  }, [isCredit, installments, isInterestFree, selectedCardBrand, amount]);
+
+  // Opciones de cuotas basadas en la tarjeta seleccionada
+  const installmentOptions = useMemo(() => {
+    const max = selectedCardBrand?.maxInstallments || 12;
+    const options: number[] = [];
+    for (let i = 1; i <= max; i++) {
+      options.push(i);
+    }
+    return options;
+  }, [selectedCardBrand]);
+
+  // Cargar datos al abrir
+  const loadData = useCallback(async () => {
+    setLoadingData(true);
+    setDataError(null);
 
     try {
-      const response = await api.get('/card-terminals?activeOnly=true');
-      const data = response.data;
+      const [terminalsRes, brandsRes, banksRes, promosRes] = await Promise.all([
+        api.get('/card-terminals?activeOnly=true'),
+        api.get('/card-brands?activeOnly=true'),
+        api.get('/banks?activeOnly=true'),
+        api.get('/bank-promotions/active'),
+      ]);
 
-      if (Array.isArray(data) && data.length > 0) {
-        setTerminals(data);
-        // Seleccionar el primero por defecto
-        setSelectedTerminalId(data[0].id);
-      } else {
-        // No hay terminales, intentar inicializar
-        const initResponse = await api.post('/card-terminals/initialize');
-        if (initResponse.data.created?.length > 0) {
-          // Recargar después de inicializar
-          const reloadResponse = await api.get('/card-terminals?activeOnly=true');
-          setTerminals(reloadResponse.data);
-          if (reloadResponse.data.length > 0) {
-            setSelectedTerminalId(reloadResponse.data[0].id);
-          }
-        } else {
-          setTerminalsError('No hay terminales de tarjeta configurados');
-        }
+      // Terminales
+      let terminalsData = terminalsRes.data;
+      if (!Array.isArray(terminalsData) || terminalsData.length === 0) {
+        // Intentar inicializar
+        await api.post('/card-terminals/initialize');
+        const reloadRes = await api.get('/card-terminals?activeOnly=true');
+        terminalsData = reloadRes.data;
+      }
+      setTerminals(terminalsData);
+
+      // Card brands
+      let brandsData = brandsRes.data;
+      if (!Array.isArray(brandsData) || brandsData.length === 0) {
+        await api.post('/card-brands/initialize');
+        const reloadRes = await api.get('/card-brands?activeOnly=true');
+        brandsData = reloadRes.data;
+      }
+      setCardBrands(brandsData);
+
+      // Banks
+      let banksData = banksRes.data;
+      if (!Array.isArray(banksData) || banksData.length === 0) {
+        await api.post('/banks/initialize');
+        const reloadRes = await api.get('/banks?activeOnly=true');
+        banksData = reloadRes.data;
+      }
+      setBanks(banksData);
+
+      // Promotions
+      setPromotions(promosRes.data || []);
+
+      // Seleccionar primeros valores por defecto
+      if (terminalsData.length > 0) {
+        setSelectedTerminalId(terminalsData[0].id);
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       const axiosError = err as { response?: { data?: { error?: { message?: string } } } };
-      setTerminalsError(
-        axiosError.response?.data?.error?.message || errorMessage || 'Error al cargar terminales'
+      setDataError(
+        axiosError.response?.data?.error?.message || errorMessage || 'Error al cargar datos'
       );
     } finally {
-      setLoadingTerminals(false);
+      setLoadingData(false);
     }
   }, []);
 
-  // Cargar terminales al abrir el modal
+  // Cargar datos al abrir el modal
   useEffect(() => {
     if (isOpen) {
-      loadTerminals();
+      loadData();
     }
-  }, [isOpen, loadTerminals]);
+  }, [isOpen, loadData]);
 
-  // Inicializar con datos existentes o resetear al cerrar
+  // Inicializar con datos existentes o resetear
   useEffect(() => {
     if (isOpen && initialData) {
-      // Pre-cargar datos existentes
       setSelectedTerminalId(initialData.cardTerminalId || '');
       setAuthorizationCode(initialData.authorizationCode || '');
       setVoucherNumber(initialData.voucherNumber || '');
       setBatchNumber(initialData.batchNumber || '');
       setInstallments(initialData.installments || 1);
-      setCardBrand(initialData.cardBrand || '');
+      setCardBrandId(initialData.cardBrandId || '');
       setCardLastFour(initialData.cardLastFour || '');
+      setBankId(initialData.bankId || '');
       setValidationError(null);
     } else if (!isOpen) {
-      // Resetear al cerrar solo si no hay datos iniciales
       setSelectedTerminalId('');
       setAuthorizationCode('');
       setVoucherNumber('');
       setBatchNumber('');
       setInstallments(1);
-      setCardBrand('');
+      setCardBrandId('');
       setCardLastFour('');
+      setBankId('');
       setValidationError(null);
     }
   }, [isOpen, initialData]);
@@ -195,7 +295,7 @@ export default function CardPaymentModal({
       return false;
     }
 
-    if (selectedTerminal.requiresCardBrand && !cardBrand) {
+    if (selectedTerminal.requiresCardBrand && !cardBrandId) {
       setValidationError('La marca de tarjeta es requerida');
       return false;
     }
@@ -225,19 +325,23 @@ export default function CardPaymentModal({
       voucherNumber: voucherNumber.trim() || undefined,
       batchNumber: batchNumber.trim() || undefined,
       installments,
-      cardBrand: cardBrand || undefined,
+      cardBrand: selectedCardBrand?.code || undefined,
+      cardBrandId: cardBrandId || undefined,
       cardLastFour: cardLastFour.trim() || undefined,
+      bankId: bankId || undefined,
+      bankPromotionId: isInterestFree && applicablePromotion ? applicablePromotion.id : undefined,
+      surchargeRate: surchargeInfo.rate > 0 ? surchargeInfo.rate : undefined,
+      surchargeAmount: surchargeInfo.amount > 0 ? surchargeInfo.amount : undefined,
     });
   };
 
   if (!isOpen) return null;
 
-  const isCredit = paymentMethod === 'CREDIT_CARD';
   const title = isCredit ? 'Datos del Cupón - Crédito' : 'Datos del Cupón - Débito';
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className={`p-4 border-b ${isCredit ? 'bg-gradient-to-r from-purple-50 to-indigo-50' : 'bg-gradient-to-r from-blue-50 to-cyan-50'}`}>
           <div className="flex items-center gap-4">
@@ -260,15 +364,15 @@ export default function CardPaymentModal({
         </div>
 
         {/* Content */}
-        <div className="p-6">
-          {loadingTerminals ? (
+        <div className="p-6 overflow-y-auto flex-1">
+          {loadingData ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
             </div>
-          ) : terminalsError ? (
+          ) : dataError ? (
             <div className="text-center py-8">
               <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <p className="text-red-600">{terminalsError}</p>
+              <p className="text-red-600">{dataError}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -295,6 +399,118 @@ export default function CardPaymentModal({
 
               {selectedTerminal && (
                 <>
+                  {/* Marca de tarjeta */}
+                  {(selectedTerminal.requiresCardBrand || cardBrandId) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <CreditCard className="inline w-4 h-4 mr-1" />
+                        Tarjeta
+                        {selectedTerminal.requiresCardBrand && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <select
+                        value={cardBrandId}
+                        onChange={(e) => {
+                          setCardBrandId(e.target.value);
+                          setInstallments(1); // Reset cuotas al cambiar tarjeta
+                        }}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Seleccionar tarjeta...</option>
+                        {cardBrands.map((brand) => (
+                          <option key={brand.id} value={brand.id}>
+                            {brand.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Banco - solo para crédito */}
+                  {isCredit && cardBrandId && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <Building2 className="inline w-4 h-4 mr-1" />
+                        Banco Emisor
+                      </label>
+                      <select
+                        value={bankId}
+                        onChange={(e) => setBankId(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Sin promoción bancaria</option>
+                        {banks.map((bank) => (
+                          <option key={bank.id} value={bank.id}>
+                            {bank.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Promoción detectada */}
+                  {applicablePromotion && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Gift className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-medium text-green-800">
+                            {applicablePromotion.name}
+                          </p>
+                          <p className="text-sm text-green-700">
+                            Cuotas sin interés: {applicablePromotion.interestFreeInstallments.join(', ')}
+                          </p>
+                          {applicablePromotion.cashbackPercent && (
+                            <p className="text-sm text-green-600 mt-1">
+                              + {applicablePromotion.cashbackPercent}% reintegro
+                              {applicablePromotion.cashbackDescription && ` - ${applicablePromotion.cashbackDescription}`}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cuotas - solo para crédito */}
+                  {isCredit && (selectedTerminal.requiresInstallments || installments > 1) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Cuotas
+                        {selectedTerminal.requiresInstallments && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <select
+                        value={installments}
+                        onChange={(e) => setInstallments(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        {installmentOptions.map((num) => {
+                          const isPromoInstallment = applicablePromotion?.interestFreeInstallments.includes(num);
+                          const rateConfig = selectedCardBrand?.installmentRates?.find(
+                            (r) => r.installment === num
+                          );
+                          const rate = isPromoInstallment ? 0 : (rateConfig?.rate || 0);
+                          const total = amount + (amount * rate / 100);
+                          const perInstallment = total / num;
+
+                          let label = num === 1 ? '1 pago' : `${num} cuotas`;
+                          if (num > 1) {
+                            label += ` de $${perInstallment.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+                            if (isPromoInstallment) {
+                              label += ' (Sin Interés)';
+                            } else if (rate > 0) {
+                              label += ` (+${rate}%)`;
+                            }
+                          }
+
+                          return (
+                            <option key={num} value={num}>
+                              {label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Código de autorización */}
                   {(selectedTerminal.requiresAuthCode || authorizationCode) && (
                     <div>
@@ -346,54 +562,6 @@ export default function CardPaymentModal({
                     </div>
                   )}
 
-                  {/* Cuotas - solo para crédito */}
-                  {isCredit && (selectedTerminal.requiresInstallments || installments > 1) && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Cuotas
-                        {selectedTerminal.requiresInstallments && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <select
-                        value={installments}
-                        onChange={(e) => setInstallments(Number(e.target.value))}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        {INSTALLMENT_OPTIONS.map((opt) => {
-                          const installmentAmount = amount / opt.value;
-                          return (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.value === 1
-                                ? '1 pago'
-                                : `${opt.value} cuotas de $${installmentAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Marca de tarjeta */}
-                  {(selectedTerminal.requiresCardBrand || cardBrand) && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Marca de Tarjeta
-                        {selectedTerminal.requiresCardBrand && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <select
-                        value={cardBrand}
-                        onChange={(e) => setCardBrand(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">Seleccionar...</option>
-                        {CARD_BRANDS.map((brand) => (
-                          <option key={brand.value} value={brand.value}>
-                            {brand.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
                   {/* Últimos 4 dígitos */}
                   {(selectedTerminal.requiresLastFour || cardLastFour) && (
                     <div>
@@ -417,15 +585,39 @@ export default function CardPaymentModal({
                 </>
               )}
 
-              {/* Monto */}
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-gray-500 mb-1">Monto a cobrar</p>
-                <p className="text-3xl font-bold text-gray-900">
-                  ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                </p>
+              {/* Resumen del monto */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-center">
+                  <p className="text-sm text-gray-500 mb-1">Monto de productos</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+
+                {surchargeInfo.amount > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-orange-600 flex items-center gap-1">
+                        <Percent className="w-4 h-4" />
+                        Recargo {surchargeInfo.rate}%
+                      </span>
+                      <span className="text-orange-600 font-medium">
+                        +${surchargeInfo.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mt-2 font-bold text-lg">
+                      <span>Total a pagar</span>
+                      <span className="text-purple-700">
+                        ${surchargeInfo.total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {isCredit && installments > 1 && (
-                  <p className="text-sm text-purple-600 mt-1 font-medium">
-                    {installments} cuotas de ${(amount / installments).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  <p className={`text-sm mt-2 text-center font-medium ${isInterestFree ? 'text-green-600' : 'text-purple-600'}`}>
+                    {installments} cuotas de ${(surchargeInfo.total / installments).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    {isInterestFree && ' (Sin Interés)'}
                   </p>
                 )}
               </div>

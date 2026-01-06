@@ -36,6 +36,8 @@ const saleItemSchema = z.object({
   originalSaleId: z.string().optional(), // ID de venta original
   originalSaleItemId: z.string().optional(), // ID del item original
   returnReason: z.string().optional(), // Motivo de devolucion
+  // Recargo financiero por cuotas
+  isSurcharge: z.boolean().optional(), // true si es recargo financiero
 });
 
 const paymentSchema = z.object({
@@ -93,6 +95,12 @@ const paymentSchema = z.object({
   cardTerminalId: z.string().optional(),
   voucherNumber: z.string().optional(),
   batchNumber: z.string().optional(),
+
+  // Campos de promoción bancaria y recargo
+  bankId: z.string().optional(),
+  bankPromotionId: z.string().optional(),
+  surchargeRate: z.number().optional(),
+  surchargeAmount: z.number().optional(),
 });
 
 const saleCreateSchema = z.object({
@@ -285,6 +293,8 @@ router.post(
                   // IDs para sincronización con Cianbox
                   priceListId: item.priceListId || pos.priceListId, // Usar del item o del POS
                   branchId: item.branchId || data.branchId, // Usar del item o de la venta
+                  // Recargo financiero por cuotas
+                  isSurcharge: item.isSurcharge || false,
                 };
               }),
             },
@@ -336,6 +346,11 @@ router.post(
                 cardTerminalId: payment.cardTerminalId,
                 voucherNumber: payment.voucherNumber,
                 batchNumber: payment.batchNumber,
+                // Campos de promoción bancaria y recargo financiero
+                bankId: payment.bankId,
+                bankPromotionId: payment.bankPromotionId,
+                surchargeRate: payment.surchargeRate,
+                surchargeAmount: payment.surchargeAmount,
               })),
             },
           },

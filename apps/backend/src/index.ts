@@ -36,6 +36,8 @@ import cardTerminalsRoutes from './routes/card-terminals.js';
 import cardBrandsRoutes from './routes/card-brands.js';
 import bankAccountsRoutes from './routes/bank-accounts.js';
 import voucherSettlementsRoutes from './routes/voucher-settlements.js';
+import banksRoutes from './routes/banks.js';
+import bankPromotionsRoutes from './routes/bank-promotions.js';
 
 // Importar servicios
 import CianboxService from './services/cianbox.service.js';
@@ -156,6 +158,8 @@ app.use('/api/card-terminals', cardTerminalsRoutes); // Terminales de tarjetas n
 app.use('/api/card-brands', cardBrandsRoutes); // Marcas de tarjeta para liquidación
 app.use('/api/bank-accounts', bankAccountsRoutes); // Cuentas bancarias
 app.use('/api/voucher-settlements', voucherSettlementsRoutes); // Liquidación de cupones de tarjeta
+app.use('/api/banks', banksRoutes); // Bancos para promociones
+app.use('/api/bank-promotions', bankPromotionsRoutes); // Promociones bancarias de cuotas
 
 // Ruta 404
 app.use((_req, res) => {

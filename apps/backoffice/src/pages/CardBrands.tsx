@@ -1,6 +1,7 @@
 /**
  * CardBrands - Gestión de Marcas de Tarjeta
  * CRUD para administrar marcas como Visa, Mastercard, Naranja, etc.
+ * Incluye configuración de cuotas y recargos por marca
  */
 
 import { useState, useEffect } from 'react';
@@ -16,8 +17,14 @@ import {
   AlertTriangle,
   CheckCircle,
   Settings,
+  Percent,
 } from 'lucide-react';
 import api from '../services/api';
+
+interface InstallmentRate {
+  installment: number;
+  rate: number;
+}
 
 interface CardBrand {
   id: string;
@@ -25,6 +32,8 @@ interface CardBrand {
   code: string;
   isActive: boolean;
   isSystem: boolean;
+  maxInstallments: number;
+  installmentRates: InstallmentRate[];
   createdAt: string;
   updatedAt: string;
 }
@@ -41,6 +50,8 @@ const initialFormData: FormData = {
   isActive: true,
 };
 
+const INSTALLMENT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24];
+
 export default function CardBrands() {
   const [brands, setBrands] = useState<CardBrand[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +62,12 @@ export default function CardBrands() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<CardBrand | null>(null);
+  const [showInstallmentsModal, setShowInstallmentsModal] = useState<CardBrand | null>(null);
+  const [installmentConfig, setInstallmentConfig] = useState<{
+    maxInstallments: number;
+    rates: { [key: number]: string };
+  }>({ maxInstallments: 12, rates: {} });
+  const [savingInstallments, setSavingInstallments] = useState(false);
 
   useEffect(() => {
     loadBrands();
@@ -96,6 +113,18 @@ export default function CardBrands() {
     setShowModal(true);
   };
 
+  const handleOpenInstallments = (brand: CardBrand) => {
+    const rates: { [key: number]: string } = {};
+    (brand.installmentRates || []).forEach((r) => {
+      rates[r.installment] = r.rate.toString();
+    });
+    setInstallmentConfig({
+      maxInstallments: brand.maxInstallments || 12,
+      rates,
+    });
+    setShowInstallmentsModal(brand);
+  };
+
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.code.trim()) {
       setError('Nombre y código son requeridos');
@@ -124,6 +153,33 @@ export default function CardBrands() {
       setError(axiosError.response?.data?.error?.message || 'Error al guardar la marca');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveInstallments = async () => {
+    if (!showInstallmentsModal) return;
+
+    setSavingInstallments(true);
+
+    try {
+      const installmentRates: InstallmentRate[] = [];
+      for (let i = 1; i <= installmentConfig.maxInstallments; i++) {
+        const rate = parseFloat(installmentConfig.rates[i] || '0') || 0;
+        installmentRates.push({ installment: i, rate });
+      }
+
+      await api.put(`/card-brands/${showInstallmentsModal.id}/installments`, {
+        maxInstallments: installmentConfig.maxInstallments,
+        installmentRates,
+      });
+
+      setShowInstallmentsModal(null);
+      loadBrands();
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { error?: { message?: string } } } };
+      alert(axiosError.response?.data?.error?.message || 'Error al guardar configuración');
+    } finally {
+      setSavingInstallments(false);
     }
   };
 
@@ -164,7 +220,7 @@ export default function CardBrands() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Marcas de Tarjeta</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Configurar marcas de tarjeta para liquidación de cupones
+            Configurar marcas de tarjeta y recargos por cuotas
           </p>
         </div>
         <div className="flex gap-2">
@@ -225,7 +281,7 @@ export default function CardBrands() {
                   <Settings size={16} />
                   Marcas de Sistema
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {systemBrands.map((brand) => (
                     <BrandCard
                       key={brand.id}
@@ -233,6 +289,7 @@ export default function CardBrands() {
                       onEdit={handleOpenEdit}
                       onToggle={handleToggleActive}
                       onDelete={() => {}}
+                      onInstallments={handleOpenInstallments}
                     />
                   ))}
                 </div>
@@ -246,7 +303,7 @@ export default function CardBrands() {
                   <Plus size={16} />
                   Marcas Personalizadas
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {customBrands.map((brand) => (
                     <BrandCard
                       key={brand.id}
@@ -254,6 +311,7 @@ export default function CardBrands() {
                       onEdit={handleOpenEdit}
                       onToggle={handleToggleActive}
                       onDelete={(b) => setShowDeleteConfirm(b)}
+                      onInstallments={handleOpenInstallments}
                     />
                   ))}
                 </div>
@@ -362,6 +420,129 @@ export default function CardBrands() {
         </div>
       )}
 
+      {/* Installments Configuration Modal */}
+      {showInstallmentsModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-8">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Percent size={20} className="text-blue-600" />
+                Recargos por Cuotas - {showInstallmentsModal.name}
+              </h3>
+              <button
+                onClick={() => setShowInstallmentsModal(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-700">
+                  Configure el recargo porcentual para cada cantidad de cuotas.
+                  Las cuotas sin interés (promociones bancarias) ignoran estos recargos.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Máximo de Cuotas
+                </label>
+                <select
+                  value={installmentConfig.maxInstallments}
+                  onChange={(e) =>
+                    setInstallmentConfig({
+                      ...installmentConfig,
+                      maxInstallments: parseInt(e.target.value),
+                    })
+                  }
+                  className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  {INSTALLMENT_OPTIONS.map((num) => (
+                    <option key={num} value={num}>
+                      {num} cuotas
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Recargos por Cuota (%)
+                </label>
+                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {Array.from({ length: installmentConfig.maxInstallments }, (_, i) => i + 1).map(
+                    (num) => (
+                      <div key={num} className="relative">
+                        <label className="block text-xs text-gray-500 mb-1">{num} cuota{num > 1 ? 's' : ''}</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={installmentConfig.rates[num] || ''}
+                            onChange={(e) =>
+                              setInstallmentConfig({
+                                ...installmentConfig,
+                                rates: {
+                                  ...installmentConfig.rates,
+                                  [num]: e.target.value,
+                                },
+                              })
+                            }
+                            placeholder="0"
+                            min="0"
+                            max="200"
+                            step="0.01"
+                            className="w-full px-3 py-2 pr-7 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                <p className="text-sm text-yellow-700">
+                  <strong>Ejemplo:</strong> Si un producto cuesta $10.000 y el recargo para 6 cuotas es 15%,
+                  el cliente pagará $11.500 en total (6 cuotas de $1.916,67).
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-4 border-t">
+              <button
+                onClick={() => setShowInstallmentsModal(null)}
+                disabled={savingInstallments}
+                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveInstallments}
+                disabled={savingInstallments}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingInstallments ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Guardar Recargos
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -403,12 +584,16 @@ function BrandCard({
   onEdit,
   onToggle,
   onDelete,
+  onInstallments,
 }: {
   brand: CardBrand;
   onEdit: (brand: CardBrand) => void;
   onToggle: (brand: CardBrand) => void;
   onDelete: (brand: CardBrand) => void;
+  onInstallments: (brand: CardBrand) => void;
 }) {
+  const hasRates = brand.installmentRates && brand.installmentRates.length > 0;
+
   return (
     <div
       className={`p-3 border rounded-lg ${
@@ -431,7 +616,21 @@ function BrandCard({
         </div>
       </div>
 
+      {/* Installments info */}
+      <div className="mb-2 text-xs">
+        <span className={`px-1.5 py-0.5 rounded ${hasRates ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+          {brand.maxInstallments || 12} cuotas {hasRates ? '(config.)' : ''}
+        </span>
+      </div>
+
       <div className="flex gap-1">
+        <button
+          onClick={() => onInstallments(brand)}
+          className="flex-1 flex items-center justify-center p-1.5 text-blue-600 hover:bg-blue-50 rounded text-xs"
+          title="Configurar Cuotas"
+        >
+          <Percent size={12} />
+        </button>
         <button
           onClick={() => onEdit(brand)}
           className="flex-1 flex items-center justify-center p-1.5 text-gray-600 hover:bg-gray-100 rounded text-xs"

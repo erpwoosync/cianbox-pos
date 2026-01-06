@@ -154,6 +154,8 @@ interface CartItem {
   originalSaleId?: string;
   originalSaleItemId?: string;
   returnReason?: string;
+  // Propiedad de recargo financiero
+  isSurcharge?: boolean;
 }
 
 interface Ticket {
@@ -966,6 +968,45 @@ export default function POS() {
     setShowProductRefundModal(false);
   };
 
+  // Agregar o actualizar recargo financiero al carrito
+  const updateSurchargeItem = (surchargeAmount: number, installments: number, cardBrandName: string) => {
+    updateCart((prev) => {
+      // Primero remover cualquier recargo existente
+      const itemsWithoutSurcharge = prev.filter((item) => !item.isSurcharge);
+
+      // Si no hay recargo, retornar sin agregar
+      if (surchargeAmount <= 0) {
+        return itemsWithoutSurcharge;
+      }
+
+      // Crear item de recargo
+      const surchargeItem: CartItem = {
+        id: generateId(),
+        product: {
+          id: 'surcharge',
+          sku: 'RECARGO',
+          barcode: '',
+          name: `Recargo financiero - ${cardBrandName} ${installments} cuotas`,
+          cianboxProductId: 0, // Producto ficticio para sincronización
+          taxRate: 21,
+        } as Product,
+        quantity: 1,
+        unitPrice: surchargeAmount,
+        unitPriceNet: surchargeAmount / 1.21, // Asumimos IVA 21%
+        discount: 0,
+        subtotal: surchargeAmount,
+        isSurcharge: true,
+      };
+
+      return [...itemsWithoutSurcharge, surchargeItem];
+    });
+  };
+
+  // Remover recargo del carrito
+  const removeSurchargeItem = () => {
+    updateCart((prev) => prev.filter((item) => !item.isSurcharge));
+  };
+
   // Handler para clic en producto - maneja productos padre (curva de talles)
   const handleProductClick = (product: Product) => {
     if (product.isParent) {
@@ -1331,6 +1372,7 @@ export default function POS() {
           promotionName: item.promotionName || undefined,
           priceListId: selectedPOS.priceList?.id || undefined,
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
+          isSurcharge: item.isSurcharge || false,
         })),
         payments: [paymentData],
       };
@@ -1439,6 +1481,11 @@ export default function POS() {
             installments: cardPaymentData.installments,
             cardBrand: cardPaymentData.cardBrand,
             cardLastFour: cardPaymentData.cardLastFour,
+            // Promoción bancaria y recargo financiero
+            bankId: cardPaymentData.bankId,
+            bankPromotionId: cardPaymentData.bankPromotionId,
+            surchargeRate: cardPaymentData.surchargeRate,
+            surchargeAmount: cardPaymentData.surchargeAmount,
           } : {}),
         });
       }
@@ -1462,6 +1509,7 @@ export default function POS() {
           promotionName: item.promotionName || undefined,
           priceListId: selectedPOS.priceList?.id || undefined,
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
+          isSurcharge: item.isSurcharge || false,
         })),
         payments,
       };
@@ -1571,6 +1619,7 @@ export default function POS() {
           isReturn: item.isReturn,
           originalSaleId: item.originalSaleId,
           originalSaleItemId: item.originalSaleItemId,
+          isSurcharge: item.isSurcharge || false,
         })),
         payments: [
           {
@@ -2366,8 +2415,9 @@ export default function POS() {
                         setShowCardPaymentModal(true);
                       } else {
                         setSelectedPaymentMethod(method);
-                        // Limpiar datos de tarjeta si cambia a otro método
+                        // Limpiar datos de tarjeta y recargo si cambia a otro método
                         setCardPaymentData(null);
+                        removeSurchargeItem();
                       }
                     }}
                     className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-colors ${
@@ -2389,7 +2439,11 @@ export default function POS() {
                   <div className="grid grid-cols-3 gap-2">
                     {mpPointAvailable && (
                       <button
-                        onClick={() => setSelectedPaymentMethod('MP_POINT')}
+                        onClick={() => {
+                          setSelectedPaymentMethod('MP_POINT');
+                          setCardPaymentData(null);
+                          removeSurchargeItem();
+                        }}
                         className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-colors ${
                           selectedPaymentMethod === 'MP_POINT'
                             ? 'border-[#009EE3] bg-blue-50'
@@ -2402,7 +2456,11 @@ export default function POS() {
                     )}
                     {mpQRAvailable && (
                       <button
-                        onClick={() => setSelectedPaymentMethod('MP_QR')}
+                        onClick={() => {
+                          setSelectedPaymentMethod('MP_QR');
+                          setCardPaymentData(null);
+                          removeSurchargeItem();
+                        }}
                         className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-colors ${
                           selectedPaymentMethod === 'MP_QR'
                             ? 'border-[#009EE3] bg-blue-50'
@@ -2712,12 +2770,20 @@ export default function POS() {
         onClose={() => {
           setShowCardPaymentModal(false);
           setPendingCardPaymentMethod(null);
+          // Remover recargo si se cancela el pago con tarjeta
+          removeSurchargeItem();
         }}
         onConfirm={(data) => {
           setCardPaymentData(data);
           setSelectedPaymentMethod(pendingCardPaymentMethod!);
           setShowCardPaymentModal(false);
           setPendingCardPaymentMethod(null);
+          // Agregar o remover recargo según corresponda
+          if (data.surchargeAmount && data.surchargeAmount > 0 && data.cardBrand) {
+            updateSurchargeItem(data.surchargeAmount, data.installments, data.cardBrand);
+          } else {
+            removeSurchargeItem();
+          }
         }}
         amount={totalAfterGiftCards}
         paymentMethod={pendingCardPaymentMethod || 'CREDIT_CARD'}

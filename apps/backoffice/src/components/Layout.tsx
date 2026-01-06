@@ -62,7 +62,9 @@ const menuGroups: MenuGroup[] = [
       { path: '/terminals', label: 'Terminales POS', icon: Laptop },
       { path: '/card-terminals', label: 'Terminales Tarjetas', icon: CreditCard },
       { path: '/card-brands', label: 'Marcas Tarjetas', icon: Tags },
-      { path: '/bank-accounts', label: 'Cuentas Bancarias', icon: Building2 },
+      { path: '/banks', label: 'Bancos', icon: Building2 },
+      { path: '/bank-promotions', label: 'Promos Bancarias', icon: Gift },
+      { path: '/bank-accounts', label: 'Cuentas Bancarias', icon: Banknote },
     ],
   },
   {

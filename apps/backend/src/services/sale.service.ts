@@ -31,6 +31,7 @@ export interface SaleItemInput {
   originalSaleId?: string;
   originalSaleItemId?: string;
   returnReason?: string;
+  isSurcharge?: boolean; // Recargo financiero por cuotas
 }
 
 export interface PaymentInput {

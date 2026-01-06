@@ -37,6 +37,8 @@ const CardTerminals = lazy(() => import('./pages/CardTerminals'));
 const CardBrands = lazy(() => import('./pages/CardBrands'));
 const BankAccounts = lazy(() => import('./pages/BankAccounts'));
 const VoucherSettlements = lazy(() => import('./pages/VoucherSettlements'));
+const Banks = lazy(() => import('./pages/Banks'));
+const BankPromotions = lazy(() => import('./pages/BankPromotions'));
 
 // Loading spinner para Suspense
 function PageLoader() {
@@ -104,6 +106,8 @@ export default function App() {
                   <Route path="/card-brands" element={<CardBrands />} />
                   <Route path="/bank-accounts" element={<BankAccounts />} />
                   <Route path="/voucher-settlements" element={<VoucherSettlements />} />
+                  <Route path="/banks" element={<Banks />} />
+                  <Route path="/bank-promotions" element={<BankPromotions />} />
                 </Routes>
               </Suspense>
             </Layout>

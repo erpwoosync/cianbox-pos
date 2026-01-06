@@ -255,6 +255,63 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
 });
 
 // ==============================================
+// PUT /api/card-brands/:id/installments
+// Configurar cuotas y recargos de una marca
+// ==============================================
+const installmentRateSchema = z.object({
+  installment: z.number().int().min(1).max(24),
+  rate: z.number().min(0).max(200), // 0% a 200%
+});
+
+const installmentsConfigSchema = z.object({
+  maxInstallments: z.number().int().min(1).max(24),
+  installmentRates: z.array(installmentRateSchema),
+});
+
+router.put('/:id/installments', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+
+    const parseResult = installmentsConfigSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw new ValidationError('Datos inválidos', parseResult.error.errors);
+    }
+
+    const data = parseResult.data;
+
+    // Verificar que existe y pertenece al tenant
+    const existing = await prisma.cardBrand.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!existing) {
+      throw new NotFoundError('Marca de tarjeta no encontrada');
+    }
+
+    // Validar que las cuotas en los rates no excedan maxInstallments
+    const invalidRates = data.installmentRates.filter((r) => r.installment > data.maxInstallments);
+    if (invalidRates.length > 0) {
+      throw ApiError.badRequest(
+        `Las cuotas ${invalidRates.map((r) => r.installment).join(', ')} exceden el máximo de ${data.maxInstallments}`
+      );
+    }
+
+    const brand = await prisma.cardBrand.update({
+      where: { id },
+      data: {
+        maxInstallments: data.maxInstallments,
+        installmentRates: data.installmentRates,
+      },
+    });
+
+    res.json(brand);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==============================================
 // POST /api/card-brands/initialize
 // Inicializar marcas de sistema para el tenant
 // ==============================================
