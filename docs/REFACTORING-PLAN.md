@@ -78,18 +78,20 @@ Este documento detalla el plan de refactoring para mejorar la arquitectura del b
 
 ### Fase 3: Capa de Servicios (Prioridad ALTA)
 
-- [ ] **3.1 Crear SaleService**
-  - Crear `apps/backend/src/services/sale.service.ts`
-  - Extraer lógica de `POST /sales` (429 líneas)
-  - Extraer lógica de `POST /sales/:id/refund` (390 líneas)
-  - Métodos a implementar:
-    - [ ] `createSale()`
-    - [ ] `processRefund()`
-    - [ ] `validateBranchAndPOS()`
-    - [ ] `calculateTotals()`
-    - [ ] `processPayments()`
-    - [ ] `updateStock()`
-    - [ ] `updateCashSession()`
+- [x] **3.1 Crear SaleService** ✅ COMPLETADO (2026-01-06)
+  - Crear `apps/backend/src/services/sale.service.ts` ✅
+  - Extraer lógica de `POST /sales` - Reducido de 1504 a 1328 líneas (-176 líneas)
+  - Métodos implementados:
+    - [x] `generateSaleNumber()` ✅
+    - [x] `validateBranchAndPOS()` ✅
+    - [x] `calculateTotals()` ✅
+    - [x] `validatePayments()` ✅
+    - [x] `calculatePaymentTotals()` ✅
+    - [x] `updateStock()` ✅
+    - [x] `updateCashSession()` ✅
+    - [x] `findOpenCashSession()` ✅
+    - [x] `preparePaymentData()` ✅
+  - [ ] `processRefund()` - Pendiente (opcional, 390 líneas)
 
 - [ ] **3.2 Crear CashService**
   - Crear `apps/backend/src/services/cash.service.ts`
@@ -281,7 +283,7 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 |------|--------|----------|-------|
 | Fase 1 | ✅ Completado | 100% | Singleton PrismaClient + Errores unificados |
 | Fase 2 | ✅ Completado | 100% | 4 Repositorios + 3 rutas refactorizadas (-192 líneas total) |
-| Fase 3 | Pendiente | 0% | Depende de Fase 2 |
+| Fase 3 | 🔄 En progreso | 50% | SaleService creado (-176 líneas) |
 | Fase 4 | Pendiente | 0% | Depende de Fase 2 y 3 |
 | Fase 5 | Pendiente | 0% | Depende de Fase 4 |
 
@@ -305,3 +307,4 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 | 2026-01-06 | Fase 2 parcial: BaseRepository + ProductRepository + CustomerRepository + customers.ts refactorizado | Claude |
 | 2026-01-06 | Fase 2 continúa: ProductRepository extendido + products.ts refactorizado (730→660 líneas) | Claude |
 | 2026-01-06 | Fase 2 completada: PromotionRepository + ComboRepository + promotions.ts refactorizado | Claude |
+| 2026-01-06 | Fase 3 parcial: SaleService creado, POST /sales refactorizado (1504→1328 líneas) | Claude |
