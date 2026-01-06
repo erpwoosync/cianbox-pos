@@ -33,6 +33,9 @@ import terminalsRoutes from './routes/terminals.js';
 import customersRoutes from './routes/customers.js';
 import afipRoutes from './routes/afip.js';
 import cardTerminalsRoutes from './routes/card-terminals.js';
+import cardBrandsRoutes from './routes/card-brands.js';
+import bankAccountsRoutes from './routes/bank-accounts.js';
+import voucherSettlementsRoutes from './routes/voucher-settlements.js';
 
 // Importar servicios
 import CianboxService from './services/cianbox.service.js';
@@ -150,6 +153,9 @@ app.use('/api/cianboxwebhooks', cianboxWebhookRoutes); // Webhooks Cianbox (púb
 app.use('/api/customers', customersRoutes); // Gestión de clientes
 app.use('/api/afip', afipRoutes); // Facturación electrónica AFIP
 app.use('/api/card-terminals', cardTerminalsRoutes); // Terminales de tarjetas no integrados
+app.use('/api/card-brands', cardBrandsRoutes); // Marcas de tarjeta para liquidación
+app.use('/api/bank-accounts', bankAccountsRoutes); // Cuentas bancarias
+app.use('/api/voucher-settlements', voucherSettlementsRoutes); // Liquidación de cupones de tarjeta
 
 // Ruta 404
 app.use((_req, res) => {

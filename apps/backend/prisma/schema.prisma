@@ -135,6 +135,10 @@ model Tenant {
   treasuryMovements TreasuryMovement[]   // Movimientos de tesoreria
   storeCredits      StoreCredit[]        // Vales de crédito
   cardTerminals     CardTerminal[]       // Terminales de tarjeta no integrados
+  cardBrands        CardBrand[]          // Marcas de tarjeta
+  bankAccounts      BankAccount[]        // Cuentas bancarias
+  cardVouchers      CardVoucher[]        // Cupones de tarjeta
+  voucherSettlements VoucherSettlement[] // Liquidaciones de cupones
 
   @@map("tenants")
 }
@@ -1045,6 +1049,7 @@ model Payment {
 
   // Relaciones
   sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  cardVoucher CardVoucher?  // Cupón de tarjeta asociado (si pago con tarjeta)
 
   @@index([saleId])
   @@index([mpPaymentId])
@@ -1091,6 +1096,7 @@ model CardTerminal {
   requiresBatchNumber   Boolean @default(true)  // Nro de lote
 
   payments    Payment[]
+  vouchers    CardVoucher[]  // Cupones de tarjeta de este terminal
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2332,4 +2338,137 @@ model AfipVoucherPrintConfig {
 
   @@unique([salesPointId, voucherType])
   @@map("afip_voucher_print_configs")
+}
+
+// ==============================================
+// LIQUIDACIÓN DE CUPONES DE TARJETA
+// ==============================================
+
+// Marcas de tarjeta
+model CardBrand {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name      String   // "Visa", "Mastercard", "Naranja"
+  code      String   // "VISA", "MC", "NARANJA"
+  isActive  Boolean  @default(true)
+  isSystem  Boolean  @default(false) // true = viene precargado por seed
+
+  vouchers  CardVoucher[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("card_brands")
+}
+
+// Cuentas bancarias (compartidas con tesorería)
+model BankAccount {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name          String   // "Santander Cta Cte"
+  bankName      String   // "Santander"
+  accountNumber String?  // "123-456789/0"
+  cbu           String?  // "0720123456789012345678"
+  alias         String?  // "MI.CUENTA.SANTANDER"
+  isActive      Boolean  @default(true)
+
+  settlements   VoucherSettlement[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("bank_accounts")
+}
+
+// Cupón de tarjeta (creado automáticamente al pagar con tarjeta)
+model CardVoucher {
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  paymentId         String    @unique
+  payment           Payment   @relation(fields: [paymentId], references: [id])
+
+  // Origen del cupón
+  source            VoucherSource  // CARD_TERMINAL | MERCADO_PAGO
+
+  // Terminal de tarjeta no integrado
+  cardTerminalId    String?
+  cardTerminal      CardTerminal?  @relation(fields: [cardTerminalId], references: [id])
+
+  // Datos de la tarjeta
+  cardBrandId       String?
+  cardBrand         CardBrand?     @relation(fields: [cardBrandId], references: [id])
+  cardLastFour      String?
+
+  // Datos del cupón
+  voucherNumber     String?
+  batchNumber       String?
+  authorizationCode String?
+  installments      Int       @default(1)
+
+  // Datos de MP (si source = MERCADO_PAGO)
+  mpPaymentId       String?
+
+  // Montos y fechas
+  saleDate          DateTime
+  amount            Decimal   @db.Decimal(12, 2)
+
+  // Estado de liquidación
+  status            VoucherStatus  @default(PENDING)  // PENDING | SETTLED
+  settlementId      String?
+  settlement        VoucherSettlement? @relation(fields: [settlementId], references: [id])
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([cardTerminalId])
+  @@index([cardBrandId])
+  @@index([saleDate])
+  @@map("card_vouchers")
+}
+
+enum VoucherSource {
+  CARD_TERMINAL
+  MERCADO_PAGO
+}
+
+enum VoucherStatus {
+  PENDING
+  SETTLED
+}
+
+// Liquidación de cupones
+model VoucherSettlement {
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  settlementDate    DateTime
+  bankAccountId     String
+  bankAccount       BankAccount @relation(fields: [bankAccountId], references: [id])
+
+  // Montos
+  grossAmount       Decimal   @db.Decimal(12, 2)  // Monto bruto
+  commissionAmount  Decimal   @db.Decimal(12, 2)  // Comisión
+  withholdingAmount Decimal   @db.Decimal(12, 2)  // Retenciones
+  netAmount         Decimal   @db.Decimal(12, 2)  // Monto neto recibido
+
+  notes             String?
+  vouchers          CardVoucher[]
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([settlementDate])
+  @@map("voucher_settlements")
 }

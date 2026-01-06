@@ -88,6 +88,11 @@ const paymentSchema = z.object({
   mpPosId: z.string().optional(),
   mpStoreId: z.string().optional(),
   providerData: z.any().optional(),
+
+  // Campos de terminal de tarjeta no integrado
+  cardTerminalId: z.string().optional(),
+  voucherNumber: z.string().optional(),
+  batchNumber: z.string().optional(),
 });
 
 const saleCreateSchema = z.object({
@@ -327,6 +332,10 @@ router.post(
                 mpPosId: payment.mpPosId,
                 mpStoreId: payment.mpStoreId,
                 providerData: payment.providerData,
+                // Campos de terminal de tarjeta no integrado
+                cardTerminalId: payment.cardTerminalId,
+                voucherNumber: payment.voucherNumber,
+                batchNumber: payment.batchNumber,
               })),
             },
           },
@@ -359,6 +368,52 @@ router.post(
                 saleId: null,
               },
               data: { saleId: newSale.id },
+            });
+          }
+        }
+
+        // Crear CardVouchers para pagos con tarjeta (terminal no integrado o MP Point)
+        for (let i = 0; i < data.payments.length; i++) {
+          const paymentInput = data.payments[i];
+          const createdPayment = newSale.payments[i];
+
+          // Solo crear cupón si es pago con terminal de tarjeta o MP Point
+          const isCardTerminal = paymentInput.cardTerminalId;
+          const isMpPoint = paymentInput.method === 'MP_POINT' && paymentInput.mpPaymentId;
+
+          if (isCardTerminal || isMpPoint) {
+            // Buscar cardBrandId si se proporcionó cardBrand
+            let cardBrandId: string | null = null;
+            if (paymentInput.cardBrand) {
+              const cardBrand = await tx.cardBrand.findFirst({
+                where: {
+                  tenantId,
+                  OR: [
+                    { code: paymentInput.cardBrand.toUpperCase() },
+                    { name: { contains: paymentInput.cardBrand, mode: 'insensitive' } },
+                  ],
+                },
+              });
+              cardBrandId = cardBrand?.id || null;
+            }
+
+            await tx.cardVoucher.create({
+              data: {
+                tenantId,
+                paymentId: createdPayment.id,
+                source: isCardTerminal ? 'CARD_TERMINAL' : 'MERCADO_PAGO',
+                cardTerminalId: paymentInput.cardTerminalId,
+                cardBrandId,
+                cardLastFour: paymentInput.cardLastFour,
+                voucherNumber: paymentInput.voucherNumber,
+                batchNumber: paymentInput.batchNumber,
+                authorizationCode: paymentInput.authorizationCode,
+                installments: paymentInput.installments || 1,
+                mpPaymentId: paymentInput.mpPaymentId,
+                saleDate: new Date(),
+                amount: createdPayment.amount,
+                status: 'PENDING',
+              },
             });
           }
         }

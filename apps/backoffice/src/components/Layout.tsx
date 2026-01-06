@@ -61,6 +61,8 @@ const menuGroups: MenuGroup[] = [
       { path: '/points-of-sale', label: 'Puntos de Venta', icon: Monitor },
       { path: '/terminals', label: 'Terminales POS', icon: Laptop },
       { path: '/card-terminals', label: 'Terminales Tarjetas', icon: CreditCard },
+      { path: '/card-brands', label: 'Marcas Tarjetas', icon: Tags },
+      { path: '/bank-accounts', label: 'Cuentas Bancarias', icon: Building2 },
     ],
   },
   {
@@ -88,6 +90,7 @@ const menuGroups: MenuGroup[] = [
       { path: '/treasury', label: 'Tesorería', icon: Vault },
       { path: '/gift-cards', label: 'Gift Cards', icon: CreditCard },
       { path: '/store-credits', label: 'Vales de Crédito', icon: Ticket },
+      { path: '/voucher-settlements', label: 'Liquidación Cupones', icon: Receipt },
     ],
   },
   {
