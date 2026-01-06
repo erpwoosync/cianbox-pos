@@ -1368,4 +1368,203 @@ router.get(
   }
 );
 
+// ==============================================
+// RECALCULAR TOTALES DE SESIÓN (ADMIN)
+// ==============================================
+
+/**
+ * POST /api/cash/sessions/:id/recalculate
+ * Recalcula y corrige los totales de una sesión de caja
+ * Requiere permiso: cash:admin o *
+ */
+router.post(
+  '/sessions/:id/recalculate',
+  authenticate,
+  // Solo admins pueden recalcular (permiso * verificado en el handler)
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.user!.tenantId;
+      const userPermissions = req.user!.permissions || [];
+      const { dryRun = true } = req.body;
+
+      // Verificar permisos de admin
+      if (!userPermissions.includes('*') && !userPermissions.includes('cash:admin')) {
+        throw ApiError.forbidden('Requiere permisos de administrador');
+      }
+
+      // Obtener sesión con todas las ventas
+      const session = await prisma.cashSession.findFirst({
+        where: { id, tenantId },
+        include: {
+          sales: {
+            include: { payments: true },
+          },
+          pointOfSale: true,
+          user: { select: { name: true, email: true } },
+        },
+      });
+
+      if (!session) {
+        throw new NotFoundError('Sesión de caja');
+      }
+
+      // Calcular totales correctos
+      const calculated = {
+        salesCount: 0,
+        salesTotal: 0,
+        refundsCount: 0,
+        refundsTotal: 0,
+        totalCash: 0,
+        totalDebit: 0,
+        totalCredit: 0,
+        totalQr: 0,
+        totalMpPoint: 0,
+        totalTransfer: 0,
+        totalOther: 0,
+      };
+
+      const salesDetails: Array<{
+        saleNumber: string;
+        total: number;
+        status: string;
+        type: 'SALE' | 'REFUND' | 'CANCELLED';
+        payments: Array<{ method: string; amount: number }>;
+      }> = [];
+
+      for (const sale of session.sales) {
+        const saleTotal = Number(sale.total);
+        const isRefund = saleTotal < 0;
+
+        const saleDetail: typeof salesDetails[0] = {
+          saleNumber: sale.saleNumber,
+          total: saleTotal,
+          status: sale.status,
+          type: sale.status === 'CANCELLED' ? 'CANCELLED' : isRefund ? 'REFUND' : 'SALE',
+          payments: [],
+        };
+
+        if (sale.status === 'COMPLETED') {
+          if (isRefund) {
+            calculated.refundsCount++;
+            calculated.refundsTotal += Math.abs(saleTotal);
+          } else {
+            calculated.salesCount++;
+            calculated.salesTotal += saleTotal;
+          }
+
+          for (const payment of sale.payments) {
+            if (payment.status !== 'COMPLETED') continue;
+            const amount = Number(payment.amount);
+
+            saleDetail.payments.push({ method: payment.method, amount });
+
+            switch (payment.method) {
+              case 'CASH':
+                calculated.totalCash += amount;
+                break;
+              case 'DEBIT_CARD':
+                calculated.totalDebit += amount;
+                break;
+              case 'CREDIT_CARD':
+                calculated.totalCredit += amount;
+                break;
+              case 'QR':
+                calculated.totalQr += amount;
+                break;
+              case 'MP_POINT':
+                calculated.totalMpPoint += amount;
+                break;
+              case 'TRANSFER':
+                calculated.totalTransfer += amount;
+                break;
+              default:
+                calculated.totalOther += amount;
+            }
+          }
+        }
+
+        salesDetails.push(saleDetail);
+      }
+
+      // Comparar con valores actuales
+      const current = {
+        salesCount: session.salesCount,
+        salesTotal: Number(session.salesTotal),
+        refundsCount: session.refundsCount,
+        refundsTotal: Number(session.refundsTotal),
+        totalCash: Number(session.totalCash),
+        totalDebit: Number(session.totalDebit),
+        totalCredit: Number(session.totalCredit),
+        totalQr: Number(session.totalQr),
+        totalMpPoint: Number(session.totalMpPoint),
+        totalTransfer: Number(session.totalTransfer),
+        totalOther: Number(session.totalOther),
+      };
+
+      const discrepancies: Record<string, { current: number; calculated: number; diff: number }> = {};
+
+      for (const key of Object.keys(calculated) as Array<keyof typeof calculated>) {
+        const diff = calculated[key] - current[key];
+        if (Math.abs(diff) > 0.01) {
+          discrepancies[key] = {
+            current: current[key],
+            calculated: calculated[key],
+            diff,
+          };
+        }
+      }
+
+      const hasDiscrepancies = Object.keys(discrepancies).length > 0;
+
+      // Si no es dry-run y hay discrepancias, actualizar
+      if (!dryRun && hasDiscrepancies) {
+        await prisma.cashSession.update({
+          where: { id },
+          data: {
+            salesCount: calculated.salesCount,
+            salesTotal: new Prisma.Decimal(calculated.salesTotal),
+            refundsCount: calculated.refundsCount,
+            refundsTotal: new Prisma.Decimal(calculated.refundsTotal),
+            totalCash: new Prisma.Decimal(calculated.totalCash),
+            totalDebit: new Prisma.Decimal(calculated.totalDebit),
+            totalCredit: new Prisma.Decimal(calculated.totalCredit),
+            totalQr: new Prisma.Decimal(calculated.totalQr),
+            totalMpPoint: new Prisma.Decimal(calculated.totalMpPoint),
+            totalTransfer: new Prisma.Decimal(calculated.totalTransfer),
+            totalOther: new Prisma.Decimal(calculated.totalOther),
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          session: {
+            id: session.id,
+            sessionNumber: session.sessionNumber,
+            pointOfSale: session.pointOfSale.name,
+            user: session.user.name,
+            status: session.status,
+          },
+          current,
+          calculated,
+          discrepancies,
+          hasDiscrepancies,
+          dryRun,
+          applied: !dryRun && hasDiscrepancies,
+          salesAnalyzed: salesDetails.length,
+        },
+        message: !dryRun && hasDiscrepancies
+          ? 'Totales recalculados y actualizados'
+          : dryRun
+            ? 'Análisis completado (dry-run)'
+            : 'No hay discrepancias que corregir',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;
