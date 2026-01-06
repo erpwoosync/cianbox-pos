@@ -1051,6 +1051,58 @@ router.post(
       const originalInvoice = originalSale.afipInvoices[0];
       let creditNoteResult = null;
 
+      // Buscar sesión de caja activa del usuario ANTES de la transacción
+      const cashSession = await prisma.cashSession.findFirst({
+        where: {
+          tenantId,
+          userId,
+          status: { in: ['OPEN', 'SUSPENDED', 'COUNTING'] },
+        },
+      });
+
+      // Calcular totales por método de pago de la venta original (para decrementar proporcionalmente)
+      const originalSaleTotal = Number(originalSale.total);
+      const refundRatio = originalSaleTotal > 0 ? refundTotal.toNumber() / originalSaleTotal : 0;
+
+      // Calcular montos a decrementar por cada método de pago
+      const paymentDecrements = {
+        totalCash: 0,
+        totalDebit: 0,
+        totalCredit: 0,
+        totalQr: 0,
+        totalMpPoint: 0,
+        totalTransfer: 0,
+        totalOther: 0,
+      };
+
+      for (const payment of originalSale.payments) {
+        if (payment.status !== 'COMPLETED') continue;
+        const decrementAmount = Number(payment.amount) * refundRatio;
+
+        switch (payment.method) {
+          case 'CASH':
+            paymentDecrements.totalCash += decrementAmount;
+            break;
+          case 'DEBIT_CARD':
+            paymentDecrements.totalDebit += decrementAmount;
+            break;
+          case 'CREDIT_CARD':
+            paymentDecrements.totalCredit += decrementAmount;
+            break;
+          case 'QR':
+            paymentDecrements.totalQr += decrementAmount;
+            break;
+          case 'MP_POINT':
+            paymentDecrements.totalMpPoint += decrementAmount;
+            break;
+          case 'TRANSFER':
+            paymentDecrements.totalTransfer += decrementAmount;
+            break;
+          default: // GIFTCARD, VOUCHER, CREDIT, etc.
+            paymentDecrements.totalOther += decrementAmount;
+        }
+      }
+
       // Procesar en transacción
       const result = await prisma.$transaction(async (tx) => {
         // Crear venta de devolución (con valores negativos)
@@ -1074,6 +1126,7 @@ router.post(
               ? `Devolución de venta ${originalSale.saleNumber}: ${data.reason} [Autorizado por: ${supervisorName}]`
               : `Devolución de venta ${originalSale.saleNumber}: ${data.reason}`,
             originalSaleId: originalSale.id,
+            cashSessionId: cashSession?.id, // Vincular a sesión de caja actual
             items: {
               create: itemsToRefund.map((item) => ({
                 productId: item.originalItem.productId,
@@ -1144,65 +1197,51 @@ router.post(
           }
         }
 
-        // === CREAR MOVIMIENTO DE CAJA SI LA VENTA ORIGINAL FUE EN EFECTIVO ===
-        // Calcular monto en efectivo a devolver
-        const originalCashPayments = originalSale.payments.filter(
-          (p) => p.method === 'CASH' && p.status === 'COMPLETED'
-        );
-
-        if (originalCashPayments.length > 0) {
-          // Calcular proporción de efectivo
-          const totalOriginalCash = originalCashPayments.reduce(
-            (sum, p) => sum + Number(p.amount),
-            0
-          );
-          const saleTotal = Number(originalSale.total);
-          const cashRatio = saleTotal > 0 ? totalOriginalCash / saleTotal : 0;
-          const cashRefundAmount = refundTotal.toNumber() * cashRatio;
-
-          if (cashRefundAmount > 0) {
-            // Buscar sesión de caja activa del usuario
-            const cashSession = await tx.cashSession.findFirst({
-              where: {
-                tenantId,
-                userId,
-                status: { in: ['OPEN', 'SUSPENDED', 'COUNTING'] },
+        // === ACTUALIZAR TOTALES DE SESIÓN DE CAJA ===
+        if (cashSession) {
+          // Crear movimiento de retiro si hubo efectivo en la venta original
+          if (paymentDecrements.totalCash > 0) {
+            await tx.cashMovement.create({
+              data: {
+                cashSessionId: cashSession.id,
+                type: 'WITHDRAWAL',
+                amount: new Prisma.Decimal(paymentDecrements.totalCash),
+                reason: 'SALE_REFUND',
+                description: `Devolución venta ${originalSale.saleNumber}`,
+                reference: refundSale.saleNumber,
+                createdByUserId: userId,
+                authorizedByUserId: supervisorId,
+                requiresAuth: !!supervisorId,
               },
             });
-
-            if (cashSession) {
-              // Crear movimiento de retiro por devolución
-              await tx.cashMovement.create({
-                data: {
-                  cashSessionId: cashSession.id,
-                  type: 'WITHDRAWAL',
-                  amount: new Prisma.Decimal(cashRefundAmount),
-                  reason: 'SALE_REFUND',
-                  description: `Devolución venta ${originalSale.saleNumber}`,
-                  reference: refundSale.saleNumber,
-                  createdByUserId: userId,
-                  authorizedByUserId: supervisorId,
-                  requiresAuth: !!supervisorId,
-                },
-              });
-
-              // Actualizar totales de la sesión
-              await tx.cashSession.update({
-                where: { id: cashSession.id },
-                data: {
-                  withdrawalsTotal: {
-                    increment: cashRefundAmount,
-                  },
-                  totalCash: {
-                    decrement: cashRefundAmount,
-                  },
-                },
-              });
-            }
-            // Si no hay sesión de caja, la devolución se procesa igual pero sin movimiento
-            // (podría ser una devolución desde backoffice)
           }
+
+          // Actualizar TODOS los totales de la sesión (decrementar por cada método de pago)
+          await tx.cashSession.update({
+            where: { id: cashSession.id },
+            data: {
+              // Incrementar contadores de devolución
+              refundsCount: { increment: 1 },
+              refundsTotal: { increment: refundTotal.toNumber() },
+              // Decrementar totales de venta
+              salesTotal: { decrement: refundTotal.toNumber() },
+              // Decrementar totales por método de pago según proporción original
+              totalCash: { decrement: paymentDecrements.totalCash },
+              totalDebit: { decrement: paymentDecrements.totalDebit },
+              totalCredit: { decrement: paymentDecrements.totalCredit },
+              totalQr: { decrement: paymentDecrements.totalQr },
+              totalMpPoint: { decrement: paymentDecrements.totalMpPoint },
+              totalTransfer: { decrement: paymentDecrements.totalTransfer },
+              totalOther: { decrement: paymentDecrements.totalOther },
+              // Incrementar retiros solo si hubo efectivo
+              ...(paymentDecrements.totalCash > 0
+                ? { withdrawalsTotal: { increment: paymentDecrements.totalCash } }
+                : {}),
+            },
+          });
         }
+        // Si no hay sesión de caja, la devolución se procesa igual pero sin actualizar totales
+        // (podría ser una devolución desde backoffice)
 
         return refundSale;
       });
