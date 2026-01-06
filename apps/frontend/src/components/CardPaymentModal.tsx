@@ -358,11 +358,16 @@ export default function CardPaymentModal({
                         onChange={(e) => setInstallments(Number(e.target.value))}
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
-                        {INSTALLMENT_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
+                        {INSTALLMENT_OPTIONS.map((opt) => {
+                          const installmentAmount = amount / opt.value;
+                          return (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.value === 1
+                                ? '1 pago'
+                                : `${opt.value} cuotas de $${installmentAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   )}
@@ -418,6 +423,11 @@ export default function CardPaymentModal({
                 <p className="text-3xl font-bold text-gray-900">
                   ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                 </p>
+                {isCredit && installments > 1 && (
+                  <p className="text-sm text-purple-600 mt-1 font-medium">
+                    {installments} cuotas de ${(amount / installments).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </p>
+                )}
               </div>
 
               {/* Error de validación */}
