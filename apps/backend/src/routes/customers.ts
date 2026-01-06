@@ -1,11 +1,12 @@
 /**
  * Rutas de clientes
+ * Refactorizado para usar CustomerRepository
  */
 
 import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth.js';
-import { NotFoundError, ApiError } from '../utils/errors.js';
+import { customerRepository } from '../repositories/index.js';
 import prisma from '../lib/prisma.js';
 
 const router = Router();
@@ -56,67 +57,25 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const query = customerQuerySchema.parse(req.query);
-      const page = parseInt(query.page);
-      const pageSize = parseInt(query.pageSize);
-      const skip = (page - 1) * pageSize;
+      const tenantId = req.user!.tenantId;
 
-      const where: Record<string, unknown> = {
-        tenantId: req.user!.tenantId,
-      };
-
-      if (query.search) {
-        where.OR = [
-          { name: { contains: query.search, mode: 'insensitive' } },
-          { taxId: { contains: query.search, mode: 'insensitive' } },
-          { email: { contains: query.search, mode: 'insensitive' } },
-          { phone: { contains: query.search } },
-          { mobile: { contains: query.search } },
-        ];
-      }
-
-      if (query.customerType) {
-        where.customerType = query.customerType;
-      }
-
-      if (query.isActive !== undefined) {
-        where.isActive = query.isActive === 'true';
-      }
-
-      const [customers, total] = await Promise.all([
-        prisma.customer.findMany({
-          where,
-          skip,
-          take: pageSize,
-          orderBy: { name: 'asc' },
-          select: {
-            id: true,
-            name: true,
-            tradeName: true,
-            customerType: true,
-            taxId: true,
-            taxIdType: true,
-            email: true,
-            phone: true,
-            mobile: true,
-            address: true,
-            city: true,
-            globalDiscount: true,
-            isActive: true,
-            createdAt: true,
-          },
-        }),
-        prisma.customer.count({ where }),
-      ]);
+      const result = await customerRepository.findWithFilters(
+        tenantId,
+        {
+          search: query.search,
+          customerType: query.customerType,
+          isActive: query.isActive !== undefined ? query.isActive === 'true' : undefined,
+        },
+        {
+          page: parseInt(query.page),
+          pageSize: parseInt(query.pageSize),
+        }
+      );
 
       res.json({
         success: true,
-        data: customers,
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages: Math.ceil(total / pageSize),
-        },
+        data: result.data,
+        pagination: result.pagination,
       });
     } catch (error) {
       next(error);
@@ -139,6 +98,7 @@ router.get(
         return res.json({ success: true, data: [] });
       }
 
+      // Búsqueda rápida usando prisma directamente (no necesita paginación)
       const customers = await prisma.customer.findMany({
         where: {
           tenantId: req.user!.tenantId,
@@ -183,16 +143,10 @@ router.get(
   authenticate,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const customer = await prisma.customer.findFirst({
-        where: {
-          id: req.params.id,
-          tenantId: req.user!.tenantId,
-        },
-      });
-
-      if (!customer) {
-        throw new NotFoundError('Cliente');
-      }
+      const customer = await customerRepository.findByIdOrFail(
+        req.params.id,
+        req.user!.tenantId
+      );
 
       res.json({ success: true, data: customer });
     } catch (error) {
@@ -212,27 +166,10 @@ router.post(
     try {
       const data = customerCreateSchema.parse(req.body);
 
-      // Verificar duplicado por taxId si se proporciona
-      if (data.taxId) {
-        const existing = await prisma.customer.findFirst({
-          where: {
-            tenantId: req.user!.tenantId,
-            taxId: data.taxId,
-          },
-        });
-
-        if (existing) {
-          throw ApiError.badRequest(`Ya existe un cliente con el documento ${data.taxId}`);
-        }
-      }
-
-      const customer = await prisma.customer.create({
-        data: {
-          ...data,
-          email: data.email || null,
-          tenantId: req.user!.tenantId,
-        },
-      });
+      const customer = await customerRepository.createWithValidation(
+        req.user!.tenantId,
+        { ...data, email: data.email || null }
+      );
 
       res.status(201).json({ success: true, data: customer });
     } catch (error) {
@@ -252,40 +189,11 @@ router.put(
     try {
       const data = customerUpdateSchema.parse(req.body);
 
-      // Verificar que el cliente existe y pertenece al tenant
-      const existing = await prisma.customer.findFirst({
-        where: {
-          id: req.params.id,
-          tenantId: req.user!.tenantId,
-        },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Cliente');
-      }
-
-      // Verificar duplicado por taxId si se está actualizando
-      if (data.taxId && data.taxId !== existing.taxId) {
-        const duplicate = await prisma.customer.findFirst({
-          where: {
-            tenantId: req.user!.tenantId,
-            taxId: data.taxId,
-            id: { not: req.params.id },
-          },
-        });
-
-        if (duplicate) {
-          throw ApiError.badRequest(`Ya existe un cliente con el documento ${data.taxId}`);
-        }
-      }
-
-      const customer = await prisma.customer.update({
-        where: { id: req.params.id },
-        data: {
-          ...data,
-          email: data.email || null,
-        },
-      });
+      const customer = await customerRepository.updateWithValidation(
+        req.params.id,
+        req.user!.tenantId,
+        { ...data, email: data.email || null }
+      );
 
       res.json({ success: true, data: customer });
     } catch (error) {
@@ -296,49 +204,19 @@ router.put(
 
 /**
  * DELETE /api/customers/:id
- * Eliminar cliente (soft delete - desactivar)
+ * Eliminar cliente (soft delete si tiene ventas)
  */
 router.delete(
   '/:id',
   authenticate,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      // Verificar que el cliente existe y pertenece al tenant
-      const existing = await prisma.customer.findFirst({
-        where: {
-          id: req.params.id,
-          tenantId: req.user!.tenantId,
-        },
-      });
+      const result = await customerRepository.deleteOrDeactivate(
+        req.params.id,
+        req.user!.tenantId
+      );
 
-      if (!existing) {
-        throw new NotFoundError('Cliente');
-      }
-
-      // Verificar si tiene ventas asociadas
-      const salesCount = await prisma.sale.count({
-        where: { customerId: req.params.id },
-      });
-
-      if (salesCount > 0) {
-        // Soft delete si tiene ventas
-        await prisma.customer.update({
-          where: { id: req.params.id },
-          data: { isActive: false },
-        });
-
-        return res.json({
-          success: true,
-          message: 'Cliente desactivado (tiene ventas asociadas)',
-        });
-      }
-
-      // Hard delete si no tiene ventas
-      await prisma.customer.delete({
-        where: { id: req.params.id },
-      });
-
-      res.json({ success: true, message: 'Cliente eliminado' });
+      res.json({ success: true, message: result.message });
     } catch (error) {
       next(error);
     }
