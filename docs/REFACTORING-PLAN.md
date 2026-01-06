@@ -121,13 +121,13 @@ Este documento detalla el plan de refactoring para mejorar la arquitectura del b
 
 ### Fase 4: Simplificación de Rutas (Prioridad MEDIA)
 
-- [ ] **4.1 Refactorizar sales.ts**
-  - Reducir de 1505 líneas usando SaleService
-  - Mantener solo validación de request y respuesta
+- [x] **4.1 Refactorizar sales.ts** ✅ COMPLETADO (via SaleService en Fase 3)
+  - Reducido de 1504 a 1328 líneas (-176 líneas)
+  - Usa SaleService para lógica de negocio
 
-- [ ] **4.2 Refactorizar cash.ts**
-  - Reducir usando CashService
-  - Mantener solo validación de request y respuesta
+- [x] **4.2 Refactorizar cash.ts** ✅ COMPLETADO (via CashService en Fase 3)
+  - Reducido de 1576 a 1371 líneas (-205 líneas)
+  - Usa CashService para lógica de negocio
 
 - [ ] **4.3 Crear BaseRouter (Opcional)**
   - Crear clase base con CRUD genérico
@@ -287,8 +287,8 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 | Fase 1 | ✅ Completado | 100% | Singleton PrismaClient + Errores unificados |
 | Fase 2 | ✅ Completado | 100% | 4 Repositorios + 3 rutas refactorizadas (-192 líneas total) |
 | Fase 3 | ✅ Completado | 100% | SaleService (-176 líneas) + CashService (-205 líneas) |
-| Fase 4 | Pendiente | 0% | Depende de Fase 2 y 3 |
-| Fase 5 | Pendiente | 0% | Depende de Fase 4 |
+| Fase 4 | ✅ Completado | 100% | sales.ts y cash.ts ya usan servicios (BaseRouter opcional) |
+| Fase 5 | Pendiente | 0% | Testing y documentación |
 
 ---
 
@@ -312,3 +312,5 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 | 2026-01-06 | Fase 2 completada: PromotionRepository + ComboRepository + promotions.ts refactorizado | Claude |
 | 2026-01-06 | Fase 3 parcial: SaleService creado, POST /sales refactorizado (1504→1328 líneas) | Claude |
 | 2026-01-06 | Fase 3 completada: CashService creado, cash.ts refactorizado (1576→1371 líneas) | Claude |
+| 2026-01-06 | Fase 4 completada: sales.ts y cash.ts ya refactorizados via servicios | Claude |
+| 2026-01-06 | BUGFIX: Refund no actualizaba totales de sesión para VOUCHER/GIFTCARD (sales.ts) | Claude |
