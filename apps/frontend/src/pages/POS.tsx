@@ -23,6 +23,7 @@ import {
   Receipt,
   RotateCcw,
   Ticket,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
@@ -2466,6 +2467,21 @@ export default function POS() {
                 </div>
               )}
 
+              {/* Advertencia si hay monto pendiente sin cubrir */}
+              {amountToPay > 0 && !selectedPaymentMethod && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      Selecciona un método de pago
+                    </p>
+                    <p className="text-xs text-amber-600">
+                      Aún quedan ${amountToPay.toFixed(2)} pendientes de cubrir
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Botones de acción */}
               <div className="flex gap-2">
                 <button
@@ -2479,7 +2495,11 @@ export default function POS() {
                   onClick={processSale}
                   disabled={
                     isProcessing ||
-                    (selectedPaymentMethod === 'CASH' && amountToPay > 0 && tenderedAmount < amountToPay)
+                    // Si hay monto pendiente y es efectivo, validar monto entregado
+                    (selectedPaymentMethod === 'CASH' && amountToPay > 0 && tenderedAmount < amountToPay) ||
+                    // Si hay monto pendiente pero los vales/gift cards no cubren todo,
+                    // y no hay un método de pago principal válido, deshabilitar
+                    (amountToPay > 0 && !selectedPaymentMethod)
                   }
                   className="flex-1 btn btn-success py-3 disabled:opacity-50"
                 >
