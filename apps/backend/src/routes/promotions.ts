@@ -1,13 +1,14 @@
 /**
  * Rutas de promociones y combos
+ * Refactorizado para usar PromotionRepository y ComboRepository
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ValidationError, NotFoundError, ApiError } from '../utils/errors.js';
 import prisma from '../lib/prisma.js';
+import { promotionRepository, comboRepository } from '../repositories/index.js';
 
 const router = Router();
 
@@ -221,23 +222,15 @@ router.get(
   authenticate,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const promotion = await prisma.promotion.findFirst({
-        where: {
-          id: req.params.id,
-          tenantId: req.user!.tenantId,
-        },
-        include: {
+      const promotion = await promotionRepository.findByIdOrFail(
+        req.params.id,
+        req.user!.tenantId,
+        {
           applicableProducts: {
-            include: {
-              product: true,
-            },
+            include: { product: true },
           },
-        },
-      });
-
-      if (!promotion) {
-        throw new NotFoundError('Promoción');
-      }
+        }
+      );
 
       res.json({ success: true, data: promotion });
     } catch (error) {
@@ -392,33 +385,12 @@ router.delete(
   authorize('settings:edit'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId;
+      const result = await promotionRepository.deleteOrDeactivate(
+        req.params.id,
+        req.user!.tenantId
+      );
 
-      const existing = await prisma.promotion.findFirst({
-        where: { id: req.params.id, tenantId },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Promoción');
-      }
-
-      // Desactivar en lugar de eliminar si tiene usos
-      if (existing.currentUses > 0) {
-        await prisma.promotion.update({
-          where: { id: req.params.id },
-          data: { isActive: false },
-        });
-        return res.json({
-          success: true,
-          message: 'Promoción desactivada (tiene ventas asociadas)',
-        });
-      }
-
-      await prisma.promotion.delete({
-        where: { id: req.params.id },
-      });
-
-      res.json({ success: true, message: 'Promoción eliminada' });
+      res.json({ success: true, message: result.message });
     } catch (error) {
       next(error);
     }
@@ -523,21 +495,15 @@ router.get(
   authenticate,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const combo = await prisma.combo.findFirst({
-        where: {
-          id: req.params.id,
-          tenantId: req.user!.tenantId,
-        },
-        include: {
+      const combo = await comboRepository.findByIdOrFail(
+        req.params.id,
+        req.user!.tenantId,
+        {
           items: {
             include: { product: true },
           },
-        },
-      });
-
-      if (!combo) {
-        throw new NotFoundError('Combo');
-      }
+        }
+      );
 
       res.json({ success: true, data: combo });
     } catch (error) {
@@ -689,34 +655,12 @@ router.delete(
   authorize('settings:edit'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId;
+      const result = await comboRepository.deleteOrDeactivate(
+        req.params.id,
+        req.user!.tenantId
+      );
 
-      const existing = await prisma.combo.findFirst({
-        where: { id: req.params.id, tenantId },
-        include: { _count: { select: { saleItems: true } } },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Combo');
-      }
-
-      // Desactivar en lugar de eliminar si tiene ventas
-      if (existing._count.saleItems > 0) {
-        await prisma.combo.update({
-          where: { id: req.params.id },
-          data: { isActive: false },
-        });
-        return res.json({
-          success: true,
-          message: 'Combo desactivado (tiene ventas asociadas)',
-        });
-      }
-
-      await prisma.combo.delete({
-        where: { id: req.params.id },
-      });
-
-      res.json({ success: true, message: 'Combo eliminado' });
+      res.json({ success: true, message: result.message });
     } catch (error) {
       next(error);
     }
