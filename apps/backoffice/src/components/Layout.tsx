@@ -100,6 +100,7 @@ const menuGroups: MenuGroup[] = [
     label: 'Administración',
     icon: Shield,
     items: [
+      { path: '/settings', label: 'Configuración General', icon: Settings },
       { path: '/roles', label: 'Roles', icon: Shield },
       { path: '/users', label: 'Usuarios', icon: Users },
       { path: '/integrations', label: 'Integraciones', icon: Plug },

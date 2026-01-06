@@ -1822,4 +1822,29 @@ export const storeCreditsApi = {
   },
 };
 
+// Tenant Settings Interface
+export interface TenantSettings {
+  id: string;
+  name: string;
+  slug: string;
+  logo?: string | null;
+  surchargeDisplayMode: SurchargeDisplayMode;
+}
+
+export interface UpdateTenantSettingsDto {
+  surchargeDisplayMode?: SurchargeDisplayMode;
+}
+
+// Tenant Settings API
+export const settingsApi = {
+  get: async (): Promise<TenantSettings> => {
+    const response = await api.get('/backoffice/settings');
+    return response.data.data;
+  },
+  update: async (data: UpdateTenantSettingsDto): Promise<TenantSettings> => {
+    const response = await api.put('/backoffice/settings', data);
+    return response.data.data;
+  },
+};
+
 export default api;
