@@ -2276,6 +2276,11 @@ export default function POS() {
                           <span className="px-2 py-0.5 text-center text-sm font-bold text-red-600 bg-red-100 rounded">
                             {item.quantity < 0 ? '' : '-'}{Math.abs(item.quantity)}
                           </span>
+                        ) : item.isSurcharge ? (
+                          /* Items de recargo: mostrar cantidad sin botones */
+                          <span className="px-2 py-0.5 text-center text-sm font-medium text-gray-600">
+                            {item.quantity}
+                          </span>
                         ) : (
                           <>
                             <button
@@ -2301,12 +2306,15 @@ export default function POS() {
                         <p className={`font-semibold text-sm ${item.isReturn ? 'text-red-600' : ''}`}>
                           {item.isReturn ? '-' : ''}${Math.abs(item.subtotal).toFixed(2)}
                         </p>
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-500 hover:text-red-600"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        {/* No mostrar botón eliminar para items de recargo */}
+                        {!item.isSurcharge && (
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="text-red-500 hover:text-red-600"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
