@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, ValidationError, NotFoundError } from '../utils/errors.js';
 import prisma from '../lib/prisma.js';
+import { cashService } from '../services/cash.service.js';
 
 const router = Router();
 
@@ -114,212 +115,6 @@ const transferSchema = z.object({
 });
 
 // ==============================================
-// HELPERS
-// ==============================================
-
-/**
- * Genera número de sesión secuencial
- */
-async function generateSessionNumber(
-  tenantId: string,
-  pointOfSaleId: string
-): Promise<string> {
-  const pos = await prisma.pointOfSale.findUnique({
-    where: { id: pointOfSaleId },
-  });
-
-  if (!pos) {
-    throw new NotFoundError('Punto de venta');
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const count = await prisma.cashSession.count({
-    where: {
-      tenantId,
-      pointOfSaleId,
-      createdAt: { gte: today },
-    },
-  });
-
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const sequence = String(count + 1).padStart(3, '0');
-
-  return `T-${pos.code}-${dateStr}-${sequence}`;
-}
-
-/**
- * Calcula el monto esperado de efectivo en la sesión
- */
-async function calculateExpectedCash(sessionId: string): Promise<number> {
-  const session = await prisma.cashSession.findUnique({
-    where: { id: sessionId },
-    include: {
-      movements: true,
-      sales: {
-        where: { status: 'COMPLETED' },
-        include: { payments: true },
-      },
-    },
-  });
-
-  if (!session) {
-    throw new NotFoundError('Sesión de caja');
-  }
-
-  let expected = Number(session.openingAmount);
-
-  // Sumar ventas en efectivo
-  // payment.amount es el monto neto de la venta (lo que queda en caja)
-  // changeAmount es solo informativo (lo que se devolvió al cliente)
-  for (const sale of session.sales) {
-    for (const payment of sale.payments) {
-      if (payment.method === 'CASH' && payment.status === 'COMPLETED') {
-        expected += Number(payment.amount);
-      }
-    }
-  }
-
-  // Sumar/restar movimientos
-  for (const mov of session.movements) {
-    const amount = Number(mov.amount);
-    switch (mov.type) {
-      case 'DEPOSIT':
-      case 'ADJUSTMENT_IN':
-      case 'TRANSFER_IN':
-      case 'CHANGE_FUND':
-        expected += amount;
-        break;
-      case 'WITHDRAWAL':
-      case 'ADJUSTMENT_OUT':
-      case 'TRANSFER_OUT':
-        expected -= amount;
-        break;
-    }
-  }
-
-  return expected;
-}
-
-/**
- * Calcula totales por método de pago
- */
-async function calculatePaymentTotals(sessionId: string): Promise<{
-  totalCash: number;
-  totalDebit: number;
-  totalCredit: number;
-  totalQr: number;
-  totalMpPoint: number;
-  totalTransfer: number;
-  totalOther: number;
-  salesCount: number;
-  salesTotal: number;
-  refundsCount: number;
-  refundsTotal: number;
-  cancelsCount: number;
-}> {
-  const session = await prisma.cashSession.findUnique({
-    where: { id: sessionId },
-    include: {
-      sales: {
-        include: { payments: true },
-      },
-    },
-  });
-
-  if (!session) {
-    throw new NotFoundError('Sesión de caja');
-  }
-
-  const totals = {
-    totalCash: 0,
-    totalDebit: 0,
-    totalCredit: 0,
-    totalQr: 0,
-    totalMpPoint: 0,
-    totalTransfer: 0,
-    totalOther: 0,
-    salesCount: 0,
-    salesTotal: 0,
-    refundsCount: 0,
-    refundsTotal: 0,
-    cancelsCount: 0,
-  };
-
-  for (const sale of session.sales) {
-    if (sale.status === 'COMPLETED') {
-      totals.salesCount++;
-      totals.salesTotal += Number(sale.total);
-
-      for (const payment of sale.payments) {
-        if (payment.status !== 'COMPLETED') continue;
-        const amount = Number(payment.amount);
-
-        switch (payment.method) {
-          case 'CASH':
-            totals.totalCash += amount;
-            break;
-          case 'DEBIT_CARD':
-            totals.totalDebit += amount;
-            break;
-          case 'CREDIT_CARD':
-            totals.totalCredit += amount;
-            break;
-          case 'QR':
-            totals.totalQr += amount;
-            break;
-          case 'MP_POINT':
-            totals.totalMpPoint += amount;
-            break;
-          case 'TRANSFER':
-            totals.totalTransfer += amount;
-            break;
-          default:
-            totals.totalOther += amount;
-        }
-      }
-    } else if (sale.status === 'REFUNDED' || sale.status === 'PARTIAL_REFUND') {
-      totals.refundsCount++;
-      totals.refundsTotal += Number(sale.total);
-    } else if (sale.status === 'CANCELLED') {
-      totals.cancelsCount++;
-    }
-  }
-
-  return totals;
-}
-
-/**
- * Calcula totales de billetes y monedas
- */
-function calculateDenominationTotals(bills: Record<string, number>, coins: Record<string, number>): {
-  totalBills: number;
-  totalCoins: number;
-  totalCash: number;
-} {
-  const billDenominations = [10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10];
-  const coinDenominations = [500, 200, 100, 50, 25, 10, 5, 2, 1];
-
-  let totalBills = 0;
-  let totalCoins = 0;
-
-  for (const denom of billDenominations) {
-    totalBills += (bills[denom.toString()] || 0) * denom;
-  }
-
-  for (const denom of coinDenominations) {
-    totalCoins += (coins[denom.toString()] || 0) * denom;
-  }
-
-  return {
-    totalBills,
-    totalCoins,
-    totalCash: totalBills + totalCoins,
-  };
-}
-
-// ==============================================
 // RUTAS DE GESTIÓN DE TURNOS
 // ==============================================
 
@@ -363,7 +158,7 @@ router.get(
         });
       }
 
-      const expectedCash = await calculateExpectedCash(session.id);
+      const expectedCash = await cashService.calculateExpectedCash(session.id);
 
       res.json({
         success: true,
@@ -488,7 +283,7 @@ router.post(
       }
 
       // Generar número de sesión
-      const sessionNumber = await generateSessionNumber(tenantId, pointOfSaleId);
+      const sessionNumber = await cashService.generateSessionNumber(tenantId, pointOfSaleId);
 
       // Crear la sesión
       const session = await prisma.cashSession.create({
@@ -554,10 +349,10 @@ router.post(
       }
 
       // Calcular monto esperado
-      const expectedAmount = await calculateExpectedCash(session.id);
+      const expectedAmount = await cashService.calculateExpectedCash(session.id);
 
       // Calcular totales por método de pago
-      const paymentTotals = await calculatePaymentTotals(session.id);
+      const paymentTotals = await cashService.calculatePaymentTotals(session.id);
 
       // Calcular movimientos
       const movements = await prisma.cashMovement.findMany({
@@ -585,7 +380,7 @@ router.post(
       if (count?.bills || count?.coins) {
         const bills: Record<string, number> = (count.bills || {}) as Record<string, number>;
         const coins: Record<string, number> = (count.coins || {}) as Record<string, number>;
-        const totals = calculateDenominationTotals(bills, coins);
+        const totals = cashService.calculateDenominationTotals(bills, coins);
 
         closingAmount = totals.totalCash + (count.vouchers || 0) + (count.checks || 0) + (count.otherValues || 0);
         difference = closingAmount - expectedAmount;
@@ -825,8 +620,8 @@ router.post(
       // Usar transacción para el relevo
       const result = await prisma.$transaction(async (tx) => {
         // Calcular totales de la sesión actual
-        const expectedAmount = await calculateExpectedCash(currentSession.id);
-        const paymentTotals = await calculatePaymentTotals(currentSession.id);
+        const expectedAmount = await cashService.calculateExpectedCash(currentSession.id);
+        const paymentTotals = await cashService.calculatePaymentTotals(currentSession.id);
 
         // Cerrar sesión actual
         const closedSession = await tx.cashSession.update({
@@ -856,7 +651,7 @@ router.post(
         });
 
         // Generar nuevo número de sesión
-        const sessionNumber = await generateSessionNumber(tenantId, currentSession.pointOfSaleId);
+        const sessionNumber = await cashService.generateSessionNumber(tenantId, currentSession.pointOfSaleId);
 
         // Crear nueva sesión para el cajero entrante
         const newSession = await tx.cashSession.create({
@@ -1045,7 +840,7 @@ router.post(
       }
 
       // Verificar que hay suficiente efectivo
-      const expectedCash = await calculateExpectedCash(session.id);
+      const expectedCash = await cashService.calculateExpectedCash(session.id);
       if (amount > expectedCash) {
         throw new ApiError(400, `No hay suficiente efectivo. Disponible: $${expectedCash.toFixed(2)}`);
       }
@@ -1219,8 +1014,8 @@ router.post(
       }
 
       // Calcular totales
-      const totals = calculateDenominationTotals(bills as Record<string, number>, coins as Record<string, number>);
-      const expectedAmount = await calculateExpectedCash(session.id);
+      const totals = cashService.calculateDenominationTotals(bills as Record<string, number>, coins as Record<string, number>);
+      const expectedAmount = await cashService.calculateExpectedCash(session.id);
       const totalWithOthers = totals.totalCash + vouchers + checks + otherValues;
       const difference = totalWithOthers - expectedAmount;
 
