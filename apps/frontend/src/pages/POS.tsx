@@ -717,8 +717,8 @@ export default function POS() {
     const calculatePromotions = async () => {
       setIsCalculatingPromotions(true);
       try {
-        // Excluir items de devolución del cálculo de promociones
-        const regularItems = cart.filter((item: CartItem) => !item.isReturn);
+        // Excluir items de devolución y recargos del cálculo de promociones
+        const regularItems = cart.filter((item: CartItem) => !item.isReturn && !item.isSurcharge);
 
         if (regularItems.length === 0) {
           // Si solo hay devoluciones, no calcular promociones
@@ -746,8 +746,8 @@ export default function POS() {
                 ? {
                     ...ticket,
                     items: ticket.items.map((item: CartItem) => {
-                      // NUNCA aplicar promociones a items de devolución
-                      if (item.isReturn) {
+                      // NUNCA aplicar promociones a items de devolución o recargo
+                      if (item.isReturn || item.isSurcharge) {
                         return item;
                       }
 
