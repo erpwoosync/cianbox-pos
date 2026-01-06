@@ -275,7 +275,7 @@ export default function POS() {
 
   // Estado del pago
   const [showPayment, setShowPayment] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('CASH');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>('CASH');
   const [amountTendered, setAmountTendered] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -1423,7 +1423,7 @@ export default function POS() {
 
       // Agregar pago principal si hay monto pendiente
       const pendingAmount = total - giftCardAmount - storeCreditAmount;
-      if (pendingAmount > 0) {
+      if (pendingAmount > 0 && selectedPaymentMethod) {
         const isCardPayment = selectedPaymentMethod === 'CREDIT_CARD' || selectedPaymentMethod === 'DEBIT_CARD';
         payments.push({
           method: selectedPaymentMethod,
@@ -2354,10 +2354,16 @@ export default function POS() {
                     onClick={() => {
                       // Para crédito y débito, abrir modal de datos de cupón
                       if (method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
+                        // Limpiar método actual mientras el modal está abierto
+                        // para que no pueda confirmar sin completar los datos
+                        setSelectedPaymentMethod(null);
+                        setCardPaymentData(null);
                         setPendingCardPaymentMethod(method);
                         setShowCardPaymentModal(true);
                       } else {
                         setSelectedPaymentMethod(method);
+                        // Limpiar datos de tarjeta si cambia a otro método
+                        setCardPaymentData(null);
                       }
                     }}
                     className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-colors ${
@@ -2499,7 +2505,9 @@ export default function POS() {
                     (selectedPaymentMethod === 'CASH' && amountToPay > 0 && tenderedAmount < amountToPay) ||
                     // Si hay monto pendiente pero los vales/gift cards no cubren todo,
                     // y no hay un método de pago principal válido, deshabilitar
-                    (amountToPay > 0 && !selectedPaymentMethod)
+                    (amountToPay > 0 && !selectedPaymentMethod) ||
+                    // Si el método es tarjeta, requiere haber completado los datos del cupón
+                    (amountToPay > 0 && (selectedPaymentMethod === 'CREDIT_CARD' || selectedPaymentMethod === 'DEBIT_CARD') && !cardPaymentData)
                   }
                   className="flex-1 btn btn-success py-3 disabled:opacity-50"
                 >
