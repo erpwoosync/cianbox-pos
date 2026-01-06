@@ -1,12 +1,14 @@
 /**
  * Rutas de productos
+ * Refactorizado para usar ProductRepository
  */
 
 import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
-import { ApiError, ValidationError, NotFoundError } from '../utils/errors.js';
+import { ValidationError, NotFoundError } from '../utils/errors.js';
 import prisma from '../lib/prisma.js';
+import { productRepository } from '../repositories/index.js';
 
 const router = Router();
 
@@ -554,12 +556,10 @@ router.get(
   authenticate,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const product = await prisma.product.findFirst({
-        where: {
-          id: req.params.id,
-          tenantId: req.user!.tenantId,
-        },
-        include: {
+      const product = await productRepository.findByIdOrFail(
+        req.params.id,
+        req.user!.tenantId,
+        {
           category: true,
           brand: true,
           prices: {
@@ -568,12 +568,8 @@ router.get(
           stock: {
             include: { branch: { select: { id: true, code: true, name: true } } },
           },
-        },
-      });
-
-      if (!product) {
-        throw new NotFoundError('Producto');
-      }
+        }
+      );
 
       res.json({ success: true, data: product });
     } catch (error) {
@@ -597,29 +593,11 @@ router.post(
         throw new ValidationError('Datos inválidos', validation.error.errors);
       }
 
-      const data = validation.data;
-      const tenantId = req.user!.tenantId;
-
-      // Verificar SKU único
-      if (data.sku) {
-        const existing = await prisma.product.findFirst({
-          where: { tenantId, sku: data.sku },
-        });
-        if (existing) {
-          throw ApiError.conflict('Ya existe un producto con ese SKU');
-        }
-      }
-
-      const product = await prisma.product.create({
-        data: {
-          tenantId,
-          ...data,
-        },
-        include: {
-          category: true,
-          brand: true,
-        },
-      });
+      const product = await productRepository.createWithValidation(
+        req.user!.tenantId,
+        validation.data,
+        { category: true, brand: true }
+      );
 
       res.status(201).json({ success: true, data: product });
     } catch (error) {
@@ -643,46 +621,12 @@ router.put(
         throw new ValidationError('Datos inválidos', validation.error.errors);
       }
 
-      const data = validation.data;
-      const tenantId = req.user!.tenantId;
-
-      // Verificar que el producto existe
-      const existing = await prisma.product.findFirst({
-        where: {
-          id: req.params.id,
-          tenantId,
-        },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Producto');
-      }
-
-      // No permitir modificar productos de Cianbox
-      if (existing.cianboxProductId) {
-        throw ApiError.forbidden(
-          'No se pueden modificar productos sincronizados con Cianbox'
-        );
-      }
-
-      // Verificar SKU único si cambió
-      if (data.sku && data.sku !== existing.sku) {
-        const skuExists = await prisma.product.findFirst({
-          where: { tenantId, sku: data.sku },
-        });
-        if (skuExists) {
-          throw ApiError.conflict('Ya existe un producto con ese SKU');
-        }
-      }
-
-      const product = await prisma.product.update({
-        where: { id: req.params.id },
-        data,
-        include: {
-          category: true,
-          brand: true,
-        },
-      });
+      const product = await productRepository.updateWithValidation(
+        req.params.id,
+        req.user!.tenantId,
+        validation.data,
+        { category: true, brand: true }
+      );
 
       res.json({ success: true, data: product });
     } catch (error) {
@@ -701,26 +645,12 @@ router.delete(
   authorize('inventory:edit'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId;
+      const result = await productRepository.softDelete(
+        req.params.id,
+        req.user!.tenantId
+      );
 
-      const existing = await prisma.product.findFirst({
-        where: {
-          id: req.params.id,
-          tenantId,
-        },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Producto');
-      }
-
-      // No eliminar, solo desactivar
-      await prisma.product.update({
-        where: { id: req.params.id },
-        data: { isActive: false },
-      });
-
-      res.json({ success: true, message: 'Producto desactivado' });
+      res.json({ success: true, message: result.message });
     } catch (error) {
       next(error);
     }
