@@ -197,7 +197,7 @@ interface SaleData {
   branchId: string;
   pointOfSaleId: string;
   items: Array<{
-    productId: string;
+    productId?: string; // Opcional para items de recargo
     productCode?: string;
     productName: string;
     productBarcode?: string;
@@ -210,6 +210,7 @@ interface SaleData {
     promotionName?: string;
     priceListId?: string;
     branchId: string;
+    isSurcharge?: boolean; // Recargo financiero por cuotas
   }>;
   payments: Array<{
     method: PaymentMethod;
@@ -1359,18 +1360,20 @@ export default function POS() {
         customerId: selectedCustomer?.id !== CONSUMIDOR_FINAL.id ? selectedCustomer?.id : undefined,
         customerName: selectedCustomer?.name,
         items: cart.map((item: CartItem) => ({
-          productId: item.product.id,
-          productCode: item.product.sku || undefined,
+          // No enviar productId para items de recargo (usan cianboxProductId: 0)
+          productId: item.isSurcharge ? undefined : item.product.id,
+          productCode: item.isSurcharge ? 'RECARGO' : (item.product.sku || undefined),
           productName: item.product.name,
-          productBarcode: item.product.barcode || undefined,
+          productBarcode: item.isSurcharge ? undefined : (item.product.barcode || undefined),
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
           unitPriceNet: Number(item.unitPriceNet),
           discount: Number(item.discount || 0),
           taxRate: Number(item.product.taxRate || 21),
-          promotionId: item.promotionId || undefined,
-          promotionName: item.promotionName || undefined,
-          priceListId: selectedPOS.priceList?.id || undefined,
+          // No aplicar promociones a items de recargo
+          promotionId: item.isSurcharge ? undefined : (item.promotionId || undefined),
+          promotionName: item.isSurcharge ? undefined : (item.promotionName || undefined),
+          priceListId: item.isSurcharge ? undefined : (selectedPOS.priceList?.id || undefined),
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
           isSurcharge: item.isSurcharge || false,
         })),
@@ -1496,18 +1499,20 @@ export default function POS() {
         customerId: selectedCustomer?.id !== CONSUMIDOR_FINAL.id ? selectedCustomer?.id : undefined,
         customerName: selectedCustomer?.name,
         items: cart.map((item: CartItem) => ({
-          productId: item.product.id,
-          productCode: item.product.sku || undefined,
+          // No enviar productId para items de recargo (usan cianboxProductId: 0)
+          productId: item.isSurcharge ? undefined : item.product.id,
+          productCode: item.isSurcharge ? 'RECARGO' : (item.product.sku || undefined),
           productName: item.product.name,
-          productBarcode: item.product.barcode || undefined,
+          productBarcode: item.isSurcharge ? undefined : (item.product.barcode || undefined),
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
           unitPriceNet: Number(item.unitPriceNet),
           discount: Number(item.discount || 0),
           taxRate: Number(item.product.taxRate || 21),
-          promotionId: item.promotionId || undefined,
-          promotionName: item.promotionName || undefined,
-          priceListId: selectedPOS.priceList?.id || undefined,
+          // No aplicar promociones a items de recargo
+          promotionId: item.isSurcharge ? undefined : (item.promotionId || undefined),
+          promotionName: item.isSurcharge ? undefined : (item.promotionName || undefined),
+          priceListId: item.isSurcharge ? undefined : (selectedPOS.priceList?.id || undefined),
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
           isSurcharge: item.isSurcharge || false,
         })),
@@ -1603,18 +1608,20 @@ export default function POS() {
         customerName: selectedCustomer?.name,
         receiptType: 'NDP_X',
         items: cart.map((item: CartItem) => ({
-          productId: item.product.id,
-          productCode: item.product.sku || undefined,
+          // No enviar productId para items de recargo (usan cianboxProductId: 0)
+          productId: item.isSurcharge ? undefined : item.product.id,
+          productCode: item.isSurcharge ? 'RECARGO' : (item.product.sku || undefined),
           productName: item.product.name,
-          productBarcode: item.product.barcode || undefined,
+          productBarcode: item.isSurcharge ? undefined : (item.product.barcode || undefined),
           quantity: item.isReturn ? -Math.abs(item.quantity) : Number(item.quantity),
           unitPrice: Number(item.unitPrice),
           unitPriceNet: Number(item.unitPriceNet),
           discount: Number(item.discount || 0),
           taxRate: Number(item.product.taxRate || 21),
-          promotionId: item.promotionId || undefined,
-          promotionName: item.promotionName || undefined,
-          priceListId: selectedPOS.priceList?.id || undefined,
+          // No aplicar promociones a items de recargo
+          promotionId: item.isSurcharge ? undefined : (item.promotionId || undefined),
+          promotionName: item.isSurcharge ? undefined : (item.promotionName || undefined),
+          priceListId: item.isSurcharge ? undefined : (selectedPOS.priceList?.id || undefined),
           branchId: selectedPOS.branch?.id || user?.branch?.id || '',
           isReturn: item.isReturn,
           originalSaleId: item.originalSaleId,
