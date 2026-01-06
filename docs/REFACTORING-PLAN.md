@@ -72,7 +72,7 @@ Este documento detalla el plan de refactoring para mejorar la arquitectura del b
 
 - [x] **2.3 Refactorizar Rutas con Repositorios** (Parcial)
   - [x] `src/routes/customers.ts` - Refactorizado (349→227 líneas)
-  - [ ] `src/routes/products.ts` - Pendiente
+  - [x] `src/routes/products.ts` - Refactorizado (730→660 líneas)
 
 ### Fase 3: Capa de Servicios (Prioridad ALTA)
 
@@ -278,7 +278,7 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 | Fase | Estado | Progreso | Notas |
 |------|--------|----------|-------|
 | Fase 1 | ✅ Completado | 100% | Singleton PrismaClient + Errores unificados |
-| Fase 2 | 🔄 En progreso | 60% | BaseRepository + CustomerRepository + ProductRepository |
+| Fase 2 | 🔄 En progreso | 75% | BaseRepository + CustomerRepository + ProductRepository + rutas refactorizadas |
 | Fase 3 | Pendiente | 0% | Depende de Fase 2 |
 | Fase 4 | Pendiente | 0% | Depende de Fase 2 y 3 |
 | Fase 5 | Pendiente | 0% | Depende de Fase 4 |
@@ -301,3 +301,4 @@ export abstract class BaseRepository<T, TCreateInput, TUpdateInput> {
 | 2026-01-06 | Creación del documento | Claude |
 | 2026-01-06 | Fase 1 completada: Singleton PrismaClient (20 archivos) + Errores unificados (customers.ts) | Claude |
 | 2026-01-06 | Fase 2 parcial: BaseRepository + ProductRepository + CustomerRepository + customers.ts refactorizado | Claude |
+| 2026-01-06 | Fase 2 continúa: ProductRepository extendido + products.ts refactorizado (730→660 líneas) | Claude |
