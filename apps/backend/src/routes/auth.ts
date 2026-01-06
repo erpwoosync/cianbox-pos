@@ -3,7 +3,6 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import {
@@ -14,9 +13,9 @@ import {
   AuthenticatedRequest,
 } from '../middleware/auth.js';
 import { ApiError, AuthenticationError, AuthorizationError, ValidationError } from '../utils/errors.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Schemas de validación
 const loginSchema = z.object({

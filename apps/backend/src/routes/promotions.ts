@@ -3,13 +3,13 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ValidationError, NotFoundError, ApiError } from '../utils/errors.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Schemas de validación
 const promotionCreateSchema = z.object({

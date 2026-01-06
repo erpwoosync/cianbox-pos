@@ -5,13 +5,13 @@
  */
 
 import { Router, Response } from 'express';
-import { PrismaClient, AfipVoucherType, AfipTaxCategory } from '@prisma/client';
+import { AfipVoucherType, AfipTaxCategory } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth.js';
 import { afipService, DOC_TYPES, IVA_CONDITIONS, IVA_RATES, CONCEPTS, VOUCHER_TYPE_CODES } from '../services/afip.service.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Todos los endpoints requieren autenticación
 router.use(authenticate);

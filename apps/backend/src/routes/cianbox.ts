@@ -3,14 +3,13 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { CianboxService } from '../services/cianbox.service.js';
 import { ApiError, ValidationError, NotFoundError } from '../utils/errors.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Schemas de validación
 const connectionConfigSchema = z.object({

@@ -3,12 +3,12 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth.js';
+import { NotFoundError, ApiError } from '../utils/errors.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Schemas de validación
 const customerQuerySchema = z.object({
@@ -191,10 +191,7 @@ router.get(
       });
 
       if (!customer) {
-        return res.status(404).json({
-          success: false,
-          message: 'Cliente no encontrado',
-        });
+        throw new NotFoundError('Cliente');
       }
 
       res.json({ success: true, data: customer });
@@ -225,10 +222,7 @@ router.post(
         });
 
         if (existing) {
-          return res.status(400).json({
-            success: false,
-            message: `Ya existe un cliente con el documento ${data.taxId}`,
-          });
+          throw ApiError.badRequest(`Ya existe un cliente con el documento ${data.taxId}`);
         }
       }
 
@@ -267,10 +261,7 @@ router.put(
       });
 
       if (!existing) {
-        return res.status(404).json({
-          success: false,
-          message: 'Cliente no encontrado',
-        });
+        throw new NotFoundError('Cliente');
       }
 
       // Verificar duplicado por taxId si se está actualizando
@@ -284,10 +275,7 @@ router.put(
         });
 
         if (duplicate) {
-          return res.status(400).json({
-            success: false,
-            message: `Ya existe un cliente con el documento ${data.taxId}`,
-          });
+          throw ApiError.badRequest(`Ya existe un cliente con el documento ${data.taxId}`);
         }
       }
 
@@ -324,10 +312,7 @@ router.delete(
       });
 
       if (!existing) {
-        return res.status(404).json({
-          success: false,
-          message: 'Cliente no encontrado',
-        });
+        throw new NotFoundError('Cliente');
       }
 
       // Verificar si tiene ventas asociadas

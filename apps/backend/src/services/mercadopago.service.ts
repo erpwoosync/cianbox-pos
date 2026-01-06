@@ -1,8 +1,7 @@
-import { PrismaClient, MercadoPagoAppType } from '@prisma/client';
+import { MercadoPagoAppType } from '@prisma/client';
 import { randomUUID, createHmac } from 'crypto';
 import { normalizeLocation } from '../utils/mp-location';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma.js';
 
 // ============================================
 // CONFIGURACIÓN OAUTH - DOS APLICACIONES

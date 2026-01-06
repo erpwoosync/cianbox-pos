@@ -4,15 +4,14 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import QRCode from 'qrcode';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError } from '../utils/errors.js';
 import { AfipService } from '../services/afip.service.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Middleware: autenticación requerida para todas las rutas
 router.use(authenticate);

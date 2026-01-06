@@ -4,7 +4,7 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient, TreasuryStatus, Prisma } from '@prisma/client';
+import { TreasuryStatus, Prisma } from '@prisma/client';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
 import {
@@ -12,9 +12,9 @@ import {
   rejectTreasuryPendingSchema,
   createTreasuryMovementSchema,
 } from '../schemas/treasury.schema.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ==============================================
 // GET /api/treasury/pending

@@ -3,15 +3,15 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient, Prisma, PaymentMethod } from '@prisma/client';
+import { Prisma, PaymentMethod } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, ValidationError, NotFoundError, AuthorizationError } from '../utils/errors.js';
 import GiftCardService from '../services/gift-card.service.js';
 import StoreCreditService from '../services/store-credit.service.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Schemas de validación
 const saleItemSchema = z.object({

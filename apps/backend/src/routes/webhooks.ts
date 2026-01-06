@@ -15,11 +15,10 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import CianboxService from '../services/cianbox.service.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Interfaz para el payload del webhook de Cianbox
 interface CianboxWebhookPayload {

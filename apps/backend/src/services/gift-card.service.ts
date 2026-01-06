@@ -3,9 +3,8 @@
  * Lógica de negocio para gestión de gift cards
  */
 
-import { PrismaClient, GiftCardStatus, GiftCardTxType } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { GiftCardStatus, GiftCardTxType } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 
 /**
  * Genera un código único para gift card

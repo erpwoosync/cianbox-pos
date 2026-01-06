@@ -8,10 +8,9 @@
  */
 
 import Afip from '@afipsdk/afip.js';
-import { PrismaClient, AfipVoucherType, AfipInvoiceStatus } from '@prisma/client';
+import { AfipVoucherType, AfipInvoiceStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma.js';
 
 // Mapeo de tipos de comprobante a códigos AFIP
 const VOUCHER_TYPE_CODES: Record<AfipVoucherType, number> = {

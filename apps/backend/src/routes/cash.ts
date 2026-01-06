@@ -3,13 +3,13 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient, Prisma, CashSessionStatus, CashMovementType, CashMovementReason, CashCountType, DifferenceType } from '@prisma/client';
+import { Prisma, CashSessionStatus, CashMovementType, CashMovementReason, CashCountType, DifferenceType } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { ApiError, ValidationError, NotFoundError } from '../utils/errors.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ==============================================
 // SCHEMAS DE VALIDACIÓN

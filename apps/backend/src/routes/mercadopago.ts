@@ -1,15 +1,15 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient, MercadoPagoAppType } from '@prisma/client';
+import { MercadoPagoAppType } from '@prisma/client';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { mercadoPagoService } from '../services/mercadopago.service';
+import prisma from '../lib/prisma.js';
 
 // Clave secreta para validar webhooks de MP
 const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ============================================
 // SCHEMAS DE VALIDACIÓN

@@ -3,10 +3,9 @@
  * Maneja autenticación, sincronización y comunicación con Cianbox ERP
  */
 
-import { PrismaClient, CianboxConnection } from '@prisma/client';
+import { CianboxConnection } from '@prisma/client';
 import { CianboxError } from '../utils/errors.js';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma.js';
 
 // Tipos para respuestas de Cianbox
 interface CianboxAuthResponse {

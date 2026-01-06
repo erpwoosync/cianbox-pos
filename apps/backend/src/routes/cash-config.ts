@@ -3,13 +3,12 @@
  */
 
 import { Router, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
 import { updateCashConfigSchema } from '../schemas/cash-config.schema.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Denominaciones por defecto para cada moneda
 const DEFAULT_DENOMINATIONS: Record<string, { bills: number[]; coins: number[] }> = {

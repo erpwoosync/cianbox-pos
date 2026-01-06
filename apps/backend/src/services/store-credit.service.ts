@@ -3,10 +3,9 @@
  * Gestión de vales generados en devoluciones
  */
 
-import { PrismaClient, Prisma, StoreCreditStatus, StoreCreditTxType } from '@prisma/client';
+import { Prisma, StoreCreditStatus, StoreCreditTxType } from '@prisma/client';
 import { ApiError, NotFoundError } from '../utils/errors.js';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma.js';
 
 /**
  * Genera un código único para el vale
