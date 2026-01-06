@@ -1086,6 +1086,9 @@ export default function POS() {
   const totalDiscount = cart.reduce((sum: number, item: CartItem) => sum + item.discount, 0);
   const total = subtotal;
   const totalAfterGiftCards = total - giftCardAmount - storeCreditAmount; // Monto pendiente despues de gift cards y vales
+  // Subtotal SIN recargos financieros (para calcular recargo en modal de tarjeta)
+  const productsSubtotal = cart.filter((item: CartItem) => !item.isSurcharge).reduce((sum: number, item: CartItem) => sum + item.subtotal, 0);
+  const productsAmountForCard = productsSubtotal - giftCardAmount - storeCreditAmount;
   const itemCount = cart.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
 
   // Si el total se vuelve negativo mientras el panel de pago está abierto,
@@ -2792,7 +2795,7 @@ export default function POS() {
             removeSurchargeItem();
           }
         }}
-        amount={totalAfterGiftCards}
+        amount={productsAmountForCard}
         paymentMethod={pendingCardPaymentMethod || 'CREDIT_CARD'}
         initialData={cardPaymentData}
       />
