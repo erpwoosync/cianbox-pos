@@ -660,6 +660,8 @@ ul {
 }
 
 .feature-card {
+    display: flex;
+    flex-direction: column;
     padding: var(--spacing-xl);
     background: var(--color-bg);
     border-radius: var(--radius-xl);
