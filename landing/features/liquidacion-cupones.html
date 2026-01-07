@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Liquidacion de cupones de tarjeta en Cianbox POS. Seguimiento de cupones pendientes, conciliacion con extractos bancarios y control de retenciones.">
+    <meta name="keywords" content="liquidacion cupones, cupones tarjeta, conciliacion bancaria, retenciones, comisiones, Cianbox POS">
+
+    <meta property="og:title" content="Liquidacion de Cupones de Tarjeta - Cianbox POS">
+    <meta property="og:description" content="Controla tus cupones pendientes de acreditar. Concilia con extractos bancarios automaticamente.">
+    <meta property="og:type" content="website">
+
+    <title>Liquidacion de Cupones de Tarjeta - Cianbox POS</title>
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='.9em' x='50%' text-anchor='middle' font-size='70' fill='white'>P</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="features.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" id="header">
+        <nav class="nav container">
+            <a href="../index.html" class="nav__logo">
+                <svg class="logo-svg" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="40" height="40" rx="10" fill="url(#logo-gradient)"/>
+                    <path d="M12 12H20C22.2091 12 24 13.7909 24 16V16C24 18.2091 22.2091 20 20 20H12V12Z" fill="white"/>
+                    <path d="M12 20H16V28H12V20Z" fill="white"/>
+                    <circle cx="28" cy="24" r="4" fill="#06b6d4"/>
+                    <defs>
+                        <linearGradient id="logo-gradient" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#2563eb"/>
+                            <stop offset="1" stop-color="#3b82f6"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="logo-text">Cianbox <strong>POS</strong></span>
+            </a>
+            <ul class="nav__menu" id="nav-menu">
+                <li><a href="../index.html#features" class="nav__link">Funcionalidades</a></li>
+                <li><a href="../index.html#how-it-works" class="nav__link">Como Funciona</a></li>
+                <li><a href="../index.html#pricing" class="nav__link">Planes</a></li>
+                <li><a href="../index.html#faq" class="nav__link">FAQ</a></li>
+            </ul>
+            <a href="../index.html#contact" class="btn btn--primary nav__cta">Solicitar Demo</a>
+            <button class="nav__toggle" id="nav-toggle" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hero -->
+        <section class="feature-hero">
+            <div class="container">
+                <a href="../index.html#features" class="back-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Volver a funcionalidades
+                </a>
+
+                <div class="feature-hero__icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                </div>
+
+                <h1 class="feature-hero__title">
+                    Liquidacion de <span class="highlight">Cupones de Tarjeta</span>
+                </h1>
+                <p class="feature-hero__subtitle">
+                    Seguimiento de cupones pendientes de acreditar, conciliacion con extractos bancarios
+                    y control de retenciones y comisiones. Sabe cuanto te deben y cuando te pagan.
+                </p>
+
+                <a href="../index.html#contact" class="btn btn--primary btn--large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                    Controlar mis cupones
+                </a>
+            </div>
+        </section>
+
+        <!-- Estados de cupones -->
+        <section class="feature-how">
+            <div class="container">
+                <div class="feature-how__header">
+                    <span class="features__badge">Estados</span>
+                    <h2 class="section-title">Ciclo de vida de un cupon</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Desde que se genera hasta que se acredita en tu cuenta.
+                    </p>
+                </div>
+
+                <div class="feature-how__steps">
+                    <div class="feature-step">
+                        <div class="feature-step__number" style="background: var(--color-warning);">1</div>
+                        <h3 class="feature-step__title">Pendiente</h3>
+                        <p class="feature-step__text">
+                            El cupon se genero con la venta. Esta esperando ser liquidado por la procesadora.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number" style="background: var(--color-primary);">2</div>
+                        <h3 class="feature-step__title">En proceso</h3>
+                        <p class="feature-step__text">
+                            La procesadora esta liquidando el cupon. Faltan 1-2 dias para la acreditacion.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number" style="background: var(--color-success);">3</div>
+                        <h3 class="feature-step__title">Acreditado</h3>
+                        <p class="feature-step__text">
+                            El dinero ya esta en tu cuenta. Cupon liquidado correctamente.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number" style="background: var(--color-error);">X</div>
+                        <h3 class="feature-step__title">Rechazado</h3>
+                        <p class="feature-step__text">
+                            La procesadora rechazo el cupon. Hay que revisar el motivo.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard visual -->
+        <section class="feature-visual" style="background: var(--color-bg-alt);">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Dashboard</span>
+                    <h2 class="section-title">Panel de control de cupones</h2>
+                </div>
+
+                <div class="feature-visual__content">
+                    <div class="visual-mockup">
+                        <div class="visual-mockup__header">
+                            <div class="visual-mockup__dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <span class="visual-mockup__title">Cianbox POS - Liquidacion de Cupones</span>
+                        </div>
+                        <div class="visual-mockup__content">
+                            <!-- Resumen -->
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                                <div style="padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; text-align: center;">
+                                    <p style="font-size: 1.5rem; font-weight: 800; color: var(--color-warning);">$125.400</p>
+                                    <p style="font-size: 0.75rem; color: var(--color-text-light);">Pendientes</p>
+                                </div>
+                                <div style="padding: 1rem; background: rgba(37, 99, 235, 0.1); border-radius: 8px; text-align: center;">
+                                    <p style="font-size: 1.5rem; font-weight: 800; color: var(--color-primary);">$48.200</p>
+                                    <p style="font-size: 0.75rem; color: var(--color-text-light);">En proceso</p>
+                                </div>
+                                <div style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 8px; text-align: center;">
+                                    <p style="font-size: 1.5rem; font-weight: 800; color: var(--color-success);">$892.500</p>
+                                    <p style="font-size: 0.75rem; color: var(--color-text-light);">Acreditados (mes)</p>
+                                </div>
+                                <div style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border-radius: 8px; text-align: center;">
+                                    <p style="font-size: 1.5rem; font-weight: 800; color: var(--color-error);">$3.200</p>
+                                    <p style="font-size: 0.75rem; color: var(--color-text-light);">Rechazados</p>
+                                </div>
+                            </div>
+
+                            <!-- Lista de cupones -->
+                            <div style="background: var(--color-bg-alt); border-radius: 8px; overflow: hidden;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 100px; padding: 0.75rem 1rem; background: var(--color-bg-dark); color: white; font-size: 0.75rem; font-weight: 600;">
+                                    <span>Fecha</span>
+                                    <span>Nro. Cupon</span>
+                                    <span>Monto</span>
+                                    <span>Acreditacion</span>
+                                    <span>Estado</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 100px; padding: 0.75rem 1rem; border-bottom: 1px solid var(--color-border); font-size: 0.875rem;">
+                                    <span>15/01/2024</span>
+                                    <span style="font-family: monospace;">CPN-0012345</span>
+                                    <span>$15.400</span>
+                                    <span>18/01/2024</span>
+                                    <span class="status-badge status-badge--warning">Pendiente</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 100px; padding: 0.75rem 1rem; border-bottom: 1px solid var(--color-border); font-size: 0.875rem;">
+                                    <span>14/01/2024</span>
+                                    <span style="font-family: monospace;">CPN-0012344</span>
+                                    <span>$8.900</span>
+                                    <span>17/01/2024</span>
+                                    <span class="status-badge status-badge--info">En proceso</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 100px; padding: 0.75rem 1rem; font-size: 0.875rem;">
+                                    <span>13/01/2024</span>
+                                    <span style="font-family: monospace;">CPN-0012343</span>
+                                    <span>$22.100</span>
+                                    <span>16/01/2024</span>
+                                    <span class="status-badge status-badge--success">Acreditado</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Conciliacion -->
+        <section class="feature-benefits" style="background: var(--color-bg);">
+            <div class="container">
+                <div class="feature-benefits__header">
+                    <span class="features__badge">Conciliacion</span>
+                    <h2 class="section-title">Concilia con extractos bancarios</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Compara los cupones del sistema con las acreditaciones reales en tu cuenta.
+                    </p>
+                </div>
+
+                <div class="feature-benefits__grid" style="max-width: 800px; margin: 0 auto;">
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--blue">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Importa extractos</h3>
+                            <p>Subi el extracto de tu banco o procesadora en formato CSV o Excel.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <polyline points="1 20 1 14 7 14"/>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Conciliacion automatica</h3>
+                            <p>El sistema cruza los cupones con las acreditaciones y marca los coincidentes.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Detecta diferencias</h3>
+                            <p>Identifica cupones que no se acreditaron o montos que no coinciden.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Reportes detallados</h3>
+                            <p>Genera reportes de conciliacion para tu contador o administracion.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Retenciones y comisiones -->
+        <section class="feature-visual" style="background: var(--color-bg-alt);">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Control</span>
+                    <h2 class="section-title">Control de retenciones y comisiones</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Sabe exactamente cuanto te descuentan por cada cupon.
+                    </p>
+                </div>
+
+                <div class="feature-visual__content" style="max-width: 600px;">
+                    <div class="config-panel">
+                        <div class="config-panel__header">
+                            Detalle de cupon CPN-0012345
+                        </div>
+                        <div class="config-panel__body">
+                            <div class="config-row">
+                                <span class="config-row__label">Monto bruto</span>
+                                <span class="config-row__value">$15.400</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Arancel (3.5%)</span>
+                                <span style="color: var(--color-error);">-$539</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">IVA Arancel</span>
+                                <span style="color: var(--color-error);">-$113</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Ret. Ganancias</span>
+                                <span style="color: var(--color-error);">-$308</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Ret. IIBB</span>
+                                <span style="color: var(--color-error);">-$231</span>
+                            </div>
+                            <div class="config-row" style="border-top: 2px solid var(--color-primary); padding-top: 1rem; margin-top: 0.5rem;">
+                                <span class="config-row__label" style="font-weight: 700;">Monto neto a recibir</span>
+                                <span class="config-row__value" style="font-size: 1.25rem;">$14.209</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Beneficios -->
+        <section class="feature-benefits">
+            <div class="container">
+                <div class="feature-benefits__header">
+                    <span class="features__badge">Beneficios</span>
+                    <h2 class="section-title">Por que controlar tus cupones</h2>
+                </div>
+
+                <div class="feature-benefits__grid">
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="1" x2="12" y2="23"/>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>No pierdas dinero</h3>
+                            <p>Detecta cupones que no se acreditaron y reclama a la procesadora.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--blue">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Proyecta tu flujo</h3>
+                            <p>Sabe cuanto dinero vas a recibir y cuando. Planifica mejor.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Facilita la contabilidad</h3>
+                            <p>Exporta los datos para tu contador con todas las retenciones detalladas.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Control automatico</h3>
+                            <p>El sistema hace el seguimiento. Vos solo revisas las alertas.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Funcionalidades relacionadas -->
+        <section class="related-features">
+            <div class="container">
+                <div class="related-features__header">
+                    <h2 class="section-title">Funcionalidades relacionadas</h2>
+                </div>
+
+                <div class="related-features__grid">
+                    <a href="terminales-mp-point.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Terminales MercadoPago Point</h3>
+                            <p class="related-feature-card__text">Los cupones se generan automaticamente.</p>
+                        </div>
+                    </a>
+
+                    <a href="arqueos-caja.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                <line x1="8" y1="21" x2="16" y2="21"/>
+                                <line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Arqueos de Caja</h3>
+                            <p class="related-feature-card__text">Los cupones del dia en el cierre.</p>
+                        </div>
+                    </a>
+
+                    <a href="cuotas-recargo.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Cuotas con Recargo</h3>
+                            <p class="related-feature-card__text">Cupones de cuotas con su detalle.</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="feature-cta">
+            <div class="container">
+                <h2 class="feature-cta__title">Controla tus cupones de tarjeta</h2>
+                <p class="feature-cta__text">
+                    No pierdas mas dinero. Sabe exactamente cuanto te deben y cuando te pagan.
+                </p>
+                <a href="../index.html#contact" class="btn btn--primary btn--large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13"/>
+                        <path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                    </svg>
+                    Solicitar demo gratuita
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer__grid">
+                <div class="footer__brand">
+                    <a href="../index.html" class="footer__logo">
+                        <svg class="logo-svg" width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="40" height="40" rx="10" fill="url(#logo-gradient-footer)"/>
+                            <path d="M12 12H20C22.2091 12 24 13.7909 24 16V16C24 18.2091 22.2091 20 20 20H12V12Z" fill="white"/>
+                            <path d="M12 20H16V28H12V20Z" fill="white"/>
+                            <circle cx="28" cy="24" r="4" fill="#06b6d4"/>
+                            <defs>
+                                <linearGradient id="logo-gradient-footer" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#2563eb"/>
+                                    <stop offset="1" stop-color="#3b82f6"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <span class="logo-text">Cianbox <strong>POS</strong></span>
+                    </a>
+                    <p class="footer__desc">Sistema de Punto de Venta integrado con Cianbox ERP.</p>
+                </div>
+                <div class="footer__links">
+                    <h4>Producto</h4>
+                    <ul>
+                        <li><a href="../index.html#features">Funcionalidades</a></li>
+                        <li><a href="../index.html#pricing">Precios</a></li>
+                        <li><a href="../index.html#faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer__links">
+                    <h4>Empresa</h4>
+                    <ul>
+                        <li><a href="#">Sobre nosotros</a></li>
+                        <li><a href="#">Contacto</a></li>
+                    </ul>
+                </div>
+                <div class="footer__links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Terminos de servicio</a></li>
+                        <li><a href="#">Politica de privacidad</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer__bottom">
+                <p>&copy; 2024 Cianbox POS. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>

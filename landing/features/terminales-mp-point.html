@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Terminales MercadoPago Point integradas con Cianbox POS. Cobra con tarjeta sin tipear montos, menos errores y cobros mas rapidos en modo PDV.">
+    <meta name="keywords" content="MercadoPago Point, terminal de pago, POS integrado, cobro con tarjeta, modo PDV, Cianbox">
+
+    <meta property="og:title" content="Terminales MercadoPago Point Integradas - Cianbox POS">
+    <meta property="og:description" content="Cobra con tarjeta sin tipear montos. Las terminales MercadoPago Point funcionan en modo PDV integrado con Cianbox POS.">
+    <meta property="og:type" content="website">
+
+    <title>Terminales MercadoPago Point Integradas - Cianbox POS</title>
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='.9em' x='50%' text-anchor='middle' font-size='70' fill='white'>P</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="features.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" id="header">
+        <nav class="nav container">
+            <a href="../index.html" class="nav__logo">
+                <svg class="logo-svg" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="40" height="40" rx="10" fill="url(#logo-gradient)"/>
+                    <path d="M12 12H20C22.2091 12 24 13.7909 24 16V16C24 18.2091 22.2091 20 20 20H12V12Z" fill="white"/>
+                    <path d="M12 20H16V28H12V20Z" fill="white"/>
+                    <circle cx="28" cy="24" r="4" fill="#06b6d4"/>
+                    <defs>
+                        <linearGradient id="logo-gradient" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#2563eb"/>
+                            <stop offset="1" stop-color="#3b82f6"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="logo-text">Cianbox <strong>POS</strong></span>
+            </a>
+            <ul class="nav__menu" id="nav-menu">
+                <li><a href="../index.html#features" class="nav__link">Funcionalidades</a></li>
+                <li><a href="../index.html#how-it-works" class="nav__link">Como Funciona</a></li>
+                <li><a href="../index.html#pricing" class="nav__link">Planes</a></li>
+                <li><a href="../index.html#faq" class="nav__link">FAQ</a></li>
+            </ul>
+            <a href="../index.html#contact" class="btn btn--primary nav__cta">Solicitar Demo</a>
+            <button class="nav__toggle" id="nav-toggle" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hero -->
+        <section class="feature-hero">
+            <div class="container">
+                <a href="../index.html#features" class="back-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Volver a funcionalidades
+                </a>
+
+                <div class="feature-hero__icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                        <line x1="1" y1="10" x2="23" y2="10"/>
+                    </svg>
+                </div>
+
+                <h1 class="feature-hero__title">
+                    Terminales MercadoPago Point <span class="highlight">Integradas</span>
+                </h1>
+                <p class="feature-hero__subtitle">
+                    Olvida tipear montos en la terminal. El monto de la venta se envia automaticamente al Point,
+                    reduciendo errores y acelerando cada cobro.
+                </p>
+
+                <a href="../index.html#contact" class="btn btn--primary btn--large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                    Quiero integrar mi terminal
+                </a>
+            </div>
+        </section>
+
+        <!-- Que es modo PDV -->
+        <section class="feature-how">
+            <div class="container">
+                <div class="feature-how__header">
+                    <span class="features__badge">Modo PDV vs Independiente</span>
+                    <h2 class="section-title">Dos formas de usar tu terminal Point</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Entende la diferencia entre usar tu terminal de forma tradicional y la integracion con Cianbox POS.
+                    </p>
+                </div>
+
+                <div class="example-box">
+                    <div class="example-box__content">
+                        <div class="example-box__item">
+                            <h4>Modo Independiente (tradicional)</h4>
+                            <ul style="list-style: disc; padding-left: 20px; color: var(--color-text-light);">
+                                <li style="margin-bottom: 8px;">Tipeas el monto manualmente en la terminal</li>
+                                <li style="margin-bottom: 8px;">Riesgo de errores de tipeo</li>
+                                <li style="margin-bottom: 8px;">Proceso mas lento</li>
+                                <li style="margin-bottom: 8px;">Sin conexion con el sistema de ventas</li>
+                                <li>Conciliacion manual de cupones</li>
+                            </ul>
+                        </div>
+                        <div class="example-box__item example-box__item--highlight">
+                            <h4>Modo PDV Integrado (con Cianbox)</h4>
+                            <ul style="list-style: disc; padding-left: 20px; color: var(--color-text-light);">
+                                <li style="margin-bottom: 8px;">El monto se envia automaticamente desde el POS</li>
+                                <li style="margin-bottom: 8px;">Cero errores de tipeo</li>
+                                <li style="margin-bottom: 8px;">Cobro en segundos</li>
+                                <li style="margin-bottom: 8px;">Venta registrada automaticamente</li>
+                                <li>Conciliacion automatica de cupones</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Como funciona -->
+        <section class="feature-benefits" style="background: var(--color-bg);">
+            <div class="container">
+                <div class="feature-benefits__header">
+                    <span class="features__badge">Paso a Paso</span>
+                    <h2 class="section-title">Como funciona el cobro integrado</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Un flujo simple que reduce el tiempo de cobro y elimina errores.
+                    </p>
+                </div>
+
+                <div class="feature-how__steps">
+                    <div class="feature-step">
+                        <div class="feature-step__number">1</div>
+                        <h3 class="feature-step__title">Arma la venta</h3>
+                        <p class="feature-step__text">
+                            Agrega productos al carrito usando el buscador, codigo de barras o categorias rapidas.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number">2</div>
+                        <h3 class="feature-step__title">Selecciona tarjeta</h3>
+                        <p class="feature-step__text">
+                            En la pantalla de cobro, elige pago con tarjeta. Selecciona cuotas si el cliente lo desea.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number">3</div>
+                        <h3 class="feature-step__title">Monto automatico</h3>
+                        <p class="feature-step__text">
+                            El monto se envia solo al Point. La terminal muestra el total listo para pasar la tarjeta.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number">4</div>
+                        <h3 class="feature-step__title">Venta registrada</h3>
+                        <p class="feature-step__text">
+                            Al aprobar el pago, la venta se registra automaticamente con todos los datos del cupon.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visual -->
+        <section class="feature-visual">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Asi se ve</span>
+                    <h2 class="section-title">La terminal recibe el monto automaticamente</h2>
+                </div>
+
+                <div class="feature-visual__content">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center;">
+                        <div class="visual-mockup">
+                            <div class="visual-mockup__header">
+                                <div class="visual-mockup__dots">
+                                    <span></span><span></span><span></span>
+                                </div>
+                                <span class="visual-mockup__title">Cianbox POS - Cobrar</span>
+                            </div>
+                            <div class="visual-mockup__content" style="text-align: center; padding: 2rem;">
+                                <p style="color: var(--color-text-light); margin-bottom: 1rem;">Total a cobrar</p>
+                                <p style="font-size: 2.5rem; font-weight: 800; color: var(--color-secondary); margin-bottom: 1.5rem;">$21.900</p>
+                                <div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: rgba(16, 185, 129, 0.1); border-radius: 9999px; color: var(--color-success);">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                        <polyline points="22 4 12 14.01 9 11.01"/>
+                                    </svg>
+                                    <span style="font-weight: 600;">Enviado al Point</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="terminal-mockup">
+                            <div class="terminal-mockup__screen">
+                                <div class="terminal-mockup__amount">$21.900</div>
+                                <div class="terminal-mockup__status">Pase o inserte tarjeta</div>
+                            </div>
+                            <div class="terminal-mockup__body">
+                                <div class="terminal-mockup__reader"></div>
+                            </div>
+                            <p style="margin-top: 1rem; font-size: 0.875rem; opacity: 0.7;">MercadoPago Point Pro</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Beneficios -->
+        <section class="feature-benefits">
+            <div class="container">
+                <div class="feature-benefits__header">
+                    <span class="features__badge">Beneficios</span>
+                    <h2 class="section-title">Por que integrar tu terminal</h2>
+                </div>
+
+                <div class="feature-benefits__grid">
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Cero errores de tipeo</h3>
+                            <p>El monto se envia automaticamente. Imposible equivocarse al tipear.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--blue">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Cobros mas rapidos</h3>
+                            <p>Ahorra segundos en cada transaccion. Al final del dia, suman minutos.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Registro automatico</h3>
+                            <p>La venta queda registrada con numero de cupon, tarjeta y cuotas.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Cuotas con recargo</h3>
+                            <p>Ofrece cuotas y el recargo se calcula solo. El cliente ve el total antes de pagar.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--cyan">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Facil para cajeros</h3>
+                            <p>Menos pasos significa menos capacitacion. Cualquiera puede cobrar.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--red">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Conciliacion automatica</h3>
+                            <p>Cada cupon queda asociado a su venta. Concilia con el extracto facilmente.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dispositivos compatibles -->
+        <section class="feature-requirements">
+            <div class="container">
+                <div class="feature-requirements__header">
+                    <span class="features__badge">Compatibilidad</span>
+                    <h2 class="section-title">Dispositivos compatibles</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Funciona con todas las terminales Point que soportan modo PDV.
+                    </p>
+                </div>
+
+                <div class="requirements-grid">
+                    <div class="requirement-item">
+                        <div class="requirement-item__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div class="requirement-item__content">
+                            <h4>Point Pro 2</h4>
+                            <p>Terminal con pantalla tactil y lector NFC. Ideal para comercios con alto volumen.</p>
+                        </div>
+                    </div>
+
+                    <div class="requirement-item">
+                        <div class="requirement-item__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div class="requirement-item__content">
+                            <h4>Point Smart</h4>
+                            <p>Version compacta con todas las funcionalidades. Perfecta para locales pequenos.</p>
+                        </div>
+                    </div>
+
+                    <div class="requirement-item">
+                        <div class="requirement-item__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                                <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                                <circle cx="12" cy="20" r="1"/>
+                            </svg>
+                        </div>
+                        <div class="requirement-item__content">
+                            <h4>Conexion WiFi o datos</h4>
+                            <p>La terminal debe estar conectada a internet para recibir los montos del POS.</p>
+                        </div>
+                    </div>
+
+                    <div class="requirement-item">
+                        <div class="requirement-item__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            </svg>
+                        </div>
+                        <div class="requirement-item__content">
+                            <h4>Cuenta MercadoPago</h4>
+                            <p>Necesitas una cuenta MercadoPago vinculada con credenciales de integracion.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Configuracion -->
+        <section class="feature-visual" style="background: var(--color-bg);">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Configuracion</span>
+                    <h2 class="section-title">Configura tu terminal en minutos</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Te ayudamos a vincular tu terminal Point con Cianbox POS.
+                    </p>
+                </div>
+
+                <div class="feature-visual__content" style="max-width: 600px;">
+                    <div class="config-panel">
+                        <div class="config-panel__header">
+                            Configuracion de Terminal MercadoPago
+                        </div>
+                        <div class="config-panel__body">
+                            <div class="config-row">
+                                <span class="config-row__label">Terminal vinculada</span>
+                                <span class="status-badge status-badge--success">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                    Conectada
+                                </span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">ID del dispositivo</span>
+                                <span class="config-row__value">POINT-PRO-2-XXXX</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Modo PDV</span>
+                                <div class="config-row__toggle"></div>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Cuotas habilitadas</span>
+                                <div class="config-row__toggle"></div>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Ultima transaccion</span>
+                                <span class="config-row__value">Hace 5 minutos</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Funcionalidades relacionadas -->
+        <section class="related-features">
+            <div class="container">
+                <div class="related-features__header">
+                    <h2 class="section-title">Funcionalidades relacionadas</h2>
+                </div>
+
+                <div class="related-features__grid">
+                    <a href="cuotas-recargo.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Cuotas con Recargo</h3>
+                            <p class="related-feature-card__text">Ofrece financiacion y el recargo se calcula automaticamente.</p>
+                        </div>
+                    </a>
+
+                    <a href="promociones-bancarias.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="3" y1="9" x2="21" y2="9"/>
+                                <line x1="9" y1="21" x2="9" y2="9"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Promociones Bancarias</h3>
+                            <p class="related-feature-card__text">Cuotas sin interes y descuentos por banco.</p>
+                        </div>
+                    </a>
+
+                    <a href="liquidacion-cupones.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Liquidacion de Cupones</h3>
+                            <p class="related-feature-card__text">Concilia tus cupones con los extractos bancarios.</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="feature-cta">
+            <div class="container">
+                <h2 class="feature-cta__title">Integra tu terminal MercadoPago Point hoy</h2>
+                <p class="feature-cta__text">
+                    Te ayudamos a configurar todo. En menos de 24 horas podes estar cobrando en modo integrado.
+                </p>
+                <a href="../index.html#contact" class="btn btn--primary btn--large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13"/>
+                        <path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                    </svg>
+                    Solicitar demo gratuita
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer__grid">
+                <div class="footer__brand">
+                    <a href="../index.html" class="footer__logo">
+                        <svg class="logo-svg" width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="40" height="40" rx="10" fill="url(#logo-gradient-footer)"/>
+                            <path d="M12 12H20C22.2091 12 24 13.7909 24 16V16C24 18.2091 22.2091 20 20 20H12V12Z" fill="white"/>
+                            <path d="M12 20H16V28H12V20Z" fill="white"/>
+                            <circle cx="28" cy="24" r="4" fill="#06b6d4"/>
+                            <defs>
+                                <linearGradient id="logo-gradient-footer" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#2563eb"/>
+                                    <stop offset="1" stop-color="#3b82f6"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <span class="logo-text">Cianbox <strong>POS</strong></span>
+                    </a>
+                    <p class="footer__desc">Sistema de Punto de Venta integrado con Cianbox ERP. La solucion completa para comercios minoristas.</p>
+                </div>
+                <div class="footer__links">
+                    <h4>Producto</h4>
+                    <ul>
+                        <li><a href="../index.html#features">Funcionalidades</a></li>
+                        <li><a href="../index.html#pricing">Precios</a></li>
+                        <li><a href="../index.html#faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer__links">
+                    <h4>Empresa</h4>
+                    <ul>
+                        <li><a href="#">Sobre nosotros</a></li>
+                        <li><a href="#">Contacto</a></li>
+                    </ul>
+                </div>
+                <div class="footer__links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Terminos de servicio</a></li>
+                        <li><a href="#">Politica de privacidad</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer__bottom">
+                <p>&copy; 2024 Cianbox POS. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Facturacion electronica AFIP integrada en Cianbox POS. Emiti facturas A, B y C directamente desde el punto de venta.">
+    <meta name="keywords" content="facturacion electronica, AFIP, factura A, factura B, factura C, comprobantes electronicos, Cianbox POS">
+
+    <meta property="og:title" content="Facturacion Electronica AFIP - Cianbox POS">
+    <meta property="og:description" content="Emiti facturas electronicas A, B y C directamente desde el punto de venta. Configuracion simple y emision automatica.">
+    <meta property="og:type" content="website">
+
+    <title>Facturacion Electronica AFIP - Cianbox POS</title>
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='.9em' x='50%' text-anchor='middle' font-size='70' fill='white'>P</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="features.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" id="header">
+        <nav class="nav container">
+            <a href="../index.html" class="nav__logo">
+                <svg class="logo-svg" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="40" height="40" rx="10" fill="url(#logo-gradient)"/>
+                    <path d="M12 12H20C22.2091 12 24 13.7909 24 16V16C24 18.2091 22.2091 20 20 20H12V12Z" fill="white"/>
+                    <path d="M12 20H16V28H12V20Z" fill="white"/>
+                    <circle cx="28" cy="24" r="4" fill="#06b6d4"/>
+                    <defs>
+                        <linearGradient id="logo-gradient" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#2563eb"/>
+                            <stop offset="1" stop-color="#3b82f6"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="logo-text">Cianbox <strong>POS</strong></span>
+            </a>
+            <ul class="nav__menu" id="nav-menu">
+                <li><a href="../index.html#features" class="nav__link">Funcionalidades</a></li>
+                <li><a href="../index.html#how-it-works" class="nav__link">Como Funciona</a></li>
+                <li><a href="../index.html#pricing" class="nav__link">Planes</a></li>
+                <li><a href="../index.html#faq" class="nav__link">FAQ</a></li>
+            </ul>
+            <a href="../index.html#contact" class="btn btn--primary nav__cta">Solicitar Demo</a>
+            <button class="nav__toggle" id="nav-toggle" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hero -->
+        <section class="feature-hero">
+            <div class="container">
+                <a href="../index.html#features" class="back-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Volver a funcionalidades
+                </a>
+
+                <div class="feature-hero__icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                </div>
+
+                <h1 class="feature-hero__title">
+                    Facturacion Electronica <span class="highlight">AFIP</span>
+                </h1>
+                <p class="feature-hero__subtitle">
+                    Emiti facturas A, B y C directamente desde el punto de venta.
+                    Configuracion simple, emision automatica y consulta de comprobantes.
+                </p>
+
+                <a href="../index.html#contact" class="btn btn--primary btn--large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                    Configurar facturacion AFIP
+                </a>
+            </div>
+        </section>
+
+        <!-- Tipos de comprobantes -->
+        <section class="feature-how">
+            <div class="container">
+                <div class="feature-how__header">
+                    <span class="features__badge">Comprobantes</span>
+                    <h2 class="section-title">Tipos de comprobantes soportados</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Emiti el comprobante correcto segun el cliente.
+                    </p>
+                </div>
+
+                <div class="invoice-types" style="max-width: 900px; margin: 0 auto;">
+                    <div class="invoice-type">
+                        <div class="invoice-type__letter">A</div>
+                        <h3 class="invoice-type__name">Factura A</h3>
+                        <p class="invoice-type__desc">Para clientes Responsables Inscriptos. Discrimina IVA.</p>
+                    </div>
+                    <div class="invoice-type">
+                        <div class="invoice-type__letter">B</div>
+                        <h3 class="invoice-type__name">Factura B</h3>
+                        <p class="invoice-type__desc">Para consumidores finales y monotributistas. IVA incluido.</p>
+                    </div>
+                    <div class="invoice-type">
+                        <div class="invoice-type__letter">C</div>
+                        <h3 class="invoice-type__name">Factura C</h3>
+                        <p class="invoice-type__desc">Para monotributistas. Sin discriminar IVA.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Configuracion -->
+        <section class="feature-visual" style="background: var(--color-bg-alt);">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Configuracion</span>
+                    <h2 class="section-title">Configuracion de certificados digitales</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Subi tu certificado AFIP una vez y el sistema se encarga del resto.
+                    </p>
+                </div>
+
+                <div class="feature-visual__content" style="max-width: 600px;">
+                    <div class="config-panel">
+                        <div class="config-panel__header">
+                            Configuracion AFIP
+                        </div>
+                        <div class="config-panel__body">
+                            <div class="config-row">
+                                <span class="config-row__label">CUIT</span>
+                                <span class="config-row__value">30-12345678-9</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Punto de Venta</span>
+                                <span class="config-row__value">00005</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Certificado digital</span>
+                                <span class="status-badge status-badge--success">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                    Valido
+                                </span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Vencimiento certificado</span>
+                                <span class="config-row__value">15/12/2025</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Condicion IVA</span>
+                                <span class="config-row__value">Resp. Inscripto</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Estado conexion AFIP</span>
+                                <span class="status-badge status-badge--success">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                    Conectado
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Proceso de emision -->
+        <section class="feature-how" style="background: var(--color-bg);">
+            <div class="container">
+                <div class="feature-how__header">
+                    <span class="features__badge">Proceso</span>
+                    <h2 class="section-title">Emision desde el POS</h2>
+                </div>
+
+                <div class="feature-how__steps">
+                    <div class="feature-step">
+                        <div class="feature-step__number">1</div>
+                        <h3 class="feature-step__title">Completa la venta</h3>
+                        <p class="feature-step__text">
+                            Agrega productos y selecciona el medio de pago como siempre.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number">2</div>
+                        <h3 class="feature-step__title">Datos del cliente</h3>
+                        <p class="feature-step__text">
+                            Ingresa CUIT/DNI del cliente. El sistema determina el tipo de factura.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number">3</div>
+                        <h3 class="feature-step__title">Emision automatica</h3>
+                        <p class="feature-step__text">
+                            El comprobante se genera y envia a AFIP. Recibis el CAE al instante.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number">4</div>
+                        <h3 class="feature-step__title">Impresion o envio</h3>
+                        <p class="feature-step__text">
+                            Imprime el comprobante o envialo por email al cliente.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ejemplo visual -->
+        <section class="feature-visual" style="background: var(--color-bg-alt);">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Comprobante</span>
+                    <h2 class="section-title">Asi se ve una factura emitida</h2>
+                </div>
+
+                <div class="feature-visual__content" style="max-width: 500px;">
+                    <div style="background: white; border: 1px solid var(--color-border); border-radius: 12px; padding: 2rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 2px solid var(--color-secondary);">
+                            <div>
+                                <h3 style="font-size: 1.5rem; font-weight: 800; color: var(--color-secondary);">MI COMERCIO S.R.L.</h3>
+                                <p style="font-size: 0.875rem; color: var(--color-text-light);">Av. Corrientes 1234, CABA</p>
+                                <p style="font-size: 0.875rem; color: var(--color-text-light);">CUIT: 30-12345678-9</p>
+                            </div>
+                            <div style="text-align: center; padding: 1rem 1.5rem; border: 2px solid var(--color-secondary);">
+                                <span style="font-size: 2rem; font-weight: 800; color: var(--color-secondary);">B</span>
+                                <p style="font-size: 0.75rem; color: var(--color-text-light);">Cod. 006</p>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div>
+                                <p style="font-size: 0.75rem; color: var(--color-text-light); text-transform: uppercase;">Punto de Venta</p>
+                                <p style="font-weight: 600;">00005</p>
+                            </div>
+                            <div>
+                                <p style="font-size: 0.75rem; color: var(--color-text-light); text-transform: uppercase;">Comprobante</p>
+                                <p style="font-weight: 600;">00001234</p>
+                            </div>
+                            <div>
+                                <p style="font-size: 0.75rem; color: var(--color-text-light); text-transform: uppercase;">Fecha</p>
+                                <p style="font-weight: 600;">15/01/2024</p>
+                            </div>
+                            <div>
+                                <p style="font-size: 0.75rem; color: var(--color-text-light); text-transform: uppercase;">CAE</p>
+                                <p style="font-weight: 600; font-size: 0.875rem;">74123456789012</p>
+                            </div>
+                        </div>
+
+                        <div style="background: var(--color-bg-alt); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>2x Remera Algodon</span>
+                                <span style="font-weight: 600;">$9.000</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>1x Jean Clasico</span>
+                                <span style="font-weight: 600;">$12.900</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; border-top: 1px solid var(--color-border); font-weight: 700; font-size: 1.125rem;">
+                                <span>TOTAL</span>
+                                <span>$21.900</span>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center;">
+                            <div style="display: inline-block; background: var(--color-secondary); padding: 0.5rem 1rem; border-radius: 4px;">
+                                <p style="color: white; font-size: 0.75rem; margin-bottom: 0.25rem;">Codigo QR AFIP</p>
+                                <div style="width: 80px; height: 80px; background: white; margin: 0 auto;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Consulta de comprobantes -->
+        <section class="feature-benefits" style="background: var(--color-bg);">
+            <div class="container">
+                <div class="feature-benefits__header">
+                    <span class="features__badge">Consulta</span>
+                    <h2 class="section-title">Consulta de comprobantes emitidos</h2>
+                </div>
+
+                <div class="feature-benefits__grid" style="max-width: 800px; margin: 0 auto;">
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--blue">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Busqueda rapida</h3>
+                            <p>Busca comprobantes por numero, fecha, cliente o monto.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Reimpresion</h3>
+                            <p>Reimprimi cualquier comprobante cuando lo necesites.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                <polyline points="22,6 12,13 2,6"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Envio por email</h3>
+                            <p>Reenvia el comprobante al cliente por correo electronico.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Exportacion</h3>
+                            <p>Exporta comprobantes a PDF o CSV para tu contador.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Beneficios -->
+        <section class="feature-benefits">
+            <div class="container">
+                <div class="feature-benefits__header">
+                    <span class="features__badge">Beneficios</span>
+                    <h2 class="section-title">Por que facturar desde el POS</h2>
+                </div>
+
+                <div class="feature-benefits__grid">
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Ahorra tiempo</h3>
+                            <p>Emiti la factura en el mismo momento de la venta. Sin sistemas separados.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--blue">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Menos errores</h3>
+                            <p>Los datos de la venta pasan directo a la factura. Sin recargar informacion.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Cumplimiento fiscal</h3>
+                            <p>Todos los comprobantes quedan registrados en AFIP automaticamente.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="3" y1="9" x2="21" y2="9"/>
+                                <line x1="9" y1="21" x2="9" y2="9"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Historial completo</h3>
+                            <p>Consulta todos los comprobantes emitidos cuando los necesites.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Funcionalidades relacionadas -->
+        <section class="related-features">
+            <div class="container">
+                <div class="related-features__header">
+                    <h2 class="section-title">Funcionalidades relacionadas</h2>
+                </div>
+
+                <div class="related-features__grid">
+                    <a href="arqueos-caja.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                <line x1="8" y1="21" x2="16" y2="21"/>
+                                <line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Arqueos de Caja</h3>
+                            <p class="related-feature-card__text">Cierra el dia con todos los comprobantes conciliados.</p>
+                        </div>
+                    </a>
+
+                    <a href="sincronizacion-erp.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <polyline points="1 20 1 14 7 14"/>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Sincronizacion ERP</h3>
+                            <p class="related-feature-card__text">Las facturas se sincronizan con Cianbox ERP.</p>
+                        </div>
+                    </a>
+
+                    <a href="cuotas-recargo.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Cuotas con Recargo</h3>
+                            <p class="related-feature-card__text">El recargo se incluye correctamente en la factura.</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="feature-cta">
+            <div class="container">
+                <h2 class="feature-cta__title">Factura electronica desde el POS</h2>
+                <p class="feature-cta__text">
+                    Te ayudamos a configurar tu certificado AFIP y punto de venta fiscal.
+                </p>
+                <a href="../index.html#contact" class="btn btn--primary btn--large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13"/>
+                        <path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                    </svg>
+                    Solicitar demo gratuita
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer__grid">
+                <div class="footer__brand">
+                    <a href="../index.html" class="footer__logo">
+                        <svg class="logo-svg" width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="40" height="40" rx="10" fill="url(#logo-gradient-footer)"/>
+                            <path d="M12 12H20C22.2091 12 24 13.7909 24 16V16C24 18.2091 22.2091 20 20 20H12V12Z" fill="white"/>
+                            <path d="M12 20H16V28H12V20Z" fill="white"/>
+                            <circle cx="28" cy="24" r="4" fill="#06b6d4"/>
+                            <defs>
+                                <linearGradient id="logo-gradient-footer" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#2563eb"/>
+                                    <stop offset="1" stop-color="#3b82f6"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <span class="logo-text">Cianbox <strong>POS</strong></span>
+                    </a>
+                    <p class="footer__desc">Sistema de Punto de Venta integrado con Cianbox ERP.</p>
+                </div>
+                <div class="footer__links">
+                    <h4>Producto</h4>
+                    <ul>
+                        <li><a href="../index.html#features">Funcionalidades</a></li>
+                        <li><a href="../index.html#pricing">Precios</a></li>
+                        <li><a href="../index.html#faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer__links">
+                    <h4>Empresa</h4>
+                    <ul>
+                        <li><a href="#">Sobre nosotros</a></li>
+                        <li><a href="#">Contacto</a></li>
+                    </ul>
+                </div>
+                <div class="footer__links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Terminos de servicio</a></li>
+                        <li><a href="#">Politica de privacidad</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer__bottom">
+                <p>&copy; 2024 Cianbox POS. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>

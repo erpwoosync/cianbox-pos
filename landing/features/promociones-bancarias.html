@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Promociones bancarias en Cianbox POS. Cuotas sin interes y descuentos especiales por banco que se aplican automaticamente.">
+    <meta name="keywords" content="promociones bancarias, cuotas sin interes, descuentos banco, Galicia, Santander, Macro, BBVA, Cianbox POS">
+
+    <meta property="og:title" content="Promociones Bancarias - Cianbox POS">
+    <meta property="og:description" content="Configura promociones por banco y tarjeta. Cuotas sin interes y descuentos que se aplican automaticamente.">
+    <meta property="og:type" content="website">
+
+    <title>Promociones Bancarias - Cianbox POS</title>
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='.9em' x='50%' text-anchor='middle' font-size='70' fill='white'>P</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="features.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" id="header">
+        <nav class="nav container">
+            <a href="../index.html" class="nav__logo">
+                <svg class="logo-svg" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="40" height="40" rx="10" fill="url(#logo-gradient)"/>
+                    <path d="M12 12H20C22.2091 12 24 13.7909 24 16V16C24 18.2091 22.2091 20 20 20H12V12Z" fill="white"/>
+                    <path d="M12 20H16V28H12V20Z" fill="white"/>
+                    <circle cx="28" cy="24" r="4" fill="#06b6d4"/>
+                    <defs>
+                        <linearGradient id="logo-gradient" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#2563eb"/>
+                            <stop offset="1" stop-color="#3b82f6"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="logo-text">Cianbox <strong>POS</strong></span>
+            </a>
+            <ul class="nav__menu" id="nav-menu">
+                <li><a href="../index.html#features" class="nav__link">Funcionalidades</a></li>
+                <li><a href="../index.html#how-it-works" class="nav__link">Como Funciona</a></li>
+                <li><a href="../index.html#pricing" class="nav__link">Planes</a></li>
+                <li><a href="../index.html#faq" class="nav__link">FAQ</a></li>
+            </ul>
+            <a href="../index.html#contact" class="btn btn--primary nav__cta">Solicitar Demo</a>
+            <button class="nav__toggle" id="nav-toggle" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hero -->
+        <section class="feature-hero">
+            <div class="container">
+                <a href="../index.html#features" class="back-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Volver a funcionalidades
+                </a>
+
+                <div class="feature-hero__icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="3" y1="9" x2="21" y2="9"/>
+                        <line x1="9" y1="21" x2="9" y2="9"/>
+                    </svg>
+                </div>
+
+                <h1 class="feature-hero__title">
+                    Promociones <span class="highlight">Bancarias</span>
+                </h1>
+                <p class="feature-hero__subtitle">
+                    Configura cuotas sin interes y descuentos especiales por banco. El sistema detecta
+                    la tarjeta y aplica la promocion automaticamente.
+                </p>
+
+                <a href="../index.html#contact" class="btn btn--primary btn--large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                    Configurar promociones bancarias
+                </a>
+            </div>
+        </section>
+
+        <!-- Tipos de promociones -->
+        <section class="feature-how">
+            <div class="container">
+                <div class="feature-how__header">
+                    <span class="features__badge">Tipos de promocion</span>
+                    <h2 class="section-title">Que podes configurar</h2>
+                </div>
+
+                <div class="feature-benefits__grid" style="max-width: 900px; margin: 0 auto;">
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Cuotas sin interes</h3>
+                            <p>Ofrece 3, 6 o 12 cuotas sin interes con determinados bancos. El cliente paga el precio de contado en cuotas.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                                <line x1="7" y1="7" x2="7.01" y2="7"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Descuentos por banco</h3>
+                            <p>Configura descuentos del 10%, 15% o 20% para clientes que paguen con determinada tarjeta bancaria.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--blue">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                <line x1="3" y1="10" x2="21" y2="10"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Dias especificos</h3>
+                            <p>Configura promociones que solo aplican ciertos dias de la semana. Ejemplo: 20% los martes con Galicia.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Vigencia configurable</h3>
+                            <p>Define fecha de inicio y fin para cada promocion. Se activan y desactivan automaticamente.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bancos soportados -->
+        <section class="feature-visual" style="background: var(--color-bg-alt);">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Bancos</span>
+                    <h2 class="section-title">Bancos soportados</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Configura promociones para los principales bancos del pais.
+                    </p>
+                </div>
+
+                <div class="banks-grid" style="max-width: 900px; margin: 0 auto;">
+                    <div class="bank-card">
+                        <div class="bank-card__logo" style="background: #EE3124; color: white;">Galicia</div>
+                        <span class="bank-card__name">Banco Galicia</span>
+                    </div>
+                    <div class="bank-card">
+                        <div class="bank-card__logo" style="background: #EC0000; color: white;">Santander</div>
+                        <span class="bank-card__name">Santander</span>
+                    </div>
+                    <div class="bank-card">
+                        <div class="bank-card__logo" style="background: #003087; color: white;">Macro</div>
+                        <span class="bank-card__name">Banco Macro</span>
+                    </div>
+                    <div class="bank-card">
+                        <div class="bank-card__logo" style="background: #004481; color: white;">BBVA</div>
+                        <span class="bank-card__name">BBVA</span>
+                    </div>
+                    <div class="bank-card">
+                        <div class="bank-card__logo" style="background: #1A1F71; color: white;">ICBC</div>
+                        <span class="bank-card__name">ICBC</span>
+                    </div>
+                    <div class="bank-card">
+                        <div class="bank-card__logo" style="background: #00529B; color: white;">Ciudad</div>
+                        <span class="bank-card__name">Banco Ciudad</span>
+                    </div>
+                    <div class="bank-card">
+                        <div class="bank-card__logo" style="background: #00A0DF; color: white;">Nacion</div>
+                        <span class="bank-card__name">Banco Nacion</span>
+                    </div>
+                    <div class="bank-card">
+                        <div class="bank-card__logo" style="background: #E4002B; color: white;">HSBC</div>
+                        <span class="bank-card__name">HSBC</span>
+                    </div>
+                </div>
+
+                <p style="text-align: center; margin-top: 2rem; color: var(--color-text-light);">
+                    Y muchos mas. Configura cualquier banco o entidad financiera.
+                </p>
+            </div>
+        </section>
+
+        <!-- Como funciona -->
+        <section class="feature-how" style="background: var(--color-bg);">
+            <div class="container">
+                <div class="feature-how__header">
+                    <span class="features__badge">Automatico</span>
+                    <h2 class="section-title">Como se aplican en el POS</h2>
+                </div>
+
+                <div class="feature-how__steps">
+                    <div class="feature-step">
+                        <div class="feature-step__number">1</div>
+                        <h3 class="feature-step__title">Cliente paga con tarjeta</h3>
+                        <p class="feature-step__text">
+                            El cajero selecciona pago con tarjeta y la terminal procesa el pago.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number">2</div>
+                        <h3 class="feature-step__title">Sistema detecta el banco</h3>
+                        <p class="feature-step__text">
+                            El POS identifica el banco emisor y verifica si hay promociones activas.
+                        </p>
+                    </div>
+                    <div class="feature-step">
+                        <div class="feature-step__number">3</div>
+                        <h3 class="feature-step__title">Promocion aplicada</h3>
+                        <p class="feature-step__text">
+                            El descuento o las cuotas sin interes se aplican automaticamente.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ejemplo visual -->
+        <section class="feature-visual" style="background: var(--color-bg-alt);">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Ejemplo</span>
+                    <h2 class="section-title">Asi se ve en la pantalla de cobro</h2>
+                </div>
+
+                <div class="feature-visual__content">
+                    <div class="visual-mockup">
+                        <div class="visual-mockup__header">
+                            <div class="visual-mockup__dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <span class="visual-mockup__title">Cianbox POS - Cobrar</span>
+                        </div>
+                        <div class="visual-mockup__content">
+                            <div style="text-align: center; padding: 1rem 0;">
+                                <p style="color: var(--color-text-light); margin-bottom: 0.5rem;">Total de la venta</p>
+                                <p style="font-size: 2rem; font-weight: 800; color: var(--color-secondary); margin-bottom: 1.5rem;">$25.000</p>
+                            </div>
+
+                            <div style="background: var(--color-bg-alt); border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;">
+                                <p style="font-weight: 600; color: var(--color-secondary); margin-bottom: 1rem;">Promociones disponibles</p>
+
+                                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                                    <div style="flex: 1; min-width: 200px; padding: 1rem; background: white; border: 2px solid var(--color-success); border-radius: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                            <span style="background: #EE3124; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">Galicia</span>
+                                            <span class="status-badge status-badge--success">Activa hoy</span>
+                                        </div>
+                                        <p style="font-weight: 600; color: var(--color-secondary);">6 cuotas sin interes</p>
+                                        <p style="font-size: 14px; color: var(--color-text-light);">6 x $4.166</p>
+                                    </div>
+
+                                    <div style="flex: 1; min-width: 200px; padding: 1rem; background: white; border: 1px solid var(--color-border); border-radius: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                            <span style="background: #EC0000; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">Santander</span>
+                                        </div>
+                                        <p style="font-weight: 600; color: var(--color-secondary);">15% descuento</p>
+                                        <p style="font-size: 14px; color: var(--color-text-light);">Total: $21.250</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Configuracion por dias -->
+        <section class="feature-visual" style="background: var(--color-bg);">
+            <div class="container">
+                <div class="feature-visual__header">
+                    <span class="features__badge">Por dias</span>
+                    <h2 class="section-title">Promociones por dia de la semana</h2>
+                    <p class="section-subtitle" style="margin: 0 auto;">
+                        Configura promociones que solo aplican ciertos dias.
+                    </p>
+                </div>
+
+                <div class="feature-visual__content" style="max-width: 600px;">
+                    <div class="config-panel">
+                        <div class="config-panel__header">
+                            Galicia - 6 cuotas sin interes
+                        </div>
+                        <div class="config-panel__body">
+                            <div class="config-row">
+                                <span class="config-row__label">Lunes</span>
+                                <div class="config-row__toggle"></div>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Martes</span>
+                                <div class="config-row__toggle"></div>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Miercoles</span>
+                                <div class="config-row__toggle" style="background: var(--color-border);"></div>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Jueves</span>
+                                <div class="config-row__toggle"></div>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Viernes</span>
+                                <div class="config-row__toggle"></div>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Sabado</span>
+                                <div class="config-row__toggle" style="background: var(--color-border);"></div>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-row__label">Domingo</span>
+                                <div class="config-row__toggle" style="background: var(--color-border);"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Beneficios -->
+        <section class="feature-benefits">
+            <div class="container">
+                <div class="feature-benefits__header">
+                    <span class="features__badge">Beneficios</span>
+                    <h2 class="section-title">Por que usar promociones bancarias</h2>
+                </div>
+
+                <div class="feature-benefits__grid">
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M23 6l-9.5 9.5-5-5L1 18"/>
+                                <polyline points="17 6 23 6 23 12"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Aumenta ventas</h3>
+                            <p>Las promociones bancarias atraen clientes y motivan compras de mayor valor.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--blue">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Aplicacion automatica</h3>
+                            <p>El cajero no tiene que recordar promociones. El sistema las aplica solo.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Gestion centralizada</h3>
+                            <p>Configura una vez y aplica en todos los puntos de venta.</p>
+                        </div>
+                    </div>
+
+                    <div class="benefit-card">
+                        <div class="benefit-card__icon benefit-card__icon--orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div class="benefit-card__content">
+                            <h3>Reportes detallados</h3>
+                            <p>Visualiza cuantas ventas aprovecharon cada promocion bancaria.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Funcionalidades relacionadas -->
+        <section class="related-features">
+            <div class="container">
+                <div class="related-features__header">
+                    <h2 class="section-title">Funcionalidades relacionadas</h2>
+                </div>
+
+                <div class="related-features__grid">
+                    <a href="cuotas-recargo.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Cuotas con Recargo</h3>
+                            <p class="related-feature-card__text">Para bancos sin promocion, ofrece cuotas con recargo.</p>
+                        </div>
+                    </a>
+
+                    <a href="terminales-mp-point.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Terminales MercadoPago Point</h3>
+                            <p class="related-feature-card__text">Cobra con tarjeta en modo integrado.</p>
+                        </div>
+                    </a>
+
+                    <a href="promociones-automaticas.html" class="related-feature-card">
+                        <div class="related-feature-card__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                                <line x1="7" y1="7" x2="7.01" y2="7"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="related-feature-card__title">Promociones de Productos</h3>
+                            <p class="related-feature-card__text">2x1, segunda unidad al 50% y mas.</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="feature-cta">
+            <div class="container">
+                <h2 class="feature-cta__title">Aprovecha las promociones bancarias</h2>
+                <p class="feature-cta__text">
+                    Configura tus promociones y deja que el sistema las aplique automaticamente.
+                </p>
+                <a href="../index.html#contact" class="btn btn--primary btn--large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13"/>
+                        <path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                    </svg>
+                    Solicitar demo gratuita
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer__grid">
+                <div class="footer__brand">
+                    <a href="../index.html" class="footer__logo">
+                        <svg class="logo-svg" width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="40" height="40" rx="10" fill="url(#logo-gradient-footer)"/>
+                            <path d="M12 12H20C22.2091 12 24 13.7909 24 16V16C24 18.2091 22.2091 20 20 20H12V12Z" fill="white"/>
+                            <path d="M12 20H16V28H12V20Z" fill="white"/>
+                            <circle cx="28" cy="24" r="4" fill="#06b6d4"/>
+                            <defs>
+                                <linearGradient id="logo-gradient-footer" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#2563eb"/>
+                                    <stop offset="1" stop-color="#3b82f6"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <span class="logo-text">Cianbox <strong>POS</strong></span>
+                    </a>
+                    <p class="footer__desc">Sistema de Punto de Venta integrado con Cianbox ERP.</p>
+                </div>
+                <div class="footer__links">
+                    <h4>Producto</h4>
+                    <ul>
+                        <li><a href="../index.html#features">Funcionalidades</a></li>
+                        <li><a href="../index.html#pricing">Precios</a></li>
+                        <li><a href="../index.html#faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer__links">
+                    <h4>Empresa</h4>
+                    <ul>
+                        <li><a href="#">Sobre nosotros</a></li>
+                        <li><a href="#">Contacto</a></li>
+                    </ul>
+                </div>
+                <div class="footer__links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Terminos de servicio</a></li>
+                        <li><a href="#">Politica de privacidad</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer__bottom">
+                <p>&copy; 2024 Cianbox POS. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>
