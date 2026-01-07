@@ -2,6 +2,44 @@
    CIANBOX POS - Features Pages Styles
    ===================================================== */
 
+/* Header */
+.header {
+    padding: var(--spacing-md) 0;
+    background: var(--color-bg);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
+}
+
+.header .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Logo */
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-secondary);
+}
+
+.logo svg {
+    width: 40px;
+    height: 40px;
+    color: #2563eb;
+}
+
+.logo svg rect {
+    fill: #2563eb;
+}
+
 /* Feature Hero - Simplified for feature pages */
 .feature-hero {
     padding: 140px 0 80px;
