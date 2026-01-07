@@ -750,11 +750,12 @@ ul {
 }
 
 .feature-card__link {
+    display: block;
     margin-top: auto;
     padding-top: var(--spacing-md);
     font-size: var(--font-size-sm);
     font-weight: 600;
-    color: var(--color-primary);
+    color: #2563eb !important;
     transition: color 0.2s ease;
 }
 
