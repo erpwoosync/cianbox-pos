@@ -1,0 +1,29 @@
+name: Deploy Landing Page
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/deploy-landing.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Landing Page
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: |
+          sudo mkdir -p /var/www/cianbox-pos/landing
+          sudo rsync -av --delete \
+            ./landing/ /var/www/cianbox-pos/landing/
+
+      - name: Deployment complete
+        run: |
+          echo "Landing page deployed successfully!"
+          echo "Available at https://cianbox-pos-point.ews-cdn.link/landing"
