@@ -33,11 +33,12 @@
 .logo svg {
     width: 40px;
     height: 40px;
-    color: #2563eb;
+    color: #2563eb !important;
+    fill: #2563eb !important;
 }
 
 .logo svg rect {
-    fill: #2563eb;
+    fill: #2563eb !important;
 }
 
 /* Feature Hero - Simplified for feature pages */
