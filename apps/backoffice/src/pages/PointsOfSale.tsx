@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
-import { pointsOfSaleApi, stockApi, pricesApi, mercadoPagoApi, PointOfSale, CreatePointOfSaleDto, MercadoPagoDevice, SurchargeDisplayMode } from '../services/api';
+import { pointsOfSaleApi, stockApi, pricesApi, mercadoPagoApi, cianboxApi, PointOfSale, CreatePointOfSaleDto, MercadoPagoDevice, SurchargeDisplayMode } from '../services/api';
 import { Monitor, RefreshCw, Search, Plus, Pencil, Trash2, X, Store, ListOrdered, Smartphone } from 'lucide-react';
+
+interface CianboxPuntoVenta {
+  id: number;
+  nombre: string;
+  [key: string]: unknown;
+}
 
 interface Branch {
   id: string;
@@ -28,6 +34,7 @@ export default function PointsOfSale() {
   const [editingPos, setEditingPos] = useState<PointOfSale | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [cianboxPuntosVenta, setCianboxPuntosVenta] = useState<CianboxPuntoVenta[]>([]);
 
   // Form state
   const [formData, setFormData] = useState<CreatePointOfSaleDto>({
@@ -69,6 +76,15 @@ export default function PointsOfSale() {
       } catch {
         // MP no configurado, ignorar
         setMpConfigured(false);
+      }
+
+      // Cargar puntos de venta Cianbox si hay conexión activa
+      try {
+        const resources = await cianboxApi.getSalesResources();
+        setCianboxPuntosVenta(resources.puntosVenta || []);
+      } catch {
+        // Cianbox no configurado, ignorar
+        setCianboxPuntosVenta([]);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -533,25 +549,31 @@ export default function PointsOfSale() {
                 </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ID Punto de Venta Cianbox <span className="text-gray-400 font-normal">(talonario fiscal)</span>
-                </label>
-                <input
-                  type="number"
-                  value={formData.cianboxPointOfSaleId ?? ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    cianboxPointOfSaleId: e.target.value ? parseInt(e.target.value, 10) : null
-                  })}
-                  placeholder="Ej: 1"
-                  min={1}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  ID del talonario en Cianbox para facturación electrónica
-                </p>
-              </div>
+              {cianboxPuntosVenta.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Punto de Venta Cianbox <span className="text-gray-400 font-normal">(talonario fiscal)</span>
+                  </label>
+                  <select
+                    value={formData.cianboxPointOfSaleId ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      cianboxPointOfSaleId: e.target.value ? parseInt(e.target.value, 10) : null
+                    })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  >
+                    <option value="">Sin asignar</option>
+                    {cianboxPuntosVenta.map((pv) => (
+                      <option key={pv.id} value={pv.id}>
+                        {pv.nombre} (ID: {pv.id})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Talonario en Cianbox para facturación electrónica
+                  </p>
+                </div>
+              )}
 
               <div className="flex items-center gap-2">
                 <input
