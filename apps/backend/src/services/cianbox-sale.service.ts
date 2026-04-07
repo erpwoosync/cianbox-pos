@@ -79,12 +79,23 @@ export class CianboxSaleService {
     const productItems = sale.items.filter((item) => !item.isSurcharge);
 
     // Mapear productos al formato Cianbox
-    const productos = productItems.map((item) => ({
-      id: item.product?.cianboxProductId ?? 0,
-      cantidad: Number(item.quantity),
-      neto_uni: item.unitPriceNet ? Number(item.unitPriceNet) : Number(item.unitPrice),
-      alicuota: Number(item.taxRate),
-    }));
+    // neto_uni = precio neto unitario (sin IVA, con descuento aplicado)
+    // subtotal del POS = (unitPrice * qty) - discount (con IVA incluido)
+    // neto unitario = (subtotal / qty) / (1 + alicuota/100)
+    const productos = productItems.map((item) => {
+      const qty = Number(item.quantity);
+      const subtotal = Number(item.subtotal); // unitPrice * qty - discount (IVA incluido)
+      const alicuota = Number(item.taxRate);
+      const unitarioConIva = qty !== 0 ? subtotal / qty : 0;
+      const netoUni = unitarioConIva / (1 + alicuota / 100);
+
+      return {
+        id: item.product?.cianboxProductId ?? 0,
+        cantidad: qty,
+        neto_uni: Math.round(netoUni * 100) / 100,
+        alicuota,
+      };
+    });
 
     // Mapear pagos
     const { forma_pago, cobro } = CianboxSaleService.mapPayments(sale.payments);
