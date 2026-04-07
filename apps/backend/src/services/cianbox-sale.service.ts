@@ -80,13 +80,10 @@ export class CianboxSaleService {
 
     // Mapear productos al formato Cianbox
     const productos = productItems.map((item) => ({
-      id_producto: item.product?.cianboxProductId ?? 0,
+      id: item.product?.cianboxProductId ?? 0,
       cantidad: Number(item.quantity),
       neto_uni: item.unitPriceNet ? Number(item.unitPriceNet) : Number(item.unitPrice),
       alicuota: Number(item.taxRate),
-      descuento: Number(item.discount) > 0
-        ? Number(item.discount) / (Number(item.unitPrice) * Number(item.quantity)) * 100
-        : 0,
     }));
 
     // Mapear pagos
