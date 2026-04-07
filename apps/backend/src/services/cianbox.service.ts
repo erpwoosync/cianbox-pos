@@ -537,7 +537,7 @@ export class CianboxService {
    * Realiza una petición autenticada a Cianbox
    * El token se envía como query parameter según la API de Cianbox
    */
-  private async request<T>(
+  public async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {

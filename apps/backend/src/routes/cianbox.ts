@@ -6,6 +6,7 @@ import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { authenticate, authorize, AuthenticatedRequest } from '../middleware/auth.js';
 import { CianboxService } from '../services/cianbox.service.js';
+import { CianboxSaleService } from '../services/cianbox-sale.service.js';
 import { ApiError, ValidationError, NotFoundError } from '../utils/errors.js';
 import prisma from '../lib/prisma.js';
 
@@ -551,6 +552,80 @@ router.get(
           },
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// =============================================
+// SYNC DE VENTAS
+// =============================================
+
+// Reintentar todas las ventas fallidas del tenant
+router.post(
+  '/sales/retry-all',
+  authenticate,
+  authorize('settings:edit'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const result = await CianboxSaleService.retryFailedSales(tenantId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Polling: consultar estado de factura Cianbox
+router.get(
+  '/sales/:saleId/invoice',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const { saleId } = req.params;
+      const result = await CianboxSaleService.pollInvoice(tenantId, saleId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Reintentar envío de una venta específica
+router.post(
+  '/sales/:saleId/retry',
+  authenticate,
+  authorize('settings:edit'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const { saleId } = req.params;
+
+      const sale = await prisma.sale.findFirst({
+        where: { id: saleId, tenantId, cianboxSyncStatus: 'FAILED' },
+        include: {
+          items: { include: { product: true } },
+          payments: { include: { cardTerminal: true, bank: true } },
+          customer: true,
+          branch: true,
+          pointOfSale: true,
+        },
+      });
+
+      if (!sale) {
+        throw new NotFoundError('Venta no encontrada o no está en estado FAILED');
+      }
+
+      await CianboxSaleService.sendSaleToCianbox(sale);
+      const updated = await prisma.sale.findUnique({
+        where: { id: saleId },
+        select: { cianboxSyncStatus: true, cianboxSaleId: true, cianboxError: true },
+      });
+
+      res.json({ success: true, data: updated });
     } catch (error) {
       next(error);
     }

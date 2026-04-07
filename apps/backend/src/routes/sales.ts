@@ -11,6 +11,7 @@ import { ApiError, ValidationError, NotFoundError, AuthorizationError } from '..
 import GiftCardService from '../services/gift-card.service.js';
 import StoreCreditService from '../services/store-credit.service.js';
 import { saleService } from '../services/sale.service.js';
+import { CianboxSaleService } from '../services/cianbox-sale.service.js';
 import prisma from '../lib/prisma.js';
 
 const router = Router();
@@ -482,6 +483,11 @@ router.post(
           },
         });
       }
+
+      // Enviar venta a Cianbox (fire-and-forget, no bloquea al cajero)
+      CianboxSaleService.sendSaleById(tenantId, sale.id).catch((err) => {
+        console.error(`[CianboxSale] Error async enviando venta ${sale.saleNumber}:`, err.message);
+      });
 
       res.status(201).json({
         success: true,

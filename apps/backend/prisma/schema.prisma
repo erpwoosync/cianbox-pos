@@ -294,6 +294,9 @@ model CianboxConnection {
   lastSync       DateTime?
   syncStatus     String?
   webhookUrl     String?   // URL para recibir webhooks de Cianbox
+  defaultCustomerId  Int?    // ID cliente "Consumidor Final" en Cianbox
+  defaultChannelId   Int     @default(1)  // id_canal_venta en Cianbox
+  defaultCurrencyId  Int     @default(1)  // id_moneda en Cianbox
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -358,6 +361,7 @@ model PointOfSale {
   printPointId  String?  // Punto de impresión por defecto
   isActive      Boolean  @default(true)
   settings      Json     @default("{}") // Configuración específica del POS
+  cianboxPointOfSaleId  Int?  // ID talonario fiscal en Cianbox
 
   // Recargo financiero: override del modo de visualización (null = usar config del tenant)
   surchargeDisplayMode SurchargeDisplayMode?
@@ -868,6 +872,9 @@ model Sale {
 
   // Referencia
   cianboxSaleId   Int?        // ID si se sincronizó con Cianbox
+  cianboxSyncStatus  CianboxSyncStatus?  // null = no enviada, PENDING = enviando, SYNCED = ok, FAILED = error
+  cianboxInvoiceUrl  String?              // URL del PDF de factura
+  cianboxError       String?              // Ultimo error de sync
   originalSaleId  String?     // ID de venta original (para devoluciones)
   notes           String?
   metadata        Json        @default("{}")
@@ -929,6 +936,12 @@ enum SaleStatus {
   CANCELLED       // Anulada
   REFUNDED        // Devuelta (total)
   PARTIAL_REFUND  // Devolución parcial
+}
+
+enum CianboxSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
 }
 
 // Detalle de venta
@@ -2379,6 +2392,7 @@ model CardBrand {
   code      String   // "VISA", "MC", "NARANJA"
   isActive  Boolean  @default(true)
   isSystem  Boolean  @default(false) // true = viene precargado por seed
+  cianboxCardId  Int?  // ID de tarjeta en Cianbox
 
   // Configuración de cuotas y recargos
   maxInstallments   Int   @default(12)   // 12, 18, o 24 cuotas máximo
@@ -2516,6 +2530,7 @@ model Bank {
   name      String   // "Banco Macro", "Banco Galicia"
   code      String   // "MACRO", "GALICIA"
   isActive  Boolean  @default(true)
+  cianboxEntityId  Int?  // ID de entidad en Cianbox
 
   promotions BankCardPromotion[]
   payments   Payment[]
