@@ -104,18 +104,30 @@ export class CianboxSaleService {
     // ID punto de venta / talonario Cianbox
     const idTalonario = sale.pointOfSale?.cianboxPointOfSaleId ?? 0;
 
-    return {
+    const payload: Record<string, unknown> = {
+      fecha,
+      origen: { tipo: 'directa' },
       id_cliente: idCliente,
       id_canal_venta: connection.defaultChannelId,
-      id_moneda: connection.defaultCurrencyId,
-      id_sucursal: idSucursal,
-      id_talonario: idTalonario,
-      fecha,
-      observaciones: sale.notes || '',
       forma_pago,
-      cobro,
+      id_punto_venta: idTalonario,
+      id_moneda: connection.defaultCurrencyId,
+      cotizacion: 1,
+      observaciones: sale.notes || '',
       productos,
+      percepciones: [],
     };
+
+    // Agregar bloques condicionales de pago
+    if (cobro && Object.keys(cobro).length > 0) {
+      if ('tarjeta' in cobro) {
+        payload.tarjeta = cobro.tarjeta;
+      } else {
+        payload.cobro = cobro;
+      }
+    }
+
+    return payload;
   }
 
   /**
