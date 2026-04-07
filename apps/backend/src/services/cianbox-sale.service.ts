@@ -304,6 +304,8 @@ export class CianboxSaleService {
       // Construir payload
       const payload = CianboxSaleService.buildPayload(enrichedSale, connection);
 
+      console.log(`[CianboxSale] Payload para venta ${sale.saleNumber}:`, JSON.stringify(payload));
+
       // Crear instancia del servicio y enviar
       const service = new CianboxService(connection);
       const response = await service.request<CianboxSaleResponse>('/ventas/alta', {
@@ -311,8 +313,11 @@ export class CianboxSaleService {
         body: JSON.stringify(payload),
       });
 
+      console.log(`[CianboxSale] Respuesta Cianbox para venta ${sale.saleNumber}:`, JSON.stringify(response));
+
       if (response.status !== 'ok' || !response.body?.id) {
-        throw new Error(response.statusMessage || 'Respuesta inesperada de Cianbox');
+        const desc = (response.body as any)?.description || response.statusMessage || JSON.stringify(response);
+        throw new Error(`Cianbox rechazó la venta: ${desc}`);
       }
 
       // Marcar como SYNCED
