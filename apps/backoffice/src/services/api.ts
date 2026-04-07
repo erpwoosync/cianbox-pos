@@ -436,6 +436,7 @@ export interface PointOfSale {
   mpDeviceId?: string | null;
   mpDeviceName?: string | null;
   surchargeDisplayMode?: SurchargeDisplayMode | null; // Override del modo de recargo (null = usar config tenant)
+  cianboxPointOfSaleId?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -450,6 +451,7 @@ export interface CreatePointOfSaleDto {
   mpDeviceId?: string | null;
   mpDeviceName?: string | null;
   surchargeDisplayMode?: SurchargeDisplayMode | null;
+  cianboxPointOfSaleId?: number | null;
 }
 
 export interface UpdatePointOfSaleDto {
@@ -462,6 +464,7 @@ export interface UpdatePointOfSaleDto {
   mpDeviceId?: string | null;
   mpDeviceName?: string | null;
   surchargeDisplayMode?: SurchargeDisplayMode | null;
+  cianboxPointOfSaleId?: number | null;
 }
 
 // Permissions API

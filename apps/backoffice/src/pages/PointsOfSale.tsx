@@ -108,6 +108,7 @@ export default function PointsOfSale() {
       mpDeviceId: pos.mpDeviceId || null,
       mpDeviceName: pos.mpDeviceName || null,
       surchargeDisplayMode: pos.surchargeDisplayMode || null,
+      cianboxPointOfSaleId: pos.cianboxPointOfSaleId ?? null,
     });
     setShowModal(true);
   };
@@ -529,6 +530,26 @@ export default function PointsOfSale() {
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
                   Cómo se muestra el recargo por cuotas en el ticket
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ID Punto de Venta Cianbox <span className="text-gray-400 font-normal">(talonario fiscal)</span>
+                </label>
+                <input
+                  type="number"
+                  value={formData.cianboxPointOfSaleId ?? ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    cianboxPointOfSaleId: e.target.value ? parseInt(e.target.value, 10) : null
+                  })}
+                  placeholder="Ej: 1"
+                  min={1}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  ID del talonario en Cianbox para facturación electrónica
                 </p>
               </div>
 

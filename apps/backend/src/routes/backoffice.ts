@@ -1245,6 +1245,7 @@ const createPointOfSaleSchema = z.object({
   priceListId: z.string().optional(),
   isActive: z.boolean().optional().default(true),
   surchargeDisplayMode: z.enum(['SEPARATE_ITEM', 'DISTRIBUTED']).nullable().optional(),
+  cianboxPointOfSaleId: z.number().int().positive().nullable().optional(),
 });
 
 // Función para generar código de POS automático
@@ -1370,7 +1371,7 @@ router.post(
         throw new ApiError(422, 'VALIDATION_ERROR', 'Datos inválidos', validation.error.errors);
       }
 
-      const { branchId, name, description, priceListId, isActive, surchargeDisplayMode } = validation.data;
+      const { branchId, name, description, priceListId, isActive, surchargeDisplayMode, cianboxPointOfSaleId } = validation.data;
       let { code } = validation.data;
 
       // Verificar que la sucursal pertenece al tenant
@@ -1417,6 +1418,7 @@ router.post(
           priceListId,
           isActive,
           surchargeDisplayMode,
+          cianboxPointOfSaleId,
         },
         include: {
           branch: { select: { id: true, name: true, code: true } },
@@ -1446,6 +1448,7 @@ const updatePointOfSaleSchema = z.object({
   mpDeviceId: z.string().nullable().optional(),
   mpDeviceName: z.string().nullable().optional(),
   surchargeDisplayMode: z.enum(['SEPARATE_ITEM', 'DISTRIBUTED']).nullable().optional(),
+  cianboxPointOfSaleId: z.number().int().positive().nullable().optional(),
 });
 
 router.put(
@@ -1470,7 +1473,7 @@ router.put(
         throw new ApiError(404, 'NOT_FOUND', 'Punto de venta no encontrado');
       }
 
-      const { branchId, code, name, description, priceListId, isActive, mpDeviceId, mpDeviceName, surchargeDisplayMode } = validation.data;
+      const { branchId, code, name, description, priceListId, isActive, mpDeviceId, mpDeviceName, surchargeDisplayMode, cianboxPointOfSaleId } = validation.data;
 
       // Verificar sucursal si se cambia
       if (branchId && branchId !== existing.branchId) {
@@ -1525,6 +1528,7 @@ router.put(
           ...(mpDeviceId !== undefined && { mpDeviceId }),
           ...(mpDeviceName !== undefined && { mpDeviceName }),
           ...(surchargeDisplayMode !== undefined && { surchargeDisplayMode }),
+          ...(cianboxPointOfSaleId !== undefined && { cianboxPointOfSaleId }),
         },
         include: {
           branch: { select: { id: true, name: true, code: true } },
