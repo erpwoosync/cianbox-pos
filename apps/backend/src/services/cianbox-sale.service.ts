@@ -79,9 +79,7 @@ export class CianboxSaleService {
     const productItems = sale.items.filter((item) => !item.isSurcharge);
 
     // Mapear productos al formato Cianbox
-    // NDP no discrimina IVA, se envía el precio final (con IVA y descuento incluidos)
-    // neto_uni = subtotal / qty (precio unitario final)
-    // alicuota = 0 (NDP no suma IVA)
+    // neto_uni = precio unitario final (con IVA y descuento incluidos)
     const productos = productItems.map((item) => {
       const qty = Number(item.quantity);
       const subtotal = Number(item.subtotal); // unitPrice * qty - discount (IVA incluido)
@@ -91,7 +89,7 @@ export class CianboxSaleService {
         id: item.product?.cianboxProductId ?? 0,
         cantidad: qty,
         neto_uni: Math.round(netoUni * 100) / 100,
-        alicuota: 0,
+        alicuota: Number(item.taxRate),
       };
     });
 
