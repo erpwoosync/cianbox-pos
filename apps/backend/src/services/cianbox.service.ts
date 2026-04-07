@@ -2009,6 +2009,36 @@ export class CianboxService {
       message: response.body?.descripcion || 'Webhook eliminado',
     };
   }
+
+  /**
+   * Obtiene tarjetas habilitadas de Cianbox (GET /ventas/tarjetas)
+   */
+  async fetchTarjetas(): Promise<Array<{ id: number; nombre: string; [key: string]: unknown }>> {
+    const response = await this.request<{ status: string; body: Array<{ id: number; nombre: string }> }>(
+      '/ventas/tarjetas'
+    );
+    return response.body || [];
+  }
+
+  /**
+   * Obtiene entidades bancarias de Cianbox (GET /ventas/entidades)
+   */
+  async fetchEntidades(): Promise<Array<{ id: number; nombre: string; [key: string]: unknown }>> {
+    const response = await this.request<{ status: string; body: Array<{ id: number; nombre: string }> }>(
+      '/ventas/entidades'
+    );
+    return response.body || [];
+  }
+
+  /**
+   * Obtiene puntos de venta habilitados de Cianbox (GET /ventas/puntos_venta)
+   */
+  async fetchPuntosVenta(): Promise<Array<{ id: number; nombre: string; [key: string]: unknown }>> {
+    const response = await this.request<{ status: string; body: Array<{ id: number; nombre: string }> }>(
+      '/ventas/puntos_venta'
+    );
+    return response.body || [];
+  }
 }
 
 export default CianboxService;

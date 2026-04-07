@@ -1839,6 +1839,14 @@ export interface UpdateTenantSettingsDto {
 }
 
 // Tenant Settings API
+// Cianbox API
+export const cianboxApi = {
+  getSalesResources: async () => {
+    const response = await api.get('/cianbox/sales-resources');
+    return response.data.data;
+  },
+};
+
 export const settingsApi = {
   get: async (): Promise<TenantSettings> => {
     const response = await api.get('/backoffice/settings');

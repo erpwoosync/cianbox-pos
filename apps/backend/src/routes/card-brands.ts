@@ -38,6 +38,7 @@ const cardBrandSchema = z.object({
     .max(50)
     .regex(/^[A-Z0-9_-]+$/, 'El código solo puede contener letras mayúsculas, números, guiones y guiones bajos'),
   isActive: z.boolean().optional().default(true),
+  cianboxCardId: z.number().int().positive().nullable().optional(),
 });
 
 const updateCardBrandSchema = cardBrandSchema.partial().extend({
@@ -123,6 +124,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response, 
         name: data.name,
         code: data.code,
         isActive: data.isActive,
+        cianboxCardId: data.cianboxCardId ?? undefined,
         isSystem: false, // Las creadas manualmente no son de sistema
       },
     });
@@ -175,6 +177,7 @@ router.put('/:id', authenticate, async (req: AuthenticatedRequest, res: Response
         name: data.name,
         code: data.code,
         isActive: data.isActive,
+        cianboxCardId: data.cianboxCardId,
       },
     });
 

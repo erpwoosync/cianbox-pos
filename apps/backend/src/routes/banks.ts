@@ -15,12 +15,14 @@ const createBankSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   code: z.string().min(1, 'El código es requerido').toUpperCase(),
   isActive: z.boolean().optional().default(true),
+  cianboxEntityId: z.number().int().positive().nullable().optional(),
 });
 
 const updateBankSchema = z.object({
   name: z.string().min(1).optional(),
   code: z.string().min(1).toUpperCase().optional(),
   isActive: z.boolean().optional(),
+  cianboxEntityId: z.number().int().positive().nullable().optional(),
 });
 
 // GET /banks - Listar bancos

@@ -558,6 +558,32 @@ router.get(
   }
 );
 
+// Recursos auxiliares de ventas Cianbox (tarjetas, entidades, puntos de venta)
+router.get(
+  '/sales-resources',
+  authenticate,
+  authorize('settings:edit'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const service = await CianboxService.forTenant(tenantId);
+
+      const [tarjetas, entidades, puntosVenta] = await Promise.all([
+        service.fetchTarjetas(),
+        service.fetchEntidades(),
+        service.fetchPuntosVenta(),
+      ]);
+
+      res.json({
+        success: true,
+        data: { tarjetas, entidades, puntosVenta },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // =============================================
 // SYNC DE VENTAS
 // =============================================
