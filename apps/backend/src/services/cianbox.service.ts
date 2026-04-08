@@ -2039,6 +2039,29 @@ export class CianboxService {
     );
     return response.body || [];
   }
+
+  /**
+   * Obtiene talonarios de venta disponibles segun cliente (GET /ventas/puntos_venta)
+   * Cianbox filtra automaticamente por condicion IVA del cliente
+   */
+  async fetchTalonariosByClient(clientId?: number): Promise<Array<{
+    id: number;
+    comprobante: string;
+    tipo: string;
+    talonario: string;
+    punto_venta: string;
+    fiscal: boolean;
+    factura_electronica: boolean;
+    descripcion: string;
+    vigente: boolean;
+    [key: string]: unknown;
+  }>> {
+    const params = clientId ? `&id_cliente=${clientId}` : '';
+    const response = await this.request<{ status: string; body: Array<Record<string, unknown>> }>(
+      `/ventas/puntos_venta?limit=50${params}`
+    );
+    return (response.body || []) as any;
+  }
 }
 
 export default CianboxService;

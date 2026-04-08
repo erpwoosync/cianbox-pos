@@ -125,6 +125,8 @@ const saleCreateSchema = z.object({
   items: z.array(saleItemSchema).min(1, 'Debe incluir al menos un item'),
   payments: z.array(paymentSchema).default([]), // Puede estar vacio si total <= 0
   notes: z.string().optional(),
+  cianboxTalonarioId: z.number().int().positive().optional(),
+  cianboxTalonarioFiscal: z.boolean().optional(),
 });
 
 const saleQuerySchema = z.object({
@@ -268,6 +270,8 @@ router.post(
             total,
             status: 'COMPLETED',
             notes: data.notes,
+            cianboxTalonarioId: data.cianboxTalonarioId,
+            cianboxTalonarioFiscal: data.cianboxTalonarioFiscal,
             items: {
               create: itemsWithCalculations.map((item) => {
                 // Calcular precio neto si no viene del frontend

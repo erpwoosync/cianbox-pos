@@ -26,7 +26,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, cianboxService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useIndexedDB } from '../hooks/useIndexedDB';
 import { STORES } from '../services/indexedDB';
@@ -229,6 +229,8 @@ interface SaleData {
     installments?: number;
     giftCardCode?: string;
   }>;
+  cianboxTalonarioId?: number;
+  cianboxTalonarioFiscal?: boolean;
 }
 
 interface PendingSale {
@@ -382,6 +384,18 @@ export default function POS() {
   const [isCalculatingPromotions, setIsCalculatingPromotions] = useState(false);
   const lastCalculatedCartKeyRef = useRef<string>('');
 
+  // Comprobante fiscal
+  const [receiptMode, setReceiptMode] = useState<'NDP' | 'FACTURA'>('NDP');
+  const [cianboxTalonarios, setCianboxTalonarios] = useState<Array<{
+    id: number;
+    comprobante: string;
+    tipo: string;
+    talonario: string;
+    fiscal: boolean;
+    descripcion: string;
+  }>>([]);
+  const [selectedTalonarioId, setSelectedTalonarioId] = useState<number | null>(null);
+
   // Estado de facturación AFIP
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [completedSaleData, setCompletedSaleData] = useState<{
@@ -390,6 +404,42 @@ export default function POS() {
     total: number;
     customerName?: string;
   } | null>(null);
+
+  // Regla de negocio: si no es efectivo puro, forzar Factura
+  useEffect(() => {
+    if (!selectedPaymentMethod) return;
+
+    const isOnlyCash = selectedPaymentMethod === 'CASH'
+      && appliedGiftCards.length === 0
+      && appliedStoreCredits.length === 0;
+
+    if (!isOnlyCash) {
+      setReceiptMode('FACTURA');
+    }
+  }, [selectedPaymentMethod, appliedGiftCards, appliedStoreCredits]);
+
+  // Cargar talonarios cuando cambia a FACTURA o cambia el cliente
+  useEffect(() => {
+    if (receiptMode !== 'FACTURA') {
+      setSelectedTalonarioId(null);
+      setCianboxTalonarios([]);
+      return;
+    }
+    const loadTalonarios = async () => {
+      try {
+        const customerId = selectedCustomer?.id !== CONSUMIDOR_FINAL.id ? selectedCustomer?.id : undefined;
+        const talonarios = await cianboxService.getTalonarios(customerId);
+        const fiscales = talonarios.filter((t: any) => t.fiscal === true);
+        setCianboxTalonarios(fiscales);
+        if (fiscales.length >= 1) {
+          setSelectedTalonarioId(fiscales[0].id);
+        }
+      } catch {
+        setCianboxTalonarios([]);
+      }
+    };
+    loadTalonarios();
+  }, [receiptMode, selectedCustomer]);
 
   // Detectar cambios de estado online/offline
   useEffect(() => {
@@ -1454,6 +1504,9 @@ export default function POS() {
           isSurcharge: item.isSurcharge || false,
         })),
         payments: [paymentData],
+        // Comprobante Cianbox
+        cianboxTalonarioId: receiptMode === 'FACTURA' && selectedTalonarioId ? selectedTalonarioId : undefined,
+        cianboxTalonarioFiscal: receiptMode === 'FACTURA' ? true : undefined,
       };
 
       const response = await salesService.create(saleData);
@@ -1467,6 +1520,9 @@ export default function POS() {
         setAppliedGiftCards([]);
         setAppliedStoreCredits([]);
         setCardPaymentData(null);
+        setReceiptMode('NDP');
+        setSelectedTalonarioId(null);
+        setCianboxTalonarios([]);
         const mpType = isQR ? 'Mercado Pago QR' : 'Mercado Pago Point';
         alert(`Venta #${response.data.saleNumber} registrada correctamente con ${mpType}`);
 
@@ -1593,6 +1649,9 @@ export default function POS() {
           isSurcharge: item.isSurcharge || false,
         })),
         payments,
+        // Comprobante Cianbox
+        cianboxTalonarioId: receiptMode === 'FACTURA' && selectedTalonarioId ? selectedTalonarioId : undefined,
+        cianboxTalonarioFiscal: receiptMode === 'FACTURA' ? true : undefined,
       };
 
       // Si está offline, encolar la venta
@@ -1616,6 +1675,9 @@ export default function POS() {
         setAppliedGiftCards([]);
         setAppliedStoreCredits([]);
         setCardPaymentData(null);
+        setReceiptMode('NDP');
+        setSelectedTalonarioId(null);
+        setCianboxTalonarios([]);
         alert('Venta guardada. Se sincronizará cuando vuelva la conexión.');
         return;
       }
@@ -1633,6 +1695,9 @@ export default function POS() {
         setAppliedGiftCards([]);
         setAppliedStoreCredits([]);
         setCardPaymentData(null);
+        setReceiptMode('NDP');
+        setSelectedTalonarioId(null);
+        setCianboxTalonarios([]);
 
         // Mostrar modal de facturación con datos de la venta completada
         setCompletedSaleData({
@@ -1721,6 +1786,9 @@ export default function POS() {
         setAppliedGiftCards([]);
         setAppliedStoreCredits([]);
         setCardPaymentData(null);
+        setReceiptMode('NDP');
+        setSelectedTalonarioId(null);
+        setCianboxTalonarios([]);
         alert(`Cambio exacto procesado - Ticket #${response.data.saleNumber}`);
         loadCashSession();
       }
@@ -2638,6 +2706,52 @@ export default function POS() {
                       Aún quedan ${amountToPay.toFixed(2)} pendientes de cubrir
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* Selector de comprobante */}
+              {selectedPaymentMethod && (
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Comprobante</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReceiptMode('NDP')}
+                      disabled={selectedPaymentMethod !== 'CASH' || appliedGiftCards.length > 0 || appliedStoreCredits.length > 0}
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                        receiptMode === 'NDP'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white border border-gray-300 text-gray-700'
+                      } ${(selectedPaymentMethod !== 'CASH' || appliedGiftCards.length > 0 || appliedStoreCredits.length > 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      Nota de Pedido
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReceiptMode('FACTURA')}
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                        receiptMode === 'FACTURA'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-white border border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      Factura
+                    </button>
+                  </div>
+                  {receiptMode === 'FACTURA' && cianboxTalonarios.length > 1 && (
+                    <select
+                      value={selectedTalonarioId ?? ''}
+                      onChange={(e) => setSelectedTalonarioId(Number(e.target.value))}
+                      className="mt-2 w-full px-3 py-2 border rounded-lg text-sm"
+                    >
+                      {cianboxTalonarios.map((t) => (
+                        <option key={t.id} value={t.id}>{t.descripcion}</option>
+                      ))}
+                    </select>
+                  )}
+                  {receiptMode === 'FACTURA' && cianboxTalonarios.length === 1 && (
+                    <p className="mt-2 text-xs text-green-700 font-medium">{cianboxTalonarios[0].descripcion}</p>
+                  )}
                 </div>
               )}
 

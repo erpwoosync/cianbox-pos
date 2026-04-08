@@ -78,18 +78,34 @@ export class CianboxSaleService {
     // Filtrar items de recargo financiero
     const productItems = sale.items.filter((item) => !item.isSurcharge);
 
+    // ID punto de venta / talonario Cianbox
+    const idPuntoVenta = (sale as any).cianboxTalonarioId ?? sale.pointOfSale?.cianboxPointOfSaleId ?? 0;
+
     // Mapear productos al formato Cianbox
-    // neto_uni = precio unitario final (con IVA y descuento incluidos)
+    // Si es factura fiscal: neto_uni sin IVA para que Cianbox discrimine
+    // Si es NDP: precio final con IVA incluido
+    const isFiscal = (sale as any).cianboxTalonarioFiscal === true;
+
     const productos = productItems.map((item) => {
       const qty = Number(item.quantity);
       const subtotal = Number(item.subtotal); // unitPrice * qty - discount (IVA incluido)
-      const netoUni = qty !== 0 ? subtotal / qty : 0;
+      const alicuota = Number(item.taxRate);
+
+      let netoUni: number;
+      if (isFiscal) {
+        // Factura: extraer IVA del precio para obtener neto
+        const unitarioConIva = qty !== 0 ? subtotal / qty : 0;
+        netoUni = unitarioConIva / (1 + alicuota / 100);
+      } else {
+        // NDP: precio final con IVA incluido
+        netoUni = qty !== 0 ? subtotal / qty : 0;
+      }
 
       return {
         id: item.product?.cianboxProductId ?? 0,
         cantidad: qty,
         neto_uni: Math.round(netoUni * 100) / 100,
-        alicuota: Number(item.taxRate),
+        alicuota,
       };
     });
 
@@ -105,16 +121,13 @@ export class CianboxSaleService {
     // ID de sucursal Cianbox
     const idSucursal = sale.branch?.cianboxBranchId ?? 0;
 
-    // ID punto de venta / talonario Cianbox
-    const idTalonario = sale.pointOfSale?.cianboxPointOfSaleId ?? 0;
-
     const payload: Record<string, unknown> = {
       fecha,
       origen: { tipo: 'directa' },
       id_cliente: idCliente,
       id_canal_venta: connection.defaultChannelId,
       forma_pago,
-      id_punto_venta: idTalonario,
+      id_punto_venta: idPuntoVenta,
       id_moneda: connection.defaultCurrencyId,
       cotizacion: 1,
       observaciones: sale.notes || '',

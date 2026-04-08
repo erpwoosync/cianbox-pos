@@ -875,6 +875,8 @@ model Sale {
   cianboxSyncStatus  CianboxSyncStatus?  // null = no enviada, PENDING = enviando, SYNCED = ok, FAILED = error
   cianboxInvoiceUrl  String?              // URL del PDF de factura
   cianboxError       String?              // Ultimo error de sync
+  cianboxTalonarioId     Int?        // ID del talonario Cianbox usado (override del default)
+  cianboxTalonarioFiscal Boolean?    // true si el talonario es fiscal (factura)
   originalSaleId  String?     // ID de venta original (para devoluciones)
   notes           String?
   metadata        Json        @default("{}")

@@ -353,6 +353,12 @@ export const cianboxService = {
     const response = await api.get('/cianbox/sync/status');
     return response.data;
   },
+
+  getTalonarios: async (customerId?: string) => {
+    const params = customerId ? `?customerId=${customerId}` : '';
+    const response = await api.get(`/cianbox/talonarios${params}`);
+    return response.data.data;
+  },
 };
 
 // Tipos de sucursales

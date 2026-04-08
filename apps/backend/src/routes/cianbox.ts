@@ -584,6 +584,36 @@ router.get(
   }
 );
 
+// Talonarios de venta disponibles segun cliente
+router.get(
+  '/talonarios',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const { customerId } = req.query;
+
+      const service = await CianboxService.forTenant(tenantId);
+
+      // Si viene customerId del POS, buscar su cianboxCustomerId
+      let cianboxClientId: number | undefined;
+      if (customerId && typeof customerId === 'string') {
+        const customer = await prisma.customer.findFirst({
+          where: { id: customerId, tenantId },
+          select: { cianboxCustomerId: true },
+        });
+        cianboxClientId = customer?.cianboxCustomerId ?? undefined;
+      }
+
+      const talonarios = await service.fetchTalonariosByClient(cianboxClientId);
+
+      res.json({ success: true, data: talonarios });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // =============================================
 // SYNC DE VENTAS
 // =============================================
