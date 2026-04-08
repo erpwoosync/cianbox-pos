@@ -102,6 +102,10 @@ interface Sale {
   items?: SaleItem[];
   payments?: Payment[];
   afipInvoices?: Invoice[];
+  cianboxSaleId?: number | null;
+  cianboxSyncStatus?: 'PENDING' | 'SYNCED' | 'FAILED' | null;
+  cianboxTalonarioFiscal?: boolean | null;
+  cianboxInvoiceUrl?: string | null;
 }
 
 interface SalesHistoryModalProps {
@@ -676,8 +680,23 @@ export default function SalesHistoryModal({
                                   <FileText className="w-3 h-3" />
                                   Facturada
                                 </span>
+                              ) : sale.cianboxSyncStatus === 'SYNCED' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                  <CheckCircle className="w-3 h-3" />
+                                  {sale.cianboxTalonarioFiscal ? 'Factura' : 'NDP'}
+                                </span>
+                              ) : sale.cianboxSyncStatus === 'PENDING' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                                  <Clock className="w-3 h-3" />
+                                  Enviando
+                                </span>
+                              ) : sale.cianboxSyncStatus === 'FAILED' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Error
+                                </span>
                               ) : (
-                                <span className="text-gray-400 text-xs">Sin factura</span>
+                                <span className="text-gray-400 text-xs">&mdash;</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-center">
@@ -901,6 +920,14 @@ export default function SalesHistoryModal({
                               )}
                             </button>
                           </div>
+                          {selectedSale?.cianboxSaleId && (
+                            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                              <p className="font-semibold text-green-800">Comprobante Cianbox #{selectedSale.cianboxSaleId}</p>
+                              <p className="text-sm text-green-600 mt-1">
+                                {selectedSale.cianboxTalonarioFiscal ? 'Factura fiscal' : 'Nota de Pedido'} — Sincronizado
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
