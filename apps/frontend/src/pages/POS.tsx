@@ -41,7 +41,6 @@ import SizeCurveModal from '../components/SizeCurveModal';
 import ProductSearchModal from '../components/ProductSearchModal';
 import TalleSelectorModal from '../components/TalleSelectorModal';
 import CustomerSelectorModal from '../components/CustomerSelectorModal';
-import InvoiceModal from '../components/InvoiceModal';
 import SalesHistoryModal from '../components/SalesHistoryModal';
 import ProductRefundModal from '../components/ProductRefundModal';
 import StoreCreditModal from '../components/StoreCreditModal';
@@ -395,15 +394,6 @@ export default function POS() {
     descripcion: string;
   }>>([]);
   const [selectedTalonarioId, setSelectedTalonarioId] = useState<number | null>(null);
-
-  // Estado de facturación AFIP
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [completedSaleData, setCompletedSaleData] = useState<{
-    id: string;
-    saleNumber: string;
-    total: number;
-    customerName?: string;
-  } | null>(null);
 
   // Regla de negocio: si no es efectivo puro, forzar Factura
   useEffect(() => {
@@ -1699,15 +1689,6 @@ export default function POS() {
         setSelectedTalonarioId(null);
         setCianboxTalonarios([]);
 
-        // Mostrar modal de facturación con datos de la venta completada
-        setCompletedSaleData({
-          id: response.data.id,
-          saleNumber: response.data.saleNumber,
-          total: total,
-          customerName: selectedCustomer?.name,
-        });
-        setShowInvoiceModal(true);
-
         // Refrescar datos de la sesión de caja
         loadCashSession();
 
@@ -2916,20 +2897,7 @@ export default function POS() {
         />
       )}
 
-      {/* Modal de facturación AFIP */}
-      {completedSaleData && (
-        <InvoiceModal
-          isOpen={showInvoiceModal}
-          onClose={() => {
-            setShowInvoiceModal(false);
-            setCompletedSaleData(null);
-          }}
-          saleId={completedSaleData.id}
-          saleNumber={completedSaleData.saleNumber}
-          total={completedSaleData.total}
-          customerName={completedSaleData.customerName}
-        />
-      )}
+      {/* Modal de facturación AFIP - removido: la selección de comprobante se hace antes de confirmar */}
 
       {/* Modal historial de ventas */}
       <SalesHistoryModal
