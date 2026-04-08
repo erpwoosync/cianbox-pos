@@ -25,6 +25,7 @@ import {
   ExternalLink,
   Printer,
   Ticket,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -175,6 +176,12 @@ interface Sale {
     total: number;
     createdAt: string;
   }>;
+  // Cianbox sync
+  cianboxSaleId?: number | null;
+  cianboxSyncStatus?: 'PENDING' | 'SYNCED' | 'FAILED' | null;
+  cianboxTalonarioFiscal?: boolean | null;
+  cianboxInvoiceUrl?: string | null;
+  cianboxError?: string | null;
   // Facturas AFIP
   afipInvoices?: Array<{
     id: string;
@@ -978,6 +985,53 @@ export default function SaleDetail() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Comprobante Cianbox */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="px-4 py-3 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Comprobante Cianbox</h2>
+          </div>
+        </div>
+        <div className="p-4">
+          {sale.cianboxSyncStatus === 'SYNCED' && sale.cianboxSaleId ? (
+            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span className="font-semibold text-green-800">
+                    {sale.cianboxTalonarioFiscal ? 'Factura Fiscal' : 'Nota de Pedido'}
+                  </span>
+                </div>
+                <p className="text-sm text-green-600 mt-1">
+                  Venta Cianbox #{sale.cianboxSaleId} — Sincronizado
+                </p>
+              </div>
+            </div>
+          ) : sale.cianboxSyncStatus === 'PENDING' ? (
+            <div className="flex items-center gap-2 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <Clock className="w-5 h-5 text-yellow-600" />
+              <div>
+                <p className="font-semibold text-yellow-800">Enviando a Cianbox...</p>
+                <p className="text-sm text-yellow-600">El comprobante se está procesando</p>
+              </div>
+            </div>
+          ) : sale.cianboxSyncStatus === 'FAILED' ? (
+            <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div>
+                <p className="font-semibold text-red-800">Error al sincronizar</p>
+                <p className="text-sm text-red-600">{sale.cianboxError || 'No se pudo enviar a Cianbox'}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <p className="text-sm text-gray-500">Sin comprobante emitido en Cianbox</p>
+            </div>
+          )}
         </div>
       </div>
 
