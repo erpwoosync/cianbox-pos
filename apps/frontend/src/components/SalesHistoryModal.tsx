@@ -20,7 +20,6 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { salesService } from '../services/api';
-import api from '../services/api';
 import RefundModal from './RefundModal';
 
 interface SaleItem {
@@ -158,8 +157,6 @@ export default function SalesHistoryModal({
     return today.toISOString().split('T')[0];
   });
   const [searchQuery, setSearchQuery] = useState('');
-  const [isInvoicing, setIsInvoicing] = useState(false);
-  const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [showRefundModal, setShowRefundModal] = useState(false);
 
   // Cargar ventas
@@ -174,7 +171,7 @@ export default function SalesHistoryModal({
     if (!isOpen) {
       setSelectedSale(null);
       setSearchQuery('');
-      setInvoiceError(null);
+
     }
   }, [isOpen]);
 
@@ -217,7 +214,6 @@ export default function SalesHistoryModal({
 
   const handleBack = () => {
     setSelectedSale(null);
-    setInvoiceError(null);
   };
 
   // Filtrar ventas por búsqueda
@@ -230,31 +226,6 @@ export default function SalesHistoryModal({
       sale.total.toString().includes(query)
     );
   });
-
-  // Emitir factura
-  const handleInvoice = async () => {
-    if (!selectedSale) return;
-
-    setIsInvoicing(true);
-    setInvoiceError(null);
-
-    try {
-      const response = await api.post('/afip/invoices/from-sale', {
-        saleId: selectedSale.id,
-        receiverName: selectedSale.customer?.name,
-      });
-
-      if (response.data.success) {
-        // Recargar detalle para obtener la factura
-        await loadSaleDetail(selectedSale.id);
-      }
-    } catch (err: any) {
-      console.error('Error al facturar:', err);
-      setInvoiceError(err.response?.data?.error || 'Error al emitir factura');
-    } finally {
-      setIsInvoicing(false);
-    }
-  };
 
   // Formatear fecha
   const formatDate = (dateStr: string) => {
@@ -889,43 +860,26 @@ export default function SalesHistoryModal({
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          {invoiceError && (
-                            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                              <p className="text-sm text-red-700">{invoiceError}</p>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                            <div>
-                              <p className="font-semibold text-amber-800">Sin factura emitida</p>
-                              <p className="text-sm text-amber-600">
-                                Esta venta no tiene factura electrónica
-                              </p>
-                            </div>
-                            <button
-                              onClick={handleInvoice}
-                              disabled={isInvoicing || selectedSale.status === 'CANCELLED'}
-                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-                            >
-                              {isInvoicing ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Emitiendo...
-                                </>
-                              ) : (
-                                <>
-                                  <FileText className="w-4 h-4" />
-                                  Facturar
-                                </>
-                              )}
-                            </button>
-                          </div>
-                          {selectedSale?.cianboxSaleId && (
+                          {selectedSale?.cianboxSaleId ? (
                             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                               <p className="font-semibold text-green-800">Comprobante Cianbox #{selectedSale.cianboxSaleId}</p>
                               <p className="text-sm text-green-600 mt-1">
                                 {selectedSale.cianboxTalonarioFiscal ? 'Factura fiscal' : 'Nota de Pedido'} — Sincronizado
                               </p>
+                            </div>
+                          ) : selectedSale?.cianboxSyncStatus === 'PENDING' ? (
+                            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <p className="font-semibold text-yellow-800">Enviando a Cianbox...</p>
+                              <p className="text-sm text-yellow-600 mt-1">El comprobante se está procesando</p>
+                            </div>
+                          ) : selectedSale?.cianboxSyncStatus === 'FAILED' ? (
+                            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                              <p className="font-semibold text-red-800">Error al sincronizar</p>
+                              <p className="text-sm text-red-600 mt-1">No se pudo enviar el comprobante a Cianbox</p>
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                              <p className="text-sm text-gray-500">Sin comprobante emitido</p>
                             </div>
                           )}
                         </div>
