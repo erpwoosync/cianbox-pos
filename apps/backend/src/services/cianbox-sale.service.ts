@@ -82,30 +82,18 @@ export class CianboxSaleService {
     const idPuntoVenta = (sale as any).cianboxTalonarioId ?? sale.pointOfSale?.cianboxPointOfSaleId ?? 0;
 
     // Mapear productos al formato Cianbox
-    // Si es factura fiscal: neto_uni sin IVA para que Cianbox discrimine
-    // Si es NDP: precio final con IVA incluido
-    const isFiscal = (sale as any).cianboxTalonarioFiscal === true;
-
+    // neto_uni = precio unitario final (con IVA y descuento incluidos)
+    // Cianbox discrimina el IVA internamente tanto para NDP como Factura
     const productos = productItems.map((item) => {
       const qty = Number(item.quantity);
       const subtotal = Number(item.subtotal); // unitPrice * qty - discount (IVA incluido)
-      const alicuota = Number(item.taxRate);
-
-      let netoUni: number;
-      if (isFiscal) {
-        // Factura: extraer IVA del precio para obtener neto
-        const unitarioConIva = qty !== 0 ? subtotal / qty : 0;
-        netoUni = unitarioConIva / (1 + alicuota / 100);
-      } else {
-        // NDP: precio final con IVA incluido
-        netoUni = qty !== 0 ? subtotal / qty : 0;
-      }
+      const netoUni = qty !== 0 ? subtotal / qty : 0;
 
       return {
         id: item.product?.cianboxProductId ?? 0,
         cantidad: qty,
         neto_uni: Math.round(netoUni * 100) / 100,
-        alicuota,
+        alicuota: Number(item.taxRate),
       };
     });
 
