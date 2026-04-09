@@ -39,21 +39,61 @@ export function useQzPrinter() {
     return mod.default || mod;
   }, []);
 
-  // Configure QZ Tray security with our own certificate
+  // Import private key for signing QZ Tray requests
+  const privateKeyRef = useRef<CryptoKey | null>(null);
+
+  const loadPrivateKey = useCallback(async (): Promise<CryptoKey | null> => {
+    if (privateKeyRef.current) return privateKeyRef.current;
+    try {
+      const res = await fetch('/qz/private-key.pem', { cache: 'no-store' });
+      if (!res.ok) return null;
+      const pem = await res.text();
+      const pemBody = pem.replace(/-----BEGIN PRIVATE KEY-----/, '').replace(/-----END PRIVATE KEY-----/, '').replace(/\s/g, '');
+      const binaryDer = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
+      const key = await crypto.subtle.importKey(
+        'pkcs8', binaryDer.buffer,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-512' },
+        false, ['sign']
+      );
+      privateKeyRef.current = key;
+      return key;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Configure QZ Tray security with our own certificate + signature
   const setupSecurity = useCallback(async () => {
     const qz = await getQz();
+    const privateKey = await loadPrivateKey();
+
     qz.security.setCertificatePromise(function(resolve: Function, reject: Function) {
       fetch('/qz/digital-certificate.pem', { cache: 'no-store' })
         .then((res: Response) => res.ok ? res.text().then((t: string) => resolve(t)) : reject('No se pudo cargar el certificado'))
-        .catch(() => resolve()); // Fallback anónimo si no existe el archivo
+        .catch(() => resolve());
     });
+
     qz.security.setSignatureAlgorithm("SHA512");
-    qz.security.setSignaturePromise(function() {
-      return function(resolve: Function) {
-        resolve(); // Sin firma — requiere que el cert esté cargado como trusted en QZ Tray
-      };
-    });
-  }, [getQz]);
+
+    if (privateKey) {
+      qz.security.setSignaturePromise(function(toSign: string) {
+        return function(resolve: Function, reject: Function) {
+          const enc = new TextEncoder();
+          crypto.subtle.sign('RSASSA-PKCS1-v1_5', privateKey, enc.encode(toSign))
+            .then((sig: ArrayBuffer) => {
+              const b64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
+              resolve(b64);
+            })
+            .catch((err: Error) => reject(err));
+        };
+      });
+    } else {
+      // Fallback sin firma
+      qz.security.setSignaturePromise(function() {
+        return function(resolve: Function) { resolve(); };
+      });
+    }
+  }, [getQz, loadPrivateKey]);
 
   const connect = useCallback(async () => {
     setConnecting(true);
