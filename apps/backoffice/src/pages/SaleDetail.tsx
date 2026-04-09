@@ -618,60 +618,38 @@ export default function SaleDetail() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">ID Cianbox</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Unit.</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Alícuota</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Descuento</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cant</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">P.Unit</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">IVA</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Desc</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {sale.items.map((item) => (
                 <tr key={item.id}>
-                  <td className="px-4 py-3">
-                    <div>
-                      <div className="font-medium text-gray-900">{item.productName}</div>
-                      {item.productCode && (
-                        <div className="text-xs text-gray-500">SKU: {item.productCode}</div>
-                      )}
-                      {item.promotionName && (
-                        <div className="text-xs text-green-600">
-                          <Package className="w-3 h-3 inline mr-1" />
-                          {item.promotionName}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="text-sm font-mono text-gray-700">
-                      {item.product?.cianboxProductId || '-'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-900">{item.quantity}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="text-sm font-semibold text-gray-900">
-                      {formatCurrency(item.unitPrice)}
-                    </div>
-                    {item.unitPriceNet && (
-                      <div className="text-xs text-gray-500">
-                        Neto: {formatCurrency(item.unitPriceNet)}
-                      </div>
+                  <td className="px-3 py-2">
+                    <span className="text-sm text-gray-900">{item.productName}</span>
+                    {item.product?.cianboxProductId && (
+                      <span className="ml-1 text-[10px] text-gray-400 font-mono">cbx:{item.product.cianboxProductId}</span>
+                    )}
+                    {item.promotionName && (
+                      <div className="text-[10px] text-green-600">{item.promotionName}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {item.taxRate}%
-                    </span>
+                  <td className="px-3 py-2 text-center text-gray-900">{item.quantity}</td>
+                  <td className="px-3 py-2 text-right text-gray-900">{formatCurrency(item.unitPrice)}</td>
+                  <td className="px-3 py-2 text-center">
+                    <span className="text-xs text-gray-500">{item.taxRate}%</span>
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-900">
+                  <td className="px-3 py-2 text-right text-gray-900">
                     {item.discount > 0 ? formatCurrency(item.discount) : '-'}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                  <td className="px-3 py-2 text-right font-medium text-gray-900">
                     {formatCurrency(item.subtotal)}
                   </td>
                 </tr>
