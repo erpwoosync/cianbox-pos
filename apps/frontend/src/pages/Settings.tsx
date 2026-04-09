@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { categoriesService } from '../services/api';
 import { useAuthStore } from '../context/authStore';
+import { useQzPrinter } from '../hooks/useQzPrinter';
 
 type TabId = 'general' | 'cianbox' | 'pos' | 'notifications';
 
@@ -30,6 +31,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [isSaving, setIsSaving] = useState(false);
   const [quickAccessCategories, setQuickAccessCategories] = useState<QuickAccessCategory[]>([]);
+  const { connected: qzConnected, connecting: qzConnecting, printers: qzPrinters, selectedPrinter, error: qzError, connect: qzConnect, selectPrinter } = useQzPrinter();
 
   useEffect(() => {
     loadQuickAccessCategories();
@@ -338,12 +340,58 @@ export default function Settings() {
                   <Printer className="w-5 h-5" />
                   Impresoras
                 </h3>
-                <div className="bg-gray-50 border rounded-lg p-4 text-center text-gray-500">
-                  <Printer className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No hay impresoras configuradas</p>
-                  <button className="mt-2 btn btn-secondary btn-sm">
-                    Agregar impresora
-                  </button>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${qzConnected ? 'bg-green-500' : 'bg-red-400'}`} />
+                      <span className="text-sm text-gray-600">
+                        QZ Tray: {qzConnected ? 'Conectado' : 'Desconectado'}
+                      </span>
+                    </div>
+                    {!qzConnected && (
+                      <button
+                        onClick={qzConnect}
+                        disabled={qzConnecting}
+                        className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {qzConnecting ? 'Conectando...' : 'Conectar'}
+                      </button>
+                    )}
+                  </div>
+                  {qzError && (
+                    <p className="text-sm text-red-600">{qzError}</p>
+                  )}
+                  {qzConnected && qzPrinters.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Impresora de tickets</label>
+                      <select
+                        value={selectedPrinter || ''}
+                        onChange={(e) => selectPrinter(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                      >
+                        <option value="">Seleccionar impresora...</option>
+                        {qzPrinters.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        La impresora seleccionada se guardará para este navegador
+                      </p>
+                    </div>
+                  )}
+                  {qzConnected && qzPrinters.length === 0 && (
+                    <p className="text-sm text-gray-500">No se encontraron impresoras</p>
+                  )}
+                  {!qzConnected && !qzError && (
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600">
+                        Para impresión directa, instalá <strong>QZ Tray</strong> en esta computadora.
+                      </p>
+                      <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
+                        Descargar QZ Tray
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

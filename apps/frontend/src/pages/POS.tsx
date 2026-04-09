@@ -51,6 +51,8 @@ import StoreCreditPaymentSection, { AppliedStoreCredit } from '../components/Sto
 import CashRequiredOverlay from '../components/CashRequiredOverlay';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 import { offlineSyncService } from '../services/offlineSync';
+import { useQzPrinter } from '../hooks/useQzPrinter';
+import { generateReceiptCommands, ReceiptData } from '../services/receipt-printer';
 
 interface Product {
   id: string;
@@ -400,6 +402,9 @@ export default function POS() {
   const [invoicePolling, setInvoicePolling] = useState<{ saleId: string; saleNumber: string; isFiscal: boolean; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> } | null>(null);
   const [invoiceReady, setInvoiceReady] = useState<{ saleNumber: string; url: string } | null>(null);
 
+  // QZ Tray - impresión directa por ESC/POS
+  const { connected: qzConnected, selectedPrinter, printRaw } = useQzPrinter();
+
   // Regla de negocio: si no es efectivo puro, forzar Factura
   useEffect(() => {
     if (!selectedPaymentMethod) return;
@@ -439,7 +444,33 @@ export default function POS() {
   // Polling de factura PDF cuando se inicia
   // Generar ticket local para NDP (fallback cuando Cianbox no tiene PDF)
   // Ticket local para comanderas de 80mm (aprox 48 caracteres por línea)
-  const printLocalReceipt = (data: { saleNumber: string; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> }) => {
+  const printLocalReceipt = async (data: { saleNumber: string; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> }) => {
+    // Try QZ Tray direct printing first
+    if (qzConnected && selectedPrinter) {
+      try {
+        const receiptData: ReceiptData = {
+          saleNumber: data.saleNumber,
+          customerName: data.customerName,
+          items: (data.items || []).map(i => ({
+            name: i.name,
+            quantity: i.qty,
+            unitPrice: i.price,
+            discount: i.discount,
+            subtotal: i.subtotal,
+          })),
+          subtotal: data.items?.reduce((s, i) => s + i.price * i.qty, 0) || data.total,
+          discount: data.items?.reduce((s, i) => s + i.discount, 0) || 0,
+          total: data.total,
+        };
+        const cmds = generateReceiptCommands(receiptData);
+        await printRaw(cmds);
+        return; // Printed successfully via QZ Tray
+      } catch (err) {
+        console.error('[QZ Tray] Error printing, falling back to browser:', err);
+      }
+    }
+
+    // Fallback: browser window.print() for 80mm
     const now = new Date();
     const fecha = now.toLocaleDateString('es-AR') + ' ' + now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -526,7 +557,7 @@ export default function POS() {
 
         // Fallback local para NDP después de 10 segundos
         if (attempts >= localFallbackAttempt && !invoicePolling.isFiscal) {
-          printLocalReceipt(invoicePolling);
+          printLocalReceipt(invoicePolling).catch(() => {});
           setInvoicePolling(null);
           return;
         }
