@@ -2,10 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
-  Calendar,
-  User,
-  Store,
-  Monitor,
   ShoppingCart,
   DollarSign,
   CheckCircle,
@@ -593,74 +589,32 @@ export default function SaleDetail() {
         </div>
       )}
 
-      {/* Información general */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-white rounded-lg shadow-sm border p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <span className="text-xs font-medium text-gray-500">Fecha</span>
-          </div>
-          <p className="text-sm font-semibold text-gray-900">{formatDate(sale.saleDate)}</p>
+      {/* Información general - inline */}
+      <div className="bg-white rounded-lg shadow-sm border px-4 py-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          <span className="text-gray-500">Fecha: <span className="font-medium text-gray-900">{formatDate(sale.saleDate)}</span></span>
+          <span className="text-gray-500">Sucursal: <span className="font-medium text-gray-900">{sale.branch.name}</span></span>
+          <span className="text-gray-500">PdV: <span className="font-medium text-gray-900">{sale.pointOfSale.name}</span></span>
+          <span className="text-gray-500">Cajero: <span className="font-medium text-gray-900">{sale.user.name}</span></span>
+          {sale.customer && (
+            <span className="text-gray-500">Cliente: <span className="font-medium text-gray-900">{sale.customer.name}</span></span>
+          )}
+          {sale.cashSession && (
+            <span className="text-gray-500">Sesión: <button onClick={() => navigate(`/cash-sessions/${sale.cashSession!.id}`)} className="font-medium text-blue-600 hover:underline">#{sale.cashSession.sessionNumber}</button></span>
+          )}
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Store className="w-4 h-4 text-gray-400" />
-            <span className="text-xs font-medium text-gray-500">Sucursal</span>
-          </div>
-          <p className="text-sm font-semibold text-gray-900">{sale.branch.name}</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Monitor className="w-4 h-4 text-gray-400" />
-            <span className="text-xs font-medium text-gray-500">Punto de Venta</span>
-          </div>
-          <p className="text-sm font-semibold text-gray-900">{sale.pointOfSale.name}</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <User className="w-4 h-4 text-gray-400" />
-            <span className="text-xs font-medium text-gray-500">Cajero</span>
-          </div>
-          <p className="text-sm font-semibold text-gray-900">{sale.user.name}</p>
-        </div>
-
-        {sale.customer && (
-          <div className="bg-white rounded-lg shadow-sm border p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <User className="w-4 h-4 text-gray-400" />
-              <span className="text-xs font-medium text-gray-500">Cliente</span>
-            </div>
-            <p className="text-sm font-semibold text-gray-900">{sale.customer.name}</p>
-          </div>
-        )}
-
-        {sale.cashSession && (
-          <div className="bg-white rounded-lg shadow-sm border p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Banknote className="w-4 h-4 text-green-600" />
-              <span className="text-xs font-medium text-gray-500">Sesión de Caja</span>
-            </div>
-            <p className="text-sm font-semibold text-gray-900">#{sale.cashSession.sessionNumber}</p>
-            <button
-              onClick={() => navigate(`/cash-sessions/${sale.cashSession!.id}`)}
-              className="text-xs text-blue-600 hover:underline mt-1"
-            >
-              Ver sesión
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Items de venta */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gray-50">
+      {/* Layout 2 columnas: Items | Pagos+Resumen+Cianbox */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+      {/* Items de venta - 3/5 del ancho */}
+      <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="px-3 py-2 border-b bg-gray-50">
           <div className="flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-gray-600" />
-            <h2 className="text-sm font-semibold text-gray-900">Items de Venta</h2>
-            <span className="text-sm text-gray-500">({sale.items.length} productos)</span>
+            <ShoppingCart className="w-4 h-4 text-gray-600" />
+            <h2 className="text-sm font-semibold text-gray-900">Items</h2>
+            <span className="text-xs text-gray-500">({sale.items.length})</span>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -727,13 +681,14 @@ export default function SaleDetail() {
         </div>
       </div>
 
-      {/* Totales y Pagos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Columna derecha: Pagos + Resumen + Cianbox - 2/5 del ancho */}
+      <div className="lg:col-span-2 space-y-4">
+
         {/* Pagos */}
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="px-4 py-3 border-b bg-gray-50">
+          <div className="px-3 py-2 border-b bg-gray-50">
             <div className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-gray-600" />
+              <CreditCard className="w-4 h-4 text-gray-600" />
               <h2 className="text-sm font-semibold text-gray-900">Pagos</h2>
             </div>
           </div>
@@ -941,13 +896,13 @@ export default function SaleDetail() {
 
         {/* Resumen de totales */}
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="px-4 py-3 border-b bg-gray-50">
+          <div className="px-3 py-2 border-b bg-gray-50">
             <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-gray-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Resumen</h2>
+              <DollarSign className="w-4 h-4 text-gray-600" />
+              <h2 className="text-sm font-semibold text-gray-900">Resumen</h2>
             </div>
           </div>
-          <div className="p-4 space-y-3">
+          <div className="p-3 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Subtotal</span>
               <span className="font-medium text-gray-900">{formatCurrency(sale.subtotal)}</span>
@@ -962,62 +917,52 @@ export default function SaleDetail() {
               <span className="text-gray-600">IVA</span>
               <span className="font-medium text-gray-900">{formatCurrency(sale.tax)}</span>
             </div>
-            <div className="pt-3 border-t">
-              <div className="flex justify-between">
-                <span className="text-lg font-semibold text-gray-900">Total</span>
-                <span className="text-2xl font-bold text-gray-900">{formatCurrency(sale.total)}</span>
+            <div className="pt-2 border-t">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-gray-900">Total</span>
+                <span className="text-lg font-bold text-gray-900">{formatCurrency(sale.total)}</span>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
       {/* Comprobante Cianbox */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="px-3 py-2 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-600" />
-            <h2 className="text-sm font-semibold text-gray-900">Comprobante Cianbox</h2>
+            <FileText className="w-4 h-4 text-blue-600" />
+            <h2 className="text-sm font-semibold text-gray-900">Cianbox</h2>
           </div>
         </div>
-        <div className="p-4">
+        <div className="p-3">
           {sale.cianboxSyncStatus === 'SYNCED' && sale.cianboxSaleId ? (
-            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                  <span className="font-semibold text-green-800">
-                    {sale.cianboxTalonarioFiscal ? 'Factura Fiscal' : 'Nota de Pedido'}
-                  </span>
-                </div>
-                <p className="text-sm text-green-600 mt-1">
-                  Venta Cianbox #{sale.cianboxSaleId} — Sincronizado
-                </p>
+            <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <div className="text-sm">
+                <span className="font-medium text-green-800">
+                  {sale.cianboxTalonarioFiscal ? 'Factura' : 'NDP'}
+                </span>
+                <span className="text-green-600"> #{sale.cianboxSaleId}</span>
               </div>
             </div>
           ) : sale.cianboxSyncStatus === 'PENDING' ? (
-            <div className="flex items-center gap-2 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <Clock className="w-5 h-5 text-yellow-600" />
-              <div>
-                <p className="font-semibold text-yellow-800">Enviando a Cianbox...</p>
-                <p className="text-sm text-yellow-600">El comprobante se está procesando</p>
-              </div>
+            <div className="flex items-center gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <Clock className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+              <span className="text-sm font-medium text-yellow-800">Enviando...</span>
             </div>
           ) : sale.cianboxSyncStatus === 'FAILED' ? (
-            <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
-              <div>
-                <p className="font-semibold text-red-800">Error al sincronizar</p>
-                <p className="text-sm text-red-600">{sale.cianboxError || 'No se pudo enviar a Cianbox'}</p>
-              </div>
+            <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+              <span className="text-sm text-red-700">{sale.cianboxError || 'Error de sync'}</span>
             </div>
           ) : (
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <p className="text-sm text-gray-500">Sin comprobante emitido en Cianbox</p>
-            </div>
+            <p className="text-xs text-gray-400 p-2">Sin comprobante</p>
           )}
         </div>
       </div>
+
+      </div>{/* Cierre columna derecha */}
+      </div>{/* Cierre grid 2 columnas */}
 
       {/* Facturas Electrónicas AFIP */}
       {sale.afipInvoices && sale.afipInvoices.length > 0 && (
