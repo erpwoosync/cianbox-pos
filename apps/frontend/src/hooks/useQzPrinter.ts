@@ -151,6 +151,30 @@ export function useQzPrinter() {
     await qz.print(config, data);
   }, [getQz, selectedPrinter]);
 
+  const printHtml = useCallback(async (html: string, printerName?: string) => {
+    const qz = await getQz();
+    if (!qz.websocket.isActive()) {
+      throw new Error('QZ Tray no está conectado');
+    }
+    const printer = printerName || selectedPrinter;
+    if (!printer) {
+      throw new Error('No hay impresora seleccionada');
+    }
+    const config = qz.configs.create(printer, {
+      size: { width: 80, height: 297 },
+      units: 'mm',
+      margins: { top: 2, right: 2, bottom: 2, left: 2 },
+      colorType: 'grayscale',
+      scaleContent: true,
+    });
+    await qz.print(config, [{
+      type: 'pixel',
+      format: 'html',
+      flavor: 'plain',
+      data: html,
+    }]);
+  }, [getQz, selectedPrinter]);
+
   // Check connection on mount
   useEffect(() => {
     if (initialized.current) return;
@@ -180,5 +204,6 @@ export function useQzPrinter() {
     disconnect,
     selectPrinter,
     printRaw,
+    printHtml,
   };
 }

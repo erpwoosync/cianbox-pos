@@ -52,7 +52,7 @@ import CashRequiredOverlay from '../components/CashRequiredOverlay';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 import { offlineSyncService } from '../services/offlineSync';
 import { useQzPrinter } from '../hooks/useQzPrinter';
-import { generateReceiptCommands, ReceiptData } from '../services/receipt-printer';
+// receipt-printer.ts disponible para ESC/POS si se necesita en el futuro
 
 interface Product {
   id: string;
@@ -402,8 +402,8 @@ export default function POS() {
   const [invoicePolling, setInvoicePolling] = useState<{ saleId: string; saleNumber: string; isFiscal: boolean; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> } | null>(null);
   const [invoiceReady, setInvoiceReady] = useState<{ saleNumber: string; url: string } | null>(null);
 
-  // QZ Tray - impresión directa por ESC/POS
-  const { connected: qzConnected, selectedPrinter, printRaw } = useQzPrinter();
+  // QZ Tray - impresión directa
+  const { connected: qzConnected, selectedPrinter, printHtml: qzPrintHtml } = useQzPrinter();
 
   // Regla de negocio: si no es efectivo puro, forzar Factura
   useEffect(() => {
@@ -442,88 +442,62 @@ export default function POS() {
   }, [receiptMode, selectedCustomer]);
 
   // Polling de factura PDF cuando se inicia
-  // Generar ticket local para NDP (fallback cuando Cianbox no tiene PDF)
-  // Ticket local para comanderas de 80mm (aprox 48 caracteres por línea)
-  const printLocalReceipt = async (data: { saleNumber: string; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> }) => {
-    // Try QZ Tray direct printing first
-    if (qzConnected && selectedPrinter) {
-      try {
-        const receiptData: ReceiptData = {
-          saleNumber: data.saleNumber,
-          customerName: data.customerName,
-          items: (data.items || []).map(i => ({
-            name: i.name,
-            quantity: i.qty,
-            unitPrice: i.price,
-            discount: i.discount,
-            subtotal: i.subtotal,
-          })),
-          subtotal: data.items?.reduce((s, i) => s + i.price * i.qty, 0) || data.total,
-          discount: data.items?.reduce((s, i) => s + i.discount, 0) || 0,
-          total: data.total,
-        };
-        const cmds = generateReceiptCommands(receiptData);
-        await printRaw(cmds);
-        return; // Printed successfully via QZ Tray
-      } catch (err) {
-        console.error('[QZ Tray] Error printing, falling back to browser:', err);
-      }
-    }
-
-    // Fallback: browser window.print() for 80mm
+  // Generar HTML de ticket para impresión
+  const buildReceiptHtml = (data: { saleNumber: string; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> }) => {
     const now = new Date();
     const fecha = now.toLocaleDateString('es-AR') + ' ' + now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const itemsHtml = (data.items || []).map(i => {
       const name = i.name.length > 32 ? i.name.substring(0, 32) : i.name;
-      return `<div class="item-name">${name}</div>
-        <div class="item-line">
+      return `<div style="font-weight:bold;margin-top:4px">${name}</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px">
           <span>${i.qty} x $${fmt(i.price)}</span>
-          ${i.discount > 0 ? `<span class="disc">-$${fmt(i.discount)}</span>` : ''}
-          <span class="item-total">$${fmt(i.subtotal)}</span>
+          ${i.discount > 0 ? `<span style="color:#c00;font-size:10px">-$${fmt(i.discount)}</span>` : ''}
+          <span style="font-weight:bold">$${fmt(i.subtotal)}</span>
         </div>`;
     }).join('');
+    return `<html><body style="font-family:'Courier New',monospace;font-size:12px;width:280px;padding:5px;line-height:1.3">
+  <div style="font-size:14px;font-weight:bold;text-align:center">NOTA DE PEDIDO</div>
+  <div style="font-size:10px;text-align:center;color:#666;margin-bottom:6px">Documento no fiscal</div>
+  <div style="border-top:1px dashed #000;margin:6px 0"></div>
+  <div style="font-size:11px"><strong>${data.saleNumber}</strong></div>
+  <div style="font-size:11px">${fecha}</div>
+  ${data.customerName ? `<div style="font-size:11px">Cliente: ${data.customerName}</div>` : ''}
+  <div style="border-top:1px dashed #000;margin:6px 0"></div>
+  ${itemsHtml}
+  <div style="border-top:2px solid #000;margin-top:8px;padding-top:6px">
+    ${data.items && data.items.some(i => i.discount > 0) ? `
+    <div style="display:flex;justify-content:space-between;font-size:11px"><span>Subtotal</span><span>$${fmt(data.items.reduce((s, i) => s + i.price * i.qty, 0))}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px"><span>Descuento</span><span style="color:#c00">-$${fmt(data.items.reduce((s, i) => s + i.discount, 0))}</span></div>
+    ` : ''}
+    <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:bold;margin-top:4px"><span>TOTAL</span><span>$${fmt(data.total)}</span></div>
+  </div>
+  <div style="border-top:1px dashed #000;margin:6px 0"></div>
+  <div style="text-align:center;font-size:10px;color:#666">Gracias por su compra</div>
+</body></html>`;
+  };
+
+  const printLocalReceipt = async (data: { saleNumber: string; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> }) => {
+    const html = buildReceiptHtml(data);
+
+    // QZ Tray: impresión directa sin diálogo
+    if (qzConnected && selectedPrinter) {
+      try {
+        await qzPrintHtml(html);
+        return;
+      } catch (err) {
+        console.error('[QZ Tray] Error printing, falling back to browser:', err);
+      }
+    }
+
+    // Fallback: window.print() con diálogo
     const w = window.open('', '_blank', 'width=350,height=600');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><title>Ticket</title>
-<style>
-  @page { margin: 0mm; padding: 0mm; size: 80mm 297mm; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 80mm; max-width: 80mm; font-family: 'Courier New', monospace; font-size: 12px; padding: 3mm; line-height: 1.3; }
-  .center { text-align: center; }
-  .title { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 2px; }
-  .subtitle { font-size: 10px; text-align: center; color: #666; margin-bottom: 6px; }
-  .sep { border-top: 1px dashed #000; margin: 6px 0; }
-  .info { font-size: 11px; margin-bottom: 2px; }
-  .item-name { font-size: 12px; font-weight: bold; margin-top: 4px; }
-  .item-line { display: flex; justify-content: space-between; font-size: 11px; }
-  .item-total { font-weight: bold; }
-  .disc { color: #c00; font-size: 10px; }
-  .total-section { border-top: 2px solid #000; margin-top: 8px; padding-top: 6px; }
-  .total-line { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
-  .grand-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 4px; }
-  .footer { text-align: center; font-size: 10px; color: #666; margin-top: 8px; }
-  @media print { html, body { width: 80mm; max-width: 80mm; padding: 2mm; } }
-</style></head><body>
-  <div class="title">NOTA DE PEDIDO</div>
-  <div class="subtitle">Documento no fiscal</div>
-  <div class="sep"></div>
-  <div class="info"><strong>${data.saleNumber}</strong></div>
-  <div class="info">${fecha}</div>
-  ${data.customerName ? `<div class="info">Cliente: ${data.customerName}</div>` : ''}
-  <div class="sep"></div>
-  ${itemsHtml}
-  <div class="total-section">
-    ${data.items && data.items.some(i => i.discount > 0) ? `
-    <div class="total-line"><span>Subtotal</span><span>$${fmt(data.items.reduce((s, i) => s + i.price * i.qty, 0))}</span></div>
-    <div class="total-line"><span>Descuento</span><span class="disc">-$${fmt(data.items.reduce((s, i) => s + i.discount, 0))}</span></div>
-    ` : ''}
-    <div class="grand-total"><span>TOTAL</span><span>$${fmt(data.total)}</span></div>
-  </div>
-  <div class="sep"></div>
-  <div class="footer">Gracias por su compra</div>
-  <script>setTimeout(()=>window.print(),300)</script>
-</body></html>`);
+<style>@page{margin:0mm;size:80mm 297mm}*{margin:0;padding:0;box-sizing:border-box}
+@media print{html,body{width:80mm;max-width:80mm;padding:2mm}}</style></head>
+${html.replace('<html>', '').replace('</html>', '')}
+<script>setTimeout(()=>window.print(),300)</script></html>`);
     w.document.close();
   };
 
