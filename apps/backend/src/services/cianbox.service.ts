@@ -2062,6 +2062,79 @@ export class CianboxService {
     );
     return (response.body || []) as any;
   }
+
+  /**
+   * Auto-mapea tarjetas y entidades de Cianbox con CardBrand y Bank del POS por nombre
+   */
+  static async autoMapSalesResources(tenantId: string): Promise<{
+    tarjetas: { matched: number; total: number };
+    entidades: { matched: number; total: number };
+  }> {
+    const service = await CianboxService.forTenant(tenantId);
+
+    // Fetch resources from Cianbox
+    const [tarjetas, entidades] = await Promise.all([
+      service.fetchTarjetas(),
+      service.fetchEntidades(),
+    ]);
+
+    // Auto-match tarjetas -> CardBrand by name (case-insensitive)
+    let tarjetasMatched = 0;
+    for (const tarjeta of tarjetas) {
+      const nombre = (tarjeta.nombre || '').toLowerCase().trim();
+      if (!nombre) continue;
+
+      const cardBrand = await prisma.cardBrand.findFirst({
+        where: {
+          tenantId,
+          cianboxCardId: null, // Solo las que no tienen mapeo
+          OR: [
+            { name: { equals: nombre, mode: 'insensitive' as const } },
+            { code: { equals: nombre.toUpperCase().replace(/\s+/g, '_') } },
+          ],
+        },
+      });
+
+      if (cardBrand) {
+        await prisma.cardBrand.update({
+          where: { id: cardBrand.id },
+          data: { cianboxCardId: tarjeta.id },
+        });
+        tarjetasMatched++;
+      }
+    }
+
+    // Auto-match entidades -> Bank by name (case-insensitive)
+    let entidadesMatched = 0;
+    for (const entidad of entidades) {
+      const nombre = (entidad.nombre || '').toLowerCase().trim();
+      if (!nombre) continue;
+
+      const bank = await prisma.bank.findFirst({
+        where: {
+          tenantId,
+          cianboxEntityId: null, // Solo las que no tienen mapeo
+          OR: [
+            { name: { equals: nombre, mode: 'insensitive' as const } },
+            { code: { equals: nombre.toUpperCase().replace(/\s+/g, '_') } },
+          ],
+        },
+      });
+
+      if (bank) {
+        await prisma.bank.update({
+          where: { id: bank.id },
+          data: { cianboxEntityId: entidad.id },
+        });
+        entidadesMatched++;
+      }
+    }
+
+    return {
+      tarjetas: { matched: tarjetasMatched, total: tarjetas.length },
+      entidades: { matched: entidadesMatched, total: entidades.length },
+    };
+  }
 }
 
 export default CianboxService;

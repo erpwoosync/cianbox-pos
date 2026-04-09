@@ -295,6 +295,9 @@ export interface UpdateConnectionDto {
   syncPageSize?: number;
   isActive?: boolean;
   webhookUrl?: string;
+  defaultCustomerId?: number | null;
+  defaultChannelId?: number;
+  defaultCurrencyId?: number;
 }
 
 export interface CreateDbServerDto {

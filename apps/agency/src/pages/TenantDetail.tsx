@@ -63,6 +63,9 @@ interface CianboxConnection {
   user: string;
   password: string;
   syncPageSize: number;
+  defaultCustomerId: number | null;
+  defaultChannelId: number;
+  defaultCurrencyId: number;
   isActive: boolean;
   lastSync: string | null;
   syncStatus: string | null;
@@ -202,6 +205,9 @@ export default function TenantDetail() {
     user: '',
     password: '',
     syncPageSize: 50,
+    defaultCustomerId: null as number | null,
+    defaultChannelId: 1,
+    defaultCurrencyId: 1,
     isActive: true,
     webhookUrl: '',
   });
@@ -232,6 +238,9 @@ export default function TenantDetail() {
           user: data.cianboxConnection.user || '',
           password: '', // No mostramos la contraseña guardada
           syncPageSize: data.cianboxConnection.syncPageSize || 50,
+          defaultCustomerId: data.cianboxConnection.defaultCustomerId ?? null,
+          defaultChannelId: data.cianboxConnection.defaultChannelId ?? 1,
+          defaultCurrencyId: data.cianboxConnection.defaultCurrencyId ?? 1,
           isActive: data.cianboxConnection.isActive ?? true,
           webhookUrl: data.cianboxConnection.webhookUrl || '',
         });
@@ -594,6 +603,9 @@ export default function TenantDetail() {
         user: cianboxForm.user,
         password: cianboxForm.password || undefined, // Solo enviar si se cambió
         syncPageSize: cianboxForm.syncPageSize,
+        defaultCustomerId: cianboxForm.defaultCustomerId,
+        defaultChannelId: cianboxForm.defaultChannelId,
+        defaultCurrencyId: cianboxForm.defaultCurrencyId,
         isActive: cianboxForm.isActive,
         webhookUrl: cianboxForm.webhookUrl || undefined,
       });
@@ -1161,6 +1173,60 @@ export default function TenantDetail() {
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Cantidad de productos a sincronizar por página (máx 200)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cliente por Defecto (ID Cianbox)
+                    </label>
+                    <input
+                      type="number"
+                      value={cianboxForm.defaultCustomerId ?? ''}
+                      onChange={(e) =>
+                        setCianboxForm({ ...cianboxForm, defaultCustomerId: e.target.value ? parseInt(e.target.value) : null })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      placeholder="Ej: 1234"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      ID del cliente 'Consumidor Final' en Cianbox para ventas sin cliente
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Canal de Venta (ID)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={cianboxForm.defaultChannelId}
+                      onChange={(e) =>
+                        setCianboxForm({ ...cianboxForm, defaultChannelId: parseInt(e.target.value) || 1 })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      ID del canal de venta en Cianbox
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Moneda (ID)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={cianboxForm.defaultCurrencyId}
+                      onChange={(e) =>
+                        setCianboxForm({ ...cianboxForm, defaultCurrencyId: parseInt(e.target.value) || 1 })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      ID de la moneda en Cianbox (1 = Pesos)
                     </p>
                   </div>
 

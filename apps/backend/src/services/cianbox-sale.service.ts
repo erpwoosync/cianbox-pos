@@ -301,6 +301,34 @@ export class CianboxSaleService {
       return;
     }
 
+    // Validar que el POS tenga talonario Cianbox configurado
+    const talonarioId = (sale as any).cianboxTalonarioId ?? sale.pointOfSale?.cianboxPointOfSaleId;
+    if (!talonarioId) {
+      await prisma.sale.update({
+        where: { id: sale.id },
+        data: {
+          cianboxSyncStatus: CianboxSyncStatus.FAILED,
+          cianboxError: 'El Punto de Venta no tiene talonario Cianbox configurado (cianboxPointOfSaleId)',
+        },
+      });
+      console.error(`[CianboxSale] Venta ${sale.saleNumber}: POS sin cianboxPointOfSaleId`);
+      return;
+    }
+
+    // Validar que haya un cliente válido
+    const clienteId = sale.customer?.cianboxCustomerId ?? connection.defaultCustomerId;
+    if (!clienteId) {
+      await prisma.sale.update({
+        where: { id: sale.id },
+        data: {
+          cianboxSyncStatus: CianboxSyncStatus.FAILED,
+          cianboxError: 'No hay cliente asignado ni defaultCustomerId configurado en la conexión Cianbox',
+        },
+      });
+      console.error(`[CianboxSale] Venta ${sale.saleNumber}: sin cliente ni defaultCustomerId`);
+      return;
+    }
+
     // Marcar como PENDING
     await prisma.sale.update({
       where: { id: sale.id },

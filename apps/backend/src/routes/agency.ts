@@ -495,7 +495,7 @@ router.put(
   agencyAuth,
   async (req: AgencyAuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { cuenta, appName, appCode, user, password, syncPageSize, isActive, webhookUrl } = req.body;
+      const { cuenta, appName, appCode, user, password, syncPageSize, isActive, webhookUrl, defaultCustomerId, defaultChannelId, defaultCurrencyId } = req.body;
 
       const connection = await prisma.cianboxConnection.upsert({
         where: { tenantId: req.params.id },
@@ -509,6 +509,9 @@ router.put(
           syncPageSize: syncPageSize || 50,
           isActive: isActive ?? true,
           webhookUrl: webhookUrl || null,
+          defaultCustomerId: defaultCustomerId ?? null,
+          defaultChannelId: defaultChannelId ?? 1,
+          defaultCurrencyId: defaultCurrencyId ?? 1,
         },
         update: {
           ...(cuenta !== undefined && { cuenta }),
@@ -519,6 +522,9 @@ router.put(
           ...(syncPageSize !== undefined && { syncPageSize }),
           ...(isActive !== undefined && { isActive }),
           ...(webhookUrl !== undefined && { webhookUrl: webhookUrl || null }),
+          ...(defaultCustomerId !== undefined && { defaultCustomerId: defaultCustomerId || null }),
+          ...(defaultChannelId !== undefined && { defaultChannelId }),
+          ...(defaultCurrencyId !== undefined && { defaultCurrencyId }),
         },
       });
 

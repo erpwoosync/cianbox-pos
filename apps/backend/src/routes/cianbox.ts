@@ -20,6 +20,9 @@ const connectionConfigSchema = z.object({
   user: z.string().min(1, 'Usuario requerido'),
   password: z.string().min(1, 'Contraseña requerida'),
   syncPageSize: z.number().int().min(10).max(200).default(50),
+  defaultCustomerId: z.number().int().nullable().optional(),
+  defaultChannelId: z.number().int().default(1),
+  defaultCurrencyId: z.number().int().default(1),
 });
 
 const connectionUpdateSchema = connectionConfigSchema.partial();
@@ -43,6 +46,9 @@ router.get(
           appCode: true,
           user: true,
           syncPageSize: true,
+          defaultCustomerId: true,
+          defaultChannelId: true,
+          defaultCurrencyId: true,
           isActive: true,
           lastSync: true,
           syncStatus: true,
@@ -106,6 +112,9 @@ router.post(
           appCode: true,
           user: true,
           syncPageSize: true,
+          defaultCustomerId: true,
+          defaultChannelId: true,
+          defaultCurrencyId: true,
           isActive: true,
           createdAt: true,
         },
@@ -183,6 +192,9 @@ router.put(
           appCode: true,
           user: true,
           syncPageSize: true,
+          defaultCustomerId: true,
+          defaultChannelId: true,
+          defaultCurrencyId: true,
           isActive: true,
           lastSync: true,
           syncStatus: true,
@@ -608,6 +620,22 @@ router.get(
       const talonarios = await service.fetchTalonariosByClient(cianboxClientId);
 
       res.json({ success: true, data: talonarios });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Auto-mapear tarjetas y entidades de Cianbox con CardBrand y Bank
+router.post(
+  '/auto-map-resources',
+  authenticate,
+  authorize('settings:edit'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const result = await CianboxService.autoMapSalesResources(tenantId);
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }
