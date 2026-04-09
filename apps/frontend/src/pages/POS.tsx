@@ -456,9 +456,9 @@ export default function POS() {
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><title>Ticket</title>
 <style>
-  @page { margin: 0; size: 80mm auto; }
+  @page { margin: 0mm; padding: 0mm; size: 80mm 297mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Courier New', monospace; font-size: 12px; width: 72mm; padding: 4mm; line-height: 1.4; }
+  html, body { width: 80mm; max-width: 80mm; font-family: 'Courier New', monospace; font-size: 12px; padding: 3mm; line-height: 1.3; }
   .center { text-align: center; }
   .title { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 2px; }
   .subtitle { font-size: 10px; text-align: center; color: #666; margin-bottom: 6px; }
@@ -472,7 +472,7 @@ export default function POS() {
   .total-line { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
   .grand-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 4px; }
   .footer { text-align: center; font-size: 10px; color: #666; margin-top: 8px; }
-  @media print { body { width: 72mm; padding: 2mm; } }
+  @media print { html, body { width: 80mm; max-width: 80mm; padding: 2mm; } }
 </style></head><body>
   <div class="title">NOTA DE PEDIDO</div>
   <div class="subtitle">Documento no fiscal</div>

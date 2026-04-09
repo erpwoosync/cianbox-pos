@@ -208,6 +208,49 @@ export default function SalesHistoryModal({
     }
   };
 
+  // Ticket local para comanderas 80mm
+  const printLocalReceipt = (sale: Sale) => {
+    const now = new Date(sale.createdAt);
+    const fecha = now.toLocaleDateString('es-AR') + ' ' + now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const items = (sale.items || []).map(i => {
+      const name = i.productName.length > 32 ? i.productName.substring(0, 32) : i.productName;
+      return `<div style="font-weight:bold;margin-top:4px">${name}</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px">
+          <span>${i.quantity} x $${fmt(i.unitPrice)}</span>
+          ${i.discount > 0 ? `<span style="color:#c00;font-size:10px">-$${fmt(i.discount)}</span>` : ''}
+          <span style="font-weight:bold">$${fmt(i.subtotal)}</span>
+        </div>`;
+    }).join('');
+    const w = window.open('', '_blank', 'width=350,height=600');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Ticket</title>
+<style>@page{margin:0mm;padding:0mm;size:80mm 297mm}*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:80mm;max-width:80mm;font-family:'Courier New',monospace;font-size:12px;padding:3mm;line-height:1.3}
+.sep{border-top:1px dashed #000;margin:6px 0}
+@media print{html,body{width:80mm;max-width:80mm;padding:2mm}}</style></head><body>
+  <div style="font-size:14px;font-weight:bold;text-align:center">NOTA DE PEDIDO</div>
+  <div style="font-size:10px;text-align:center;color:#666;margin-bottom:6px">Documento no fiscal</div>
+  <div class="sep"></div>
+  <div style="font-size:11px"><strong>${sale.saleNumber}</strong></div>
+  <div style="font-size:11px">${fecha}</div>
+  ${sale.customer ? `<div style="font-size:11px">Cliente: ${sale.customer.name}</div>` : ''}
+  <div class="sep"></div>
+  ${items}
+  <div style="border-top:2px solid #000;margin-top:8px;padding-top:6px">
+    ${sale.discount > 0 ? `
+    <div style="display:flex;justify-content:space-between;font-size:11px"><span>Subtotal</span><span>$${fmt(sale.subtotal)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px"><span>Descuento</span><span style="color:#c00">-$${fmt(sale.discount)}</span></div>
+    ` : ''}
+    <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:bold;margin-top:4px"><span>TOTAL</span><span>$${fmt(sale.total)}</span></div>
+  </div>
+  <div class="sep"></div>
+  <div style="text-align:center;font-size:10px;color:#666">Gracias por su compra</div>
+  <script>setTimeout(()=>window.print(),300)</script>
+</body></html>`);
+    w.document.close();
+  };
+
   const handleSelectSale = (sale: Sale) => {
     loadSaleDetail(sale.id);
   };
@@ -688,19 +731,32 @@ export default function SalesHistoryModal({
                                     onClick={async (e) => {
                                       e.stopPropagation();
                                       try {
+                                        // Intentar obtener PDF de Cianbox
                                         const result = await cianboxInvoiceService.pollInvoice(sale.id);
                                         if (result.ready && result.invoiceUrl) {
                                           sale.cianboxInvoiceUrl = result.invoiceUrl;
                                           window.open(result.invoiceUrl, '_blank');
-                                        } else {
-                                          alert('El comprobante aún no está disponible. Intentá de nuevo en unos segundos.');
+                                          return;
                                         }
                                       } catch {
-                                        alert('Error al consultar el comprobante');
+                                        // Ignorar error de Cianbox
                                       }
+                                      // Fallback: ticket local (cargar detalle si no tiene items)
+                                      if (!sale.items || sale.items.length === 0) {
+                                        try {
+                                          const response = await salesService.get(sale.id);
+                                          if (response.success) {
+                                            printLocalReceipt(response.data);
+                                            return;
+                                          }
+                                        } catch {
+                                          // ignore
+                                        }
+                                      }
+                                      printLocalReceipt(sale);
                                     }}
                                     className="p-2 hover:bg-blue-50 rounded-lg"
-                                    title="Obtener comprobante PDF"
+                                    title="Imprimir comprobante"
                                   >
                                     <Printer className="w-4 h-4 text-gray-400" />
                                   </button>
