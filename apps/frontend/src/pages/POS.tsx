@@ -1541,7 +1541,6 @@ export default function POS() {
       };
 
 
-      const wasFiscal = receiptMode === 'FACTURA';
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -1562,8 +1561,8 @@ export default function POS() {
         // Refrescar datos de la sesión de caja
         loadCashSession();
 
-        // Iniciar polling de PDF solo para facturas fiscales
-        if (wasFiscal && response.data?.id) {
+        // Iniciar polling de comprobante Cianbox (NDP y Factura)
+        if (response.data?.id) {
           setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '' });
         }
 
@@ -1721,7 +1720,6 @@ export default function POS() {
       }
 
       // Si está online, procesar normalmente
-      const wasFiscal = receiptMode === 'FACTURA';
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -1741,8 +1739,8 @@ export default function POS() {
         // Refrescar datos de la sesión de caja
         loadCashSession();
 
-        // Iniciar polling de PDF solo para facturas fiscales
-        if (wasFiscal && response.data?.id) {
+        // Iniciar polling de comprobante Cianbox (NDP y Factura)
+        if (response.data?.id) {
           setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '' });
         }
 

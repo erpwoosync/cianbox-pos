@@ -425,7 +425,7 @@ export class CianboxSaleService {
     try {
       const service = new CianboxService(connection);
       const response = await service.request<CianboxSaleDetail>(
-        `/ventas/lista?id=${sale.cianboxSaleId}`
+        `/ventas?id=${sale.cianboxSaleId}`
       );
 
       if (
@@ -437,18 +437,23 @@ export class CianboxSaleService {
       }
 
       const ventaCianbox = response.body[0];
-      const pdfUrl = ventaCianbox.pdf_url as string | undefined;
+
+      // Cianbox devuelve el PDF en el campo "url" (puede ser string o array)
+      let pdfUrl: string | undefined;
+      const urlField = ventaCianbox.url;
+      if (typeof urlField === 'string' && urlField.length > 0) {
+        pdfUrl = urlField;
+      } else if (Array.isArray(urlField) && urlField.length > 0) {
+        pdfUrl = urlField[0] as string;
+      }
+
       const cae = ventaCianbox.cae as string | undefined;
 
       if (pdfUrl) {
-        // Actualizar la venta con la URL de la factura
         await prisma.sale.update({
           where: { id: saleId },
-          data: {
-            cianboxInvoiceUrl: pdfUrl,
-          },
+          data: { cianboxInvoiceUrl: pdfUrl },
         });
-
         return { ready: true, invoiceUrl: pdfUrl, cae };
       }
 
