@@ -1540,7 +1540,7 @@ export default function POS() {
         cianboxTalonarioFiscal: receiptMode === 'FACTURA' ? true : undefined,
       };
 
-      const wasFiscal = receiptMode === 'FACTURA';
+
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -1561,8 +1561,8 @@ export default function POS() {
         // Refrescar datos de la sesión de caja
         loadCashSession();
 
-        // Iniciar polling de factura si es fiscal
-        if (wasFiscal && response.data?.id) {
+        // Iniciar polling de comprobante Cianbox
+        if (response.data?.id) {
           setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '' });
         }
 
@@ -1720,7 +1720,7 @@ export default function POS() {
       }
 
       // Si está online, procesar normalmente
-      const wasFiscal = receiptMode === 'FACTURA';
+
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -1740,8 +1740,8 @@ export default function POS() {
         // Refrescar datos de la sesión de caja
         loadCashSession();
 
-        // Iniciar polling de factura si es fiscal
-        if (wasFiscal && response.data?.id) {
+        // Iniciar polling de comprobante Cianbox
+        if (response.data?.id) {
           setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '' });
         }
 
@@ -3029,7 +3029,7 @@ export default function POS() {
       {invoicePolling && (
         <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 z-50">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-sm">Generando factura...</span>
+          <span className="text-sm">Generando comprobante...</span>
         </div>
       )}
 
@@ -3038,7 +3038,7 @@ export default function POS() {
         <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50 animate-slide-up">
           <FileText className="w-5 h-5" />
           <div>
-            <p className="font-medium text-sm">Factura lista</p>
+            <p className="font-medium text-sm">Comprobante listo</p>
             <p className="text-xs opacity-90">{invoiceReady.saleNumber}</p>
           </div>
           <a
