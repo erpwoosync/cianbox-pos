@@ -24,9 +24,10 @@ import {
   RotateCcw,
   Ticket,
   AlertCircle,
+  FileText,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, cianboxService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, cianboxService, cianboxInvoiceService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useIndexedDB } from '../hooks/useIndexedDB';
 import { STORES } from '../services/indexedDB';
@@ -395,6 +396,10 @@ export default function POS() {
   }>>([]);
   const [selectedTalonarioId, setSelectedTalonarioId] = useState<number | null>(null);
 
+  // Estado de polling de factura PDF
+  const [invoicePolling, setInvoicePolling] = useState<{ saleId: string; saleNumber: string } | null>(null);
+  const [invoiceReady, setInvoiceReady] = useState<{ saleNumber: string; url: string } | null>(null);
+
   // Regla de negocio: si no es efectivo puro, forzar Factura
   useEffect(() => {
     if (!selectedPaymentMethod) return;
@@ -430,6 +435,42 @@ export default function POS() {
     };
     loadTalonarios();
   }, [receiptMode, selectedCustomer]);
+
+  // Polling de factura PDF cuando se inicia
+  useEffect(() => {
+    if (!invoicePolling) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 20; // 20 x 3s = 60 segundos máximo
+
+    const poll = async () => {
+      while (!cancelled && attempts < maxAttempts) {
+        attempts++;
+        await new Promise(r => setTimeout(r, 3000));
+        if (cancelled) return;
+
+        try {
+          const result = await cianboxInvoiceService.pollInvoice(invoicePolling.saleId);
+          if (result.ready && result.invoiceUrl) {
+            setInvoiceReady({
+              saleNumber: invoicePolling.saleNumber,
+              url: result.invoiceUrl,
+            });
+            setInvoicePolling(null);
+            return;
+          }
+        } catch {
+          // Ignorar errores, seguir intentando
+        }
+      }
+      // Máximo de intentos alcanzado, detener polling
+      setInvoicePolling(null);
+    };
+
+    poll();
+    return () => { cancelled = true; };
+  }, [invoicePolling]);
 
   // Detectar cambios de estado online/offline
   useEffect(() => {
@@ -1499,6 +1540,7 @@ export default function POS() {
         cianboxTalonarioFiscal: receiptMode === 'FACTURA' ? true : undefined,
       };
 
+      const wasFiscal = receiptMode === 'FACTURA';
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -1518,6 +1560,11 @@ export default function POS() {
 
         // Refrescar datos de la sesión de caja
         loadCashSession();
+
+        // Iniciar polling de factura si es fiscal
+        if (wasFiscal && response.data?.id) {
+          setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '' });
+        }
 
         if (pendingSales.length > 0) {
           syncPendingSales();
@@ -1673,6 +1720,7 @@ export default function POS() {
       }
 
       // Si está online, procesar normalmente
+      const wasFiscal = receiptMode === 'FACTURA';
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -1691,6 +1739,11 @@ export default function POS() {
 
         // Refrescar datos de la sesión de caja
         loadCashSession();
+
+        // Iniciar polling de factura si es fiscal
+        if (wasFiscal && response.data?.id) {
+          setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '' });
+        }
 
         // Intentar sincronizar ventas pendientes si hay
         if (pendingSales.length > 0) {
@@ -2970,6 +3023,39 @@ export default function POS() {
           userName={user?.name}
           posName={selectedPOS?.name}
         />
+      )}
+
+      {/* Indicador de generación de factura en curso */}
+      {invoicePolling && (
+        <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 z-50">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">Generando factura...</span>
+        </div>
+      )}
+
+      {/* Notificación de factura lista */}
+      {invoiceReady && (
+        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50 animate-slide-up">
+          <FileText className="w-5 h-5" />
+          <div>
+            <p className="font-medium text-sm">Factura lista</p>
+            <p className="text-xs opacity-90">{invoiceReady.saleNumber}</p>
+          </div>
+          <a
+            href={invoiceReady.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1 bg-white text-green-700 rounded text-sm font-medium hover:bg-green-50"
+          >
+            Ver PDF
+          </a>
+          <button
+            onClick={() => setInvoiceReady(null)}
+            className="ml-1 text-white/70 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
     </div>
   );

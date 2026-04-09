@@ -2193,7 +2193,7 @@ router.delete(
 router.get('/sales', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.user!.tenantId;
-    const { page = '1', pageSize = '20', status, dateFrom, dateTo } = req.query;
+    const { page = '1', pageSize = '20', status, dateFrom, dateTo, cianboxSyncStatus } = req.query;
 
     const skip = (parseInt(page as string) - 1) * parseInt(pageSize as string);
     const take = parseInt(pageSize as string);
@@ -2202,6 +2202,10 @@ router.get('/sales', async (req: AuthenticatedRequest, res: Response, next: Next
 
     if (status) {
       where.status = status;
+    }
+
+    if (cianboxSyncStatus) {
+      where.cianboxSyncStatus = cianboxSyncStatus;
     }
 
     if (dateFrom || dateTo) {

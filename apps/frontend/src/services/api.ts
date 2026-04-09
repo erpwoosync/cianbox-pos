@@ -361,6 +361,14 @@ export const cianboxService = {
   },
 };
 
+// Servicios de factura Cianbox (polling de PDF)
+export const cianboxInvoiceService = {
+  pollInvoice: async (saleId: string): Promise<{ ready: boolean; invoiceUrl?: string; cae?: string }> => {
+    const response = await api.get(`/cianbox/sales/${saleId}/invoice`);
+    return response.data.data;
+  },
+};
+
 // Tipos de sucursales
 export interface Branch {
   id: string;

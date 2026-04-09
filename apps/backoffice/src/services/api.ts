@@ -1845,6 +1845,20 @@ export const cianboxApi = {
     const response = await api.get('/cianbox/sales-resources');
     return response.data.data;
   },
+  getFailedSales: async () => {
+    const response = await api.get('/backoffice/sales', {
+      params: { cianboxSyncStatus: 'FAILED', pageSize: '50' },
+    });
+    return response.data;
+  },
+  retryAll: async () => {
+    const response = await api.post('/cianbox/sales/retry-all');
+    return response.data;
+  },
+  retrySale: async (saleId: string) => {
+    const response = await api.post(`/cianbox/sales/${saleId}/retry`);
+    return response.data;
+  },
 };
 
 export const settingsApi = {
