@@ -442,12 +442,12 @@ export default function POS() {
 
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 20; // 20 x 3s = 60 segundos máximo
+    const maxAttempts = 40; // 40 x 5s = 200 segundos máximo
 
     const poll = async () => {
       while (!cancelled && attempts < maxAttempts) {
         attempts++;
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 5000));
         if (cancelled) return;
 
         try {

@@ -19,7 +19,7 @@ import {
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
-import { salesService } from '../services/api';
+import { salesService, cianboxInvoiceService } from '../services/api';
 import RefundModal from './RefundModal';
 
 interface SaleItem {
@@ -672,7 +672,7 @@ export default function SalesHistoryModal({
                             </td>
                             <td className="px-4 py-3 text-center">
                               <div className="flex items-center justify-center gap-1">
-                                {sale.cianboxInvoiceUrl && (
+                                {sale.cianboxInvoiceUrl ? (
                                   <a
                                     href={sale.cianboxInvoiceUrl}
                                     target="_blank"
@@ -683,7 +683,28 @@ export default function SalesHistoryModal({
                                   >
                                     <Printer className="w-4 h-4 text-blue-600" />
                                   </a>
-                                )}
+                                ) : sale.cianboxSyncStatus === 'SYNCED' ? (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      try {
+                                        const result = await cianboxInvoiceService.pollInvoice(sale.id);
+                                        if (result.ready && result.invoiceUrl) {
+                                          sale.cianboxInvoiceUrl = result.invoiceUrl;
+                                          window.open(result.invoiceUrl, '_blank');
+                                        } else {
+                                          alert('El comprobante aún no está disponible. Intentá de nuevo en unos segundos.');
+                                        }
+                                      } catch {
+                                        alert('Error al consultar el comprobante');
+                                      }
+                                    }}
+                                    className="p-2 hover:bg-blue-50 rounded-lg"
+                                    title="Obtener comprobante PDF"
+                                  >
+                                    <Printer className="w-4 h-4 text-gray-400" />
+                                  </button>
+                                ) : null}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
