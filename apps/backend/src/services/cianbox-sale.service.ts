@@ -406,7 +406,11 @@ export class CianboxSaleService {
     // Obtener la venta
     const sale = await prisma.sale.findFirst({
       where: { id: saleId, tenantId },
-      select: { cianboxSaleId: true },
+      select: {
+        cianboxSaleId: true,
+        cianboxTalonarioId: true,
+        pointOfSale: { select: { cianboxPointOfSaleId: true } },
+      },
     });
 
     if (!sale?.cianboxSaleId) {
@@ -445,6 +449,21 @@ export class CianboxSaleService {
         pdfUrl = urlField;
       } else if (Array.isArray(urlField) && urlField.length > 0) {
         pdfUrl = urlField[0] as string;
+      }
+
+      // Fallback: construir URL predecible del PDF
+      // Formato: https://cianbox.org/{cuenta}/usr/{cuenta}/reports/{id_pv:pad6}/{año}/{mes}/{abrev}-{tipo}-{pv}-{numero}.pdf
+      if (!pdfUrl && ventaCianbox.comprobante) {
+        const comprobante = ventaCianbox.comprobante as string;
+        // Parsear "NDP [X] 0001-00000097" o "FAC [B] 0002-00000001"
+        const match = comprobante.match(/^(\w+)\s+\[(\w+)\]\s+(\d+)-(\d+)$/);
+        if (match) {
+          const [, abrev, tipo, puntoVenta, numero] = match;
+          const fecha = ventaCianbox.fecha as string; // "2026-04-09"
+          const [anio, mes] = fecha.split('-');
+          const idPv = String(sale.cianboxTalonarioId ?? sale.pointOfSale?.cianboxPointOfSaleId ?? 1).padStart(6, '0');
+          pdfUrl = `https://cianbox.org/${connection.cuenta}/usr/${connection.cuenta}/reports/${idPv}/${anio}/${mes}/${abrev.toLowerCase()}-${tipo.toLowerCase()}-${puntoVenta}-${numero}.pdf`;
+        }
       }
 
       const cae = ventaCianbox.cae as string | undefined;
