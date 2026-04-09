@@ -594,88 +594,72 @@ export default function SaleDetail() {
       )}
 
       {/* Información general */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <Calendar className="w-5 h-5 text-gray-400" />
-            <span className="text-sm font-medium text-gray-500">Fecha</span>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="bg-white rounded-lg shadow-sm border p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <span className="text-xs font-medium text-gray-500">Fecha</span>
           </div>
-          <p className="text-lg font-semibold text-gray-900">{formatDate(sale.saleDate)}</p>
+          <p className="text-sm font-semibold text-gray-900">{formatDate(sale.saleDate)}</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <Store className="w-5 h-5 text-gray-400" />
-            <span className="text-sm font-medium text-gray-500">Sucursal</span>
+        <div className="bg-white rounded-lg shadow-sm border p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Store className="w-4 h-4 text-gray-400" />
+            <span className="text-xs font-medium text-gray-500">Sucursal</span>
           </div>
-          <p className="text-lg font-semibold text-gray-900">{sale.branch.name}</p>
-          <p className="text-xs text-gray-500">{sale.branch.code}</p>
+          <p className="text-sm font-semibold text-gray-900">{sale.branch.name}</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <Monitor className="w-5 h-5 text-gray-400" />
-            <span className="text-sm font-medium text-gray-500">Punto de Venta</span>
+        <div className="bg-white rounded-lg shadow-sm border p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Monitor className="w-4 h-4 text-gray-400" />
+            <span className="text-xs font-medium text-gray-500">Punto de Venta</span>
           </div>
-          <p className="text-lg font-semibold text-gray-900">{sale.pointOfSale.name}</p>
-          <p className="text-xs text-gray-500">{sale.pointOfSale.code}</p>
+          <p className="text-sm font-semibold text-gray-900">{sale.pointOfSale.name}</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <User className="w-5 h-5 text-gray-400" />
-            <span className="text-sm font-medium text-gray-500">Cajero</span>
+        <div className="bg-white rounded-lg shadow-sm border p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <User className="w-4 h-4 text-gray-400" />
+            <span className="text-xs font-medium text-gray-500">Cajero</span>
           </div>
-          <p className="text-lg font-semibold text-gray-900">{sale.user.name}</p>
-          <p className="text-xs text-gray-500">{sale.user.email}</p>
+          <p className="text-sm font-semibold text-gray-900">{sale.user.name}</p>
         </div>
-      </div>
 
-      {/* Cliente */}
-      {sale.customer && (
-        <div className="bg-white rounded-lg shadow-sm border p-4">
-          <div className="flex items-center gap-3">
-            <User className="w-5 h-5 text-gray-400" />
-            <div>
-              <span className="text-sm font-medium text-gray-500">Cliente</span>
-              <p className="text-lg font-semibold text-gray-900">{sale.customer.name}</p>
+        {sale.customer && (
+          <div className="bg-white rounded-lg shadow-sm border p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <User className="w-4 h-4 text-gray-400" />
+              <span className="text-xs font-medium text-gray-500">Cliente</span>
             </div>
+            <p className="text-sm font-semibold text-gray-900">{sale.customer.name}</p>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Sesión de Caja */}
-      {sale.cashSession && (
-        <div className="bg-white rounded-lg shadow-sm border p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Banknote className="w-5 h-5 text-green-600" />
-              <div>
-                <span className="text-sm font-medium text-gray-500">Sesión de Caja</span>
-                <p className="text-lg font-semibold text-gray-900">
-                  #{sale.cashSession.sessionNumber}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {sale.cashSession.pointOfSale.name} • {sale.cashSession.user.name}
-                </p>
-              </div>
+        {sale.cashSession && (
+          <div className="bg-white rounded-lg shadow-sm border p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Banknote className="w-4 h-4 text-green-600" />
+              <span className="text-xs font-medium text-gray-500">Sesión de Caja</span>
             </div>
+            <p className="text-sm font-semibold text-gray-900">#{sale.cashSession.sessionNumber}</p>
             <button
               onClick={() => navigate(`/cash-sessions/${sale.cashSession!.id}`)}
-              className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="text-xs text-blue-600 hover:underline mt-1"
             >
               Ver sesión
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Items de venta */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="px-4 py-3 border-b bg-gray-50">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Items de Venta</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Items de Venta</h2>
             <span className="text-sm text-gray-500">({sale.items.length} productos)</span>
           </div>
         </div>
@@ -750,7 +734,7 @@ export default function SaleDetail() {
           <div className="px-4 py-3 border-b bg-gray-50">
             <div className="flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-gray-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Pagos</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Pagos</h2>
             </div>
           </div>
           <div className="p-4 space-y-3">
@@ -993,7 +977,7 @@ export default function SaleDetail() {
         <div className="px-4 py-3 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Comprobante Cianbox</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Comprobante Cianbox</h2>
           </div>
         </div>
         <div className="p-4">
