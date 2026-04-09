@@ -396,8 +396,8 @@ export default function POS() {
   }>>([]);
   const [selectedTalonarioId, setSelectedTalonarioId] = useState<number | null>(null);
 
-  // Estado de polling de factura PDF
-  const [invoicePolling, setInvoicePolling] = useState<{ saleId: string; saleNumber: string } | null>(null);
+  // Estado de polling de comprobante PDF
+  const [invoicePolling, setInvoicePolling] = useState<{ saleId: string; saleNumber: string; isFiscal: boolean; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> } | null>(null);
   const [invoiceReady, setInvoiceReady] = useState<{ saleNumber: string; url: string } | null>(null);
 
   // Regla de negocio: si no es efectivo puro, forzar Factura
@@ -437,12 +437,45 @@ export default function POS() {
   }, [receiptMode, selectedCustomer]);
 
   // Polling de factura PDF cuando se inicia
+  // Generar ticket local para NDP (fallback cuando Cianbox no tiene PDF)
+  const printLocalReceipt = (data: { saleNumber: string; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> }) => {
+    const now = new Date();
+    const fecha = now.toLocaleDateString('es-AR') + ' ' + now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const itemsHtml = (data.items || []).map(i =>
+      `<tr><td>${i.name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">$${i.price.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>${i.discount > 0 ? `<td style="text-align:right;color:#c00">-$${i.discount.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>` : '<td></td>'}<td style="text-align:right">$${i.subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td></tr>`
+    ).join('');
+    const w = window.open('', '_blank', 'width=400,height=600');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Ticket ${data.saleNumber}</title>
+      <style>body{font-family:monospace;font-size:12px;margin:20px;max-width:350px}
+      h2{text-align:center;margin:0 0 5px}table{width:100%;border-collapse:collapse}
+      td{padding:3px 2px;font-size:11px}th{padding:3px 2px;font-size:10px;text-align:left;border-bottom:1px dashed #000}
+      .total{font-size:16px;font-weight:bold;text-align:right;border-top:2px solid #000;padding-top:8px;margin-top:8px}
+      .sep{border-top:1px dashed #000;margin:8px 0}.center{text-align:center}.small{font-size:10px;color:#666}
+      @media print{body{margin:0}}</style></head><body>
+      <h2>NOTA DE PEDIDO</h2>
+      <p class="center small">Documento no fiscal</p>
+      <div class="sep"></div>
+      <p><strong>${data.saleNumber}</strong></p>
+      <p>${fecha}</p>
+      ${data.customerName ? `<p>Cliente: ${data.customerName}</p>` : ''}
+      <div class="sep"></div>
+      <table><thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Desc</th><th>Subt</th></tr></thead>
+      <tbody>${itemsHtml}</tbody></table>
+      <div class="total">TOTAL: $${data.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</div>
+      <div class="sep"></div>
+      <p class="center small">Gracias por su compra</p>
+      <script>setTimeout(()=>window.print(),300)</script></body></html>`);
+    w.document.close();
+  };
+
   useEffect(() => {
     if (!invoicePolling) return;
 
     let cancelled = false;
     let attempts = 0;
     const maxAttempts = 40; // 40 x 5s = 200 segundos máximo
+    const localFallbackAttempt = 2; // Después de 10s (2 x 5s), fallback local para NDP
 
     const poll = async () => {
       while (!cancelled && attempts < maxAttempts) {
@@ -462,6 +495,13 @@ export default function POS() {
           }
         } catch {
           // Ignorar errores, seguir intentando
+        }
+
+        // Fallback local para NDP después de 10 segundos
+        if (attempts >= localFallbackAttempt && !invoicePolling.isFiscal) {
+          printLocalReceipt(invoicePolling);
+          setInvoicePolling(null);
+          return;
         }
       }
       // Máximo de intentos alcanzado, detener polling
@@ -1541,6 +1581,10 @@ export default function POS() {
       };
 
 
+      const pollingIsFiscal = receiptMode === 'FACTURA';
+      const pollingItems = cart.map((i: CartItem) => ({ name: i.product.name, qty: Number(i.quantity), price: Number(i.unitPrice), discount: Number(i.discount || 0), subtotal: Number(i.unitPrice) * Number(i.quantity) - Number(i.discount || 0) }));
+      const pollingTotal = Number(total);
+      const pollingCustomer = selectedCustomer?.name !== 'Consumidor Final' ? selectedCustomer?.name : undefined;
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -1561,9 +1605,9 @@ export default function POS() {
         // Refrescar datos de la sesión de caja
         loadCashSession();
 
-        // Iniciar polling de comprobante Cianbox (NDP y Factura)
+        // Iniciar polling de comprobante Cianbox
         if (response.data?.id) {
-          setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '' });
+          setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '', isFiscal: pollingIsFiscal, total: pollingTotal, customerName: pollingCustomer, items: pollingItems });
         }
 
         if (pendingSales.length > 0) {
@@ -1720,6 +1764,10 @@ export default function POS() {
       }
 
       // Si está online, procesar normalmente
+      const pollingIsFiscal = receiptMode === 'FACTURA';
+      const pollingItems = cart.map((i: CartItem) => ({ name: i.product.name, qty: Number(i.quantity), price: Number(i.unitPrice), discount: Number(i.discount || 0), subtotal: Number(i.unitPrice) * Number(i.quantity) - Number(i.discount || 0) }));
+      const pollingTotal = Number(total);
+      const pollingCustomer = selectedCustomer?.name !== 'Consumidor Final' ? selectedCustomer?.name : undefined;
       const response = await salesService.create(saleData);
 
       if (response.success) {
@@ -1739,9 +1787,9 @@ export default function POS() {
         // Refrescar datos de la sesión de caja
         loadCashSession();
 
-        // Iniciar polling de comprobante Cianbox (NDP y Factura)
+        // Iniciar polling de comprobante Cianbox
         if (response.data?.id) {
-          setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '' });
+          setInvoicePolling({ saleId: response.data.id, saleNumber: response.data.saleNumber || '', isFiscal: pollingIsFiscal, total: pollingTotal, customerName: pollingCustomer, items: pollingItems });
         }
 
         // Intentar sincronizar ventas pendientes si hay
