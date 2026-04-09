@@ -671,16 +671,30 @@ export default function SalesHistoryModal({
                               )}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectSale(sale);
-                                }}
-                                className="p-2 hover:bg-gray-100 rounded-lg"
-                                title="Ver detalle"
-                              >
-                                <Eye className="w-4 h-4 text-gray-600" />
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                {sale.cianboxInvoiceUrl && (
+                                  <a
+                                    href={sale.cianboxInvoiceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-2 hover:bg-blue-50 rounded-lg"
+                                    title="Ver comprobante PDF"
+                                  >
+                                    <Printer className="w-4 h-4 text-blue-600" />
+                                  </a>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectSale(sale);
+                                  }}
+                                  className="p-2 hover:bg-gray-100 rounded-lg"
+                                  title="Ver detalle"
+                                >
+                                  <Eye className="w-4 h-4 text-gray-600" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
