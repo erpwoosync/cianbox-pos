@@ -438,34 +438,61 @@ export default function POS() {
 
   // Polling de factura PDF cuando se inicia
   // Generar ticket local para NDP (fallback cuando Cianbox no tiene PDF)
+  // Ticket local para comanderas de 80mm (aprox 48 caracteres por línea)
   const printLocalReceipt = (data: { saleNumber: string; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> }) => {
     const now = new Date();
     const fecha = now.toLocaleDateString('es-AR') + ' ' + now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-    const itemsHtml = (data.items || []).map(i =>
-      `<tr><td>${i.name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">$${i.price.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>${i.discount > 0 ? `<td style="text-align:right;color:#c00">-$${i.discount.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>` : '<td></td>'}<td style="text-align:right">$${i.subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td></tr>`
-    ).join('');
-    const w = window.open('', '_blank', 'width=400,height=600');
+    const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const itemsHtml = (data.items || []).map(i => {
+      const name = i.name.length > 32 ? i.name.substring(0, 32) : i.name;
+      return `<div class="item-name">${name}</div>
+        <div class="item-line">
+          <span>${i.qty} x $${fmt(i.price)}</span>
+          ${i.discount > 0 ? `<span class="disc">-$${fmt(i.discount)}</span>` : ''}
+          <span class="item-total">$${fmt(i.subtotal)}</span>
+        </div>`;
+    }).join('');
+    const w = window.open('', '_blank', 'width=350,height=600');
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>Ticket ${data.saleNumber}</title>
-      <style>body{font-family:monospace;font-size:12px;margin:20px;max-width:350px}
-      h2{text-align:center;margin:0 0 5px}table{width:100%;border-collapse:collapse}
-      td{padding:3px 2px;font-size:11px}th{padding:3px 2px;font-size:10px;text-align:left;border-bottom:1px dashed #000}
-      .total{font-size:16px;font-weight:bold;text-align:right;border-top:2px solid #000;padding-top:8px;margin-top:8px}
-      .sep{border-top:1px dashed #000;margin:8px 0}.center{text-align:center}.small{font-size:10px;color:#666}
-      @media print{body{margin:0}}</style></head><body>
-      <h2>NOTA DE PEDIDO</h2>
-      <p class="center small">Documento no fiscal</p>
-      <div class="sep"></div>
-      <p><strong>${data.saleNumber}</strong></p>
-      <p>${fecha}</p>
-      ${data.customerName ? `<p>Cliente: ${data.customerName}</p>` : ''}
-      <div class="sep"></div>
-      <table><thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Desc</th><th>Subt</th></tr></thead>
-      <tbody>${itemsHtml}</tbody></table>
-      <div class="total">TOTAL: $${data.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</div>
-      <div class="sep"></div>
-      <p class="center small">Gracias por su compra</p>
-      <script>setTimeout(()=>window.print(),300)</script></body></html>`);
+    w.document.write(`<!DOCTYPE html><html><head><title>Ticket</title>
+<style>
+  @page { margin: 0; size: 80mm auto; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Courier New', monospace; font-size: 12px; width: 72mm; padding: 4mm; line-height: 1.4; }
+  .center { text-align: center; }
+  .title { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 2px; }
+  .subtitle { font-size: 10px; text-align: center; color: #666; margin-bottom: 6px; }
+  .sep { border-top: 1px dashed #000; margin: 6px 0; }
+  .info { font-size: 11px; margin-bottom: 2px; }
+  .item-name { font-size: 12px; font-weight: bold; margin-top: 4px; }
+  .item-line { display: flex; justify-content: space-between; font-size: 11px; }
+  .item-total { font-weight: bold; }
+  .disc { color: #c00; font-size: 10px; }
+  .total-section { border-top: 2px solid #000; margin-top: 8px; padding-top: 6px; }
+  .total-line { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
+  .grand-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 4px; }
+  .footer { text-align: center; font-size: 10px; color: #666; margin-top: 8px; }
+  @media print { body { width: 72mm; padding: 2mm; } }
+</style></head><body>
+  <div class="title">NOTA DE PEDIDO</div>
+  <div class="subtitle">Documento no fiscal</div>
+  <div class="sep"></div>
+  <div class="info"><strong>${data.saleNumber}</strong></div>
+  <div class="info">${fecha}</div>
+  ${data.customerName ? `<div class="info">Cliente: ${data.customerName}</div>` : ''}
+  <div class="sep"></div>
+  ${itemsHtml}
+  <div class="total-section">
+    ${data.items && data.items.some(i => i.discount > 0) ? `
+    <div class="total-line"><span>Subtotal</span><span>$${fmt(data.items.reduce((s, i) => s + i.price * i.qty, 0))}</span></div>
+    <div class="total-line"><span>Descuento</span><span class="disc">-$${fmt(data.items.reduce((s, i) => s + i.discount, 0))}</span></div>
+    ` : ''}
+    <div class="grand-total"><span>TOTAL</span><span>$${fmt(data.total)}</span></div>
+  </div>
+  <div class="sep"></div>
+  <div class="footer">Gracias por su compra</div>
+  <script>setTimeout(()=>window.print(),300)</script>
+</body></html>`);
     w.document.close();
   };
 
