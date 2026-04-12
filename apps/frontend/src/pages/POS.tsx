@@ -2122,39 +2122,6 @@ ${html.replace('<html>', '').replace('</html>', '')}
               </>
             )}
 
-            {/* Indicador QZ Tray - ícono impresora + LED */}
-            <button
-              onClick={() => { if (!qzConnected && !qzConnecting) qzConnect(); }}
-              title={
-                qzConnecting
-                  ? 'Conectando a QZ Tray...'
-                  : qzConnected
-                  ? `Impresora: ${selectedPrinter || 'Sin seleccionar'}`
-                  : 'QZ Tray desconectado — click para reconectar'
-              }
-              className={`relative p-2 rounded-lg ${
-                qzConnecting
-                  ? 'text-yellow-600 cursor-wait'
-                  : qzConnected
-                  ? 'text-gray-600 cursor-default'
-                  : 'text-gray-400 hover:text-gray-600 cursor-pointer'
-              }`}
-            >
-              {qzConnecting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Printer className="w-5 h-5" />
-              )}
-              {/* LED de estado */}
-              <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                qzConnecting
-                  ? 'bg-yellow-400 animate-pulse'
-                  : qzConnected
-                  ? 'bg-green-500'
-                  : 'bg-red-500'
-              }`} />
-            </button>
-
             {/* Indicador de POS */}
             <button
               onClick={() => {
@@ -2178,6 +2145,38 @@ ${html.replace('<html>', '').replace('</html>', '')}
               <p className="text-sm font-medium">{user?.name}</p>
               <p className="text-xs text-gray-500">{user?.branch?.name}</p>
             </div>
+
+            {/* Indicador QZ Tray - ícono impresora + LED */}
+            <button
+              onClick={() => { if (!qzConnected && !qzConnecting) qzConnect(); }}
+              title={
+                qzConnecting
+                  ? 'Conectando a QZ Tray...'
+                  : qzConnected
+                  ? `Impresora: ${selectedPrinter || 'Sin seleccionar'}`
+                  : 'QZ Tray desconectado — click para reconectar'
+              }
+              className={`relative p-2 rounded-lg ${
+                qzConnecting
+                  ? 'text-yellow-600 cursor-wait'
+                  : qzConnected
+                  ? 'text-gray-600 cursor-default'
+                  : 'text-gray-400 hover:text-gray-600 cursor-pointer'
+              }`}
+            >
+              {qzConnecting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Printer className="w-5 h-5" />
+              )}
+              <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                qzConnecting
+                  ? 'bg-yellow-400 animate-pulse'
+                  : qzConnected
+                  ? 'bg-green-500'
+                  : 'bg-red-500'
+              }`} />
+            </button>
           </div>
         </div>
 
