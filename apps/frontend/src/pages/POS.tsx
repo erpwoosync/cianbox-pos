@@ -2122,7 +2122,7 @@ ${html.replace('<html>', '').replace('</html>', '')}
               </>
             )}
 
-            {/* Indicador QZ Tray */}
+            {/* Indicador QZ Tray - ícono impresora + LED */}
             <button
               onClick={() => { if (!qzConnected && !qzConnecting) qzConnect(); }}
               title={
@@ -2132,22 +2132,27 @@ ${html.replace('<html>', '').replace('</html>', '')}
                   ? `Impresora: ${selectedPrinter || 'Sin seleccionar'}`
                   : 'QZ Tray desconectado — click para reconectar'
               }
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm ${
+              className={`relative p-2 rounded-lg ${
                 qzConnecting
-                  ? 'bg-yellow-100 text-yellow-700 cursor-wait'
+                  ? 'text-yellow-600 cursor-wait'
                   : qzConnected
-                  ? 'bg-emerald-100 text-emerald-700 cursor-default'
-                  : 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
+                  ? 'text-gray-600 cursor-default'
+                  : 'text-gray-400 hover:text-gray-600 cursor-pointer'
               }`}
             >
               {qzConnecting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                <Printer className="w-4 h-4" />
+                <Printer className="w-5 h-5" />
               )}
-              <span className="hidden sm:inline">
-                {qzConnecting ? 'QZ...' : qzConnected ? 'QZ' : 'QZ Off'}
-              </span>
+              {/* LED de estado */}
+              <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                qzConnecting
+                  ? 'bg-yellow-400 animate-pulse'
+                  : qzConnected
+                  ? 'bg-green-500'
+                  : 'bg-red-500'
+              }`} />
             </button>
 
             {/* Indicador de POS */}
