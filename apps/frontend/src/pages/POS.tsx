@@ -25,6 +25,7 @@ import {
   Ticket,
   AlertCircle,
   FileText,
+  Printer,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, cianboxService, cianboxInvoiceService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
@@ -403,7 +404,7 @@ export default function POS() {
   const [invoiceReady, setInvoiceReady] = useState<{ saleNumber: string; url: string } | null>(null);
 
   // QZ Tray - impresión directa
-  const { connected: qzConnected, selectedPrinter, printHtml: qzPrintHtml } = useQzPrinter();
+  const { connected: qzConnected, connecting: qzConnecting, connect: qzConnect, selectedPrinter, printHtml: qzPrintHtml } = useQzPrinter();
 
   // Regla de negocio: si no es efectivo puro, forzar Factura
   useEffect(() => {
@@ -2120,6 +2121,34 @@ ${html.replace('<html>', '').replace('</html>', '')}
                 )}
               </>
             )}
+
+            {/* Indicador QZ Tray */}
+            <button
+              onClick={() => { if (!qzConnected && !qzConnecting) qzConnect(); }}
+              title={
+                qzConnecting
+                  ? 'Conectando a QZ Tray...'
+                  : qzConnected
+                  ? `Impresora: ${selectedPrinter || 'Sin seleccionar'}`
+                  : 'QZ Tray desconectado — click para reconectar'
+              }
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm ${
+                qzConnecting
+                  ? 'bg-yellow-100 text-yellow-700 cursor-wait'
+                  : qzConnected
+                  ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                  : 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
+              }`}
+            >
+              {qzConnecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Printer className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">
+                {qzConnecting ? 'QZ...' : qzConnected ? 'QZ' : 'QZ Off'}
+              </span>
+            </button>
 
             {/* Indicador de POS */}
             <button
