@@ -26,6 +26,7 @@ import {
   AlertCircle,
   FileText,
   Printer,
+  CloudUpload,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, cianboxService, cianboxInvoiceService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
@@ -199,6 +200,7 @@ interface PointOfSale {
   mpDeviceId?: string;
   mpDeviceName?: string;
   surchargeDisplayMode?: SurchargeDisplayMode; // Override del modo (null = usar config del tenant)
+  cianboxPointOfSaleId?: number | null;
 }
 
 type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR' | 'TRANSFER' | 'GIFT_CARD' | 'VOUCHER';
@@ -2144,6 +2146,27 @@ ${html.replace('<html>', '').replace('</html>', '')}
             <div>
               <p className="text-sm font-medium">{user?.name}</p>
               <p className="text-xs text-gray-500">{user?.branch?.name}</p>
+            </div>
+
+            {/* Indicador Cianbox - sync configurado */}
+            <div
+              title={
+                selectedPOS?.cianboxPointOfSaleId
+                  ? `Cianbox sincronización activa (talonario #${selectedPOS.cianboxPointOfSaleId})`
+                  : 'Cianbox no configurado — el POS no tiene talonario asignado'
+              }
+              className={`relative p-2 rounded-lg ${
+                selectedPOS?.cianboxPointOfSaleId
+                  ? 'text-gray-600'
+                  : 'text-gray-400'
+              }`}
+            >
+              <CloudUpload className="w-5 h-5" />
+              <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                selectedPOS?.cianboxPointOfSaleId
+                  ? 'bg-green-500'
+                  : 'bg-red-500'
+              }`} />
             </div>
 
             {/* Indicador QZ Tray - ícono impresora + LED */}
