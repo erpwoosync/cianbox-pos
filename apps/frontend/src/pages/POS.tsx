@@ -401,6 +401,27 @@ export default function POS() {
   }>>([]);
   const [selectedTalonarioId, setSelectedTalonarioId] = useState<number | null>(null);
 
+  // Talonarios disponibles para el indicador Cianbox
+  const [posTalonarios, setPosTalonarios] = useState<Array<{ id: number; comprobante: string; tipo: string; talonario: string; fiscal: boolean; descripcion: string }>>([]);
+  const [showCianboxPopover, setShowCianboxPopover] = useState(false);
+
+  // Cargar talonarios del POS al iniciar
+  useEffect(() => {
+    if (!selectedPOS?.cianboxPointOfSaleId) {
+      setPosTalonarios([]);
+      return;
+    }
+    const load = async () => {
+      try {
+        const all = await cianboxService.getTalonarios();
+        setPosTalonarios(all);
+      } catch {
+        setPosTalonarios([]);
+      }
+    };
+    load();
+  }, [selectedPOS?.cianboxPointOfSaleId]);
+
   // Estado de polling de comprobante PDF
   const [invoicePolling, setInvoicePolling] = useState<{ saleId: string; saleNumber: string; isFiscal: boolean; total: number; customerName?: string; items?: Array<{name: string; qty: number; price: number; discount: number; subtotal: number}> } | null>(null);
   const [invoiceReady, setInvoiceReady] = useState<{ saleNumber: string; url: string } | null>(null);
@@ -2148,25 +2169,73 @@ ${html.replace('<html>', '').replace('</html>', '')}
               <p className="text-xs text-gray-500">{user?.branch?.name}</p>
             </div>
 
-            {/* Indicador Cianbox - sync configurado */}
-            <div
-              title={
-                selectedPOS?.cianboxPointOfSaleId
-                  ? `Cianbox sincronización activa (talonario #${selectedPOS.cianboxPointOfSaleId})`
-                  : 'Cianbox no configurado — el POS no tiene talonario asignado'
-              }
-              className={`relative p-2 rounded-lg ${
-                selectedPOS?.cianboxPointOfSaleId
-                  ? 'text-gray-600'
-                  : 'text-gray-400'
-              }`}
-            >
-              <CloudUpload className="w-5 h-5" />
-              <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                selectedPOS?.cianboxPointOfSaleId
-                  ? 'bg-green-500'
-                  : 'bg-red-500'
-              }`} />
+            {/* Indicador Cianbox - sync configurado + popover talonarios */}
+            <div className="relative">
+              <button
+                onClick={() => setShowCianboxPopover(!showCianboxPopover)}
+                title={
+                  selectedPOS?.cianboxPointOfSaleId
+                    ? 'Cianbox configurado — click para ver talonarios'
+                    : 'Cianbox no configurado — sin talonario asignado'
+                }
+                className={`relative p-2 rounded-lg ${
+                  selectedPOS?.cianboxPointOfSaleId
+                    ? 'text-gray-600 hover:text-gray-800'
+                    : 'text-gray-400'
+                }`}
+              >
+                <CloudUpload className="w-5 h-5" />
+                <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                  selectedPOS?.cianboxPointOfSaleId
+                    ? 'bg-green-500'
+                    : 'bg-red-500'
+                }`} />
+              </button>
+              {showCianboxPopover && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowCianboxPopover(false)} />
+                  <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-lg shadow-xl border w-72 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-semibold text-gray-700">Cianbox — Talonarios</h4>
+                      <button onClick={() => setShowCianboxPopover(false)} className="text-gray-400 hover:text-gray-600">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {!selectedPOS?.cianboxPointOfSaleId ? (
+                      <p className="text-xs text-red-600">Este punto de venta no tiene talonario Cianbox configurado.</p>
+                    ) : posTalonarios.length === 0 ? (
+                      <p className="text-xs text-gray-500">Cargando talonarios...</p>
+                    ) : (
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {posTalonarios.filter(t => !t.fiscal).length > 0 && (
+                          <>
+                            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">NDP</p>
+                            {posTalonarios.filter(t => !t.fiscal).map(t => (
+                              <div key={t.id} className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-gray-50">
+                                <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+                                <span className="text-gray-700 truncate">{t.descripcion || t.comprobante}</span>
+                                <span className="text-gray-400 ml-auto">#{t.id}</span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {posTalonarios.filter(t => t.fiscal).length > 0 && (
+                          <>
+                            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mt-1">Factura</p>
+                            {posTalonarios.filter(t => t.fiscal).map(t => (
+                              <div key={t.id} className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-gray-50">
+                                <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                                <span className="text-gray-700 truncate">{t.descripcion || t.comprobante}</span>
+                                <span className="text-gray-400 ml-auto">#{t.id}</span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Indicador QZ Tray - ícono impresora + LED */}
