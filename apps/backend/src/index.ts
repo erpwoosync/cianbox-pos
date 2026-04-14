@@ -21,7 +21,7 @@ import salesRoutes from './routes/sales.js';
 import promotionsRoutes from './routes/promotions.js';
 import cianboxRoutes from './routes/cianbox.js';
 import agencyRoutes from './routes/agency.js';
-import backofficeRoutes from './routes/backoffice.js';
+import backofficeRoutes from './routes/backoffice/index.js';
 import mercadoPagoRoutes, { webhookRouter as mpWebhookRouter } from './routes/mercadopago.js';
 import cashRoutes from './routes/cash.js';
 import cashConfigRoutes from './routes/cash-config.js';
