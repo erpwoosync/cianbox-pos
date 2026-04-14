@@ -438,30 +438,32 @@ router.post(
           }
         }
 
+        // Canjear gift cards DENTRO de la transacción para evitar inconsistencias
+        for (const gcPayment of giftCardPayments) {
+          await GiftCardService.redeemGiftCard({
+            tenantId,
+            code: gcPayment.giftCardCode!,
+            amount: gcPayment.amount,
+            saleId: newSale.id,
+            userId,
+            tx,
+          });
+        }
+
+        // Canjear vales de credito DENTRO de la transacción para evitar inconsistencias
+        for (const scPayment of storeCreditPayments) {
+          await StoreCreditService.redeemStoreCredit({
+            tenantId,
+            code: scPayment.storeCreditCode!,
+            amount: scPayment.amount,
+            saleId: newSale.id,
+            userId,
+            tx,
+          });
+        }
+
         return newSale;
       });
-
-      // Canjear gift cards DESPUÉS de la transacción (la venta ya existe)
-      for (const gcPayment of giftCardPayments) {
-        await GiftCardService.redeemGiftCard({
-          tenantId,
-          code: gcPayment.giftCardCode!,
-          amount: gcPayment.amount,
-          saleId: sale.id,
-          userId,
-        });
-      }
-
-      // Canjear vales de credito DESPUÉS de la transacción (la venta ya existe)
-      for (const scPayment of storeCreditPayments) {
-        await StoreCreditService.redeemStoreCredit({
-          tenantId,
-          code: scPayment.storeCreditCode!,
-          amount: scPayment.amount,
-          saleId: sale.id,
-          userId,
-        });
-      }
 
       // Si el total es negativo, generar vale de crédito automáticamente
       let generatedStoreCredit = null;

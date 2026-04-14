@@ -3,8 +3,10 @@
  * Lógica de negocio para gestión de gift cards
  */
 
-import { GiftCardStatus, GiftCardTxType } from '@prisma/client';
+import { GiftCardStatus, GiftCardTxType, PrismaClient } from '@prisma/client';
 import prisma from '../lib/prisma.js';
+
+type PrismaTransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 /**
  * Genera un código único para gift card
@@ -145,15 +147,18 @@ export interface RedeemGiftCardParams {
   amount: number;
   saleId: string;
   userId: string;
+  tx?: PrismaTransactionClient;
 }
 
 /**
  * Canjea (usa) saldo de una gift card
+ * Acepta un cliente transaccional opcional (tx) para ejecutar dentro de una transaccion existente
  */
 export async function redeemGiftCard(params: RedeemGiftCardParams) {
-  const { tenantId, code, amount, saleId, userId } = params;
+  const { tenantId, code, amount, saleId, userId, tx } = params;
+  const db = tx || prisma;
 
-  const giftCard = await prisma.giftCard.findFirst({
+  const giftCard = await db.giftCard.findFirst({
     where: { code, tenantId },
   });
 
@@ -167,7 +172,7 @@ export async function redeemGiftCard(params: RedeemGiftCardParams) {
 
   // Verificar expiración
   if (giftCard.expiresAt && giftCard.expiresAt < new Date()) {
-    await prisma.giftCard.update({
+    await db.giftCard.update({
       where: { id: giftCard.id },
       data: { status: GiftCardStatus.EXPIRED },
     });
@@ -182,7 +187,7 @@ export async function redeemGiftCard(params: RedeemGiftCardParams) {
   const newBalance = currentBalance - amount;
   const newStatus = newBalance === 0 ? GiftCardStatus.DEPLETED : GiftCardStatus.ACTIVE;
 
-  const updated = await prisma.giftCard.update({
+  const updated = await db.giftCard.update({
     where: { id: giftCard.id },
     data: {
       currentBalance: newBalance,
@@ -191,7 +196,7 @@ export async function redeemGiftCard(params: RedeemGiftCardParams) {
   });
 
   // Registrar transacción
-  await prisma.giftCardTransaction.create({
+  await db.giftCardTransaction.create({
     data: {
       giftCardId: giftCard.id,
       type: GiftCardTxType.REDEMPTION,

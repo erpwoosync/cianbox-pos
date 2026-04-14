@@ -3,9 +3,11 @@
  * Gestión de vales generados en devoluciones
  */
 
-import { Prisma, StoreCreditStatus, StoreCreditTxType } from '@prisma/client';
+import { Prisma, PrismaClient, StoreCreditStatus, StoreCreditTxType } from '@prisma/client';
 import { ApiError, NotFoundError } from '../utils/errors.js';
 import prisma from '../lib/prisma.js';
+
+type PrismaTransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 /**
  * Genera un código único para el vale
@@ -72,6 +74,7 @@ interface RedeemStoreCreditParams {
   amount: number;
   saleId: string;
   userId: string;
+  tx?: PrismaTransactionClient;
 }
 
 interface CheckBalanceParams {
@@ -177,11 +180,13 @@ class StoreCreditService {
 
   /**
    * Consultar saldo de un vale
+   * Acepta un cliente transaccional opcional (db) para ejecutar dentro de una transaccion existente
    */
-  async checkBalance(params: CheckBalanceParams) {
+  async checkBalance(params: CheckBalanceParams, db?: PrismaTransactionClient) {
     const { tenantId, code } = params;
+    const client = db || prisma;
 
-    const storeCredit = await prisma.storeCredit.findFirst({
+    const storeCredit = await client.storeCredit.findFirst({
       where: {
         code: { equals: code, mode: 'insensitive' },
       },
@@ -205,13 +210,14 @@ class StoreCreditService {
 
     // Si está vencido pero el status no lo refleja, actualizarlo
     if (isExpired && storeCredit.status === 'ACTIVE') {
-      await prisma.$transaction(async (tx) => {
-        await tx.storeCredit.update({
+      if (db) {
+        // Ya estamos dentro de una transaccion, usar el cliente directamente
+        await db.storeCredit.update({
           where: { id: storeCredit.id },
           data: { status: 'EXPIRED' },
         });
 
-        await tx.storeCreditTx.create({
+        await db.storeCreditTx.create({
           data: {
             storeCreditId: storeCredit.id,
             type: 'EXPIRED',
@@ -220,7 +226,25 @@ class StoreCreditService {
             description: 'Vale vencido',
           },
         });
-      });
+      } else {
+        // Sin transaccion externa, crear una propia
+        await prisma.$transaction(async (tx) => {
+          await tx.storeCredit.update({
+            where: { id: storeCredit.id },
+            data: { status: 'EXPIRED' },
+          });
+
+          await tx.storeCreditTx.create({
+            data: {
+              storeCreditId: storeCredit.id,
+              type: 'EXPIRED',
+              amount: new Prisma.Decimal(0),
+              balanceAfter: storeCredit.currentBalance,
+              description: 'Vale vencido',
+            },
+          });
+        });
+      }
 
       storeCredit.status = 'EXPIRED';
     }
@@ -233,12 +257,13 @@ class StoreCreditService {
 
   /**
    * Canjear/usar un vale
+   * Acepta un cliente transaccional opcional (tx) para ejecutar dentro de una transaccion existente
    */
   async redeemStoreCredit(params: RedeemStoreCreditParams) {
-    const { tenantId, code, amount, saleId, userId } = params;
+    const { tenantId, code, amount, saleId, userId, tx } = params;
 
-    // Verificar vale
-    const balance = await this.checkBalance({ tenantId, code });
+    // Verificar vale (pasar tx si existe para mantener la transaccion)
+    const balance = await this.checkBalance({ tenantId, code }, tx);
 
     if (balance.status !== 'ACTIVE') {
       throw ApiError.badRequest(`Vale de crédito no activo. Estado: ${balance.status}`);
@@ -255,11 +280,11 @@ class StoreCreditService {
       );
     }
 
-    // Procesar canje
-    const result = await prisma.$transaction(async (tx) => {
-      const newBalance = currentBalance - amount;
-      const newStatus: StoreCreditStatus = newBalance === 0 ? 'USED' : 'ACTIVE';
+    const newBalance = currentBalance - amount;
+    const newStatus: StoreCreditStatus = newBalance === 0 ? 'USED' : 'ACTIVE';
 
+    if (tx) {
+      // Ya estamos dentro de una transaccion externa, usar tx directamente
       const updatedCredit = await tx.storeCredit.update({
         where: { id: balance.id },
         data: {
@@ -269,6 +294,34 @@ class StoreCreditService {
       });
 
       await tx.storeCreditTx.create({
+        data: {
+          storeCreditId: balance.id,
+          type: 'REDEEMED',
+          amount: new Prisma.Decimal(amount),
+          balanceAfter: new Prisma.Decimal(newBalance),
+          saleId,
+          description: `Uso en venta`,
+        },
+      });
+
+      return {
+        storeCredit: updatedCredit,
+        amountRedeemed: amount,
+        remainingBalance: Number(updatedCredit.currentBalance),
+      };
+    }
+
+    // Sin transaccion externa, crear una propia
+    const result = await prisma.$transaction(async (innerTx) => {
+      const updatedCredit = await innerTx.storeCredit.update({
+        where: { id: balance.id },
+        data: {
+          currentBalance: new Prisma.Decimal(newBalance),
+          status: newStatus,
+        },
+      });
+
+      await innerTx.storeCreditTx.create({
         data: {
           storeCreditId: balance.id,
           type: 'REDEEMED',
