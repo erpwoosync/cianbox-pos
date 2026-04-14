@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  Search,
   ShoppingCart,
   Plus,
   Minus,
@@ -9,24 +7,16 @@ import {
   CreditCard,
   Banknote,
   QrCode,
-  ArrowLeft,
   Tag,
   X,
   Check,
   Loader2,
-  WifiOff,
-  Wifi,
-  RefreshCw,
   Smartphone,
-  Layers,
   User,
-  Receipt,
   RotateCcw,
   Ticket as TicketIcon,
   AlertCircle,
   FileText,
-  Printer,
-  CloudUpload,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { salesService, mercadoPagoService, cashService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
@@ -48,6 +38,7 @@ import SalesHistoryModal from '../components/SalesHistoryModal';
 import ProductRefundModal from '../components/ProductRefundModal';
 import StoreCreditModal from '../components/StoreCreditModal';
 import CardPaymentModal from '../components/CardPaymentModal';
+import POSHeader from '../components/pos/POSHeader';
 import GiftCardPaymentSection from '../components/GiftCardPaymentSection';
 import StoreCreditPaymentSection from '../components/StoreCreditPaymentSection';
 import CashRequiredOverlay from '../components/CashRequiredOverlay';
@@ -66,7 +57,6 @@ const generateId = () => {
 type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'QR' | 'MP_POINT' | 'MP_QR' | 'TRANSFER' | 'GIFT_CARD' | 'VOUCHER';
 
 export default function POS() {
-  const navigate = useNavigate();
   const { user, tenant } = useAuthStore();
 
   // Cart hook - gestión de tickets y carrito
@@ -977,224 +967,30 @@ export default function POS() {
         )}
 
         {/* Header */}
-        <div className="bg-white border-b p-4 flex items-center gap-4">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Buscar por nombre, SKU o código de barras..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-              autoFocus
-            />
-            {isSearching && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
-            )}
-          </div>
-
-          {/* Boton consulta de productos */}
-          <button
-            onClick={() => setShowProductSearchModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
-            title="Consultar productos y curva de talles"
-          >
-            <Layers className="w-5 h-5" />
-            <span className="hidden sm:inline">Consultar</span>
-          </button>
-
-          {/* Boton historial de ventas */}
-          <button
-            onClick={() => setShowSalesHistoryModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-            title="Historial de ventas y reimpresión"
-          >
-            <Receipt className="w-5 h-5" />
-            <span className="hidden sm:inline">Ventas</span>
-          </button>
-
-          {/* Boton devoluciones */}
-          <button
-            onClick={() => setShowProductRefundModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
-            title="Procesar devolución de producto"
-          >
-            <RotateCcw className="w-5 h-5" />
-            <span className="hidden sm:inline">Devoluciones</span>
-          </button>
-
-          <div className="text-right flex items-center gap-4">
-            {/* Indicador de conexión y sincronización */}
-            {!isOnline ? (
-              <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-sm">
-                <WifiOff className="w-4 h-4" />
-                <span>Sin conexión</span>
-                {pendingSales.length > 0 && (
-                  <span className="bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                    {pendingSales.length} pendientes
-                  </span>
-                )}
-              </div>
-            ) : (
-              <>
-                {isSyncing && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Sincronizando...</span>
-                  </div>
-                )}
-                {!isSyncing && pendingSales.length > 0 && (
-                  <button
-                    onClick={syncPendingSales}
-                    className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200"
-                    title="Sincronizar ventas pendientes"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    <span>{pendingSales.length} pendientes</span>
-                  </button>
-                )}
-                {!isSyncing && pendingSales.length === 0 && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm">
-                    <Wifi className="w-4 h-4" />
-                    <span>Conectado</span>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Indicador de POS */}
-            <button
-              onClick={() => {
-                if (cashSession) {
-                  alert('Debe cerrar el turno de caja actual antes de cambiar de punto de venta');
-                  return;
-                }
-                if (pointsOfSale.length > 1) {
-                  setShowPOSSelector(true);
-                }
-              }}
-              className={`px-3 py-1 rounded-lg text-sm ${
-                selectedPOS
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-red-100 text-red-700'
-              } ${pointsOfSale.length > 1 && !cashSession ? 'cursor-pointer hover:opacity-80' : ''}`}
-            >
-              {selectedPOS ? `Caja: ${selectedPOS.name}` : 'Sin caja'}
-            </button>
-            <div>
-              <p className="text-sm font-medium">{user?.name}</p>
-              <p className="text-xs text-gray-500">{user?.branch?.name}</p>
-            </div>
-
-            {/* Indicador Cianbox - sync configurado + popover talonarios */}
-            <div className="relative">
-              <button
-                onClick={() => setShowCianboxPopover(!showCianboxPopover)}
-                title={
-                  selectedPOS?.cianboxPointOfSaleId
-                    ? 'Cianbox configurado — click para ver talonarios'
-                    : 'Cianbox no configurado — sin talonario asignado'
-                }
-                className={`relative p-2 rounded-lg ${
-                  selectedPOS?.cianboxPointOfSaleId
-                    ? 'text-gray-600 hover:text-gray-800'
-                    : 'text-gray-400'
-                }`}
-              >
-                <CloudUpload className="w-5 h-5" />
-                <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                  selectedPOS?.cianboxPointOfSaleId
-                    ? 'bg-green-500'
-                    : 'bg-red-500'
-                }`} />
-              </button>
-              {showCianboxPopover && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowCianboxPopover(false)} />
-                  <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-lg shadow-xl border w-72 p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-semibold text-gray-700">Cianbox — Talonarios</h4>
-                      <button onClick={() => setShowCianboxPopover(false)} className="text-gray-400 hover:text-gray-600">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {!selectedPOS?.cianboxPointOfSaleId ? (
-                      <p className="text-xs text-red-600">Este punto de venta no tiene talonario Cianbox configurado.</p>
-                    ) : posTalonarios.length === 0 ? (
-                      <p className="text-xs text-gray-500">Cargando talonarios...</p>
-                    ) : (
-                      <div className="space-y-1 max-h-48 overflow-y-auto">
-                        {posTalonarios.filter(t => !t.fiscal).length > 0 && (
-                          <>
-                            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">NDP</p>
-                            {posTalonarios.filter(t => !t.fiscal).map(t => (
-                              <div key={t.id} className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-gray-50">
-                                <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
-                                <span className="text-gray-700 truncate">{t.descripcion || t.comprobante}</span>
-                                <span className="text-gray-400 ml-auto">#{t.id}</span>
-                              </div>
-                            ))}
-                          </>
-                        )}
-                        {posTalonarios.filter(t => t.fiscal).length > 0 && (
-                          <>
-                            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mt-1">Factura</p>
-                            {posTalonarios.filter(t => t.fiscal).map(t => (
-                              <div key={t.id} className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-gray-50">
-                                <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-                                <span className="text-gray-700 truncate">{t.descripcion || t.comprobante}</span>
-                                <span className="text-gray-400 ml-auto">#{t.id}</span>
-                              </div>
-                            ))}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Indicador QZ Tray - ícono impresora + LED */}
-            <button
-              onClick={() => { if (!qzConnected && !qzConnecting) qzConnect(); }}
-              title={
-                qzConnecting
-                  ? 'Conectando a QZ Tray...'
-                  : qzConnected
-                  ? `Impresora: ${selectedPrinter || 'Sin seleccionar'}`
-                  : 'QZ Tray desconectado — click para reconectar'
-              }
-              className={`relative p-2 rounded-lg ${
-                qzConnecting
-                  ? 'text-yellow-600 cursor-wait'
-                  : qzConnected
-                  ? 'text-gray-600 cursor-default'
-                  : 'text-gray-400 hover:text-gray-600 cursor-pointer'
-              }`}
-            >
-              {qzConnecting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Printer className="w-5 h-5" />
-              )}
-              <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                qzConnecting
-                  ? 'bg-yellow-400 animate-pulse'
-                  : qzConnected
-                  ? 'bg-green-500'
-                  : 'bg-red-500'
-              }`} />
-            </button>
-          </div>
-        </div>
+        <POSHeader
+          searchQuery={searchQuery}
+          onSearchChange={handleSearch}
+          isSearching={isSearching}
+          onOpenProductSearch={() => setShowProductSearchModal(true)}
+          onOpenSalesHistory={() => setShowSalesHistoryModal(true)}
+          onOpenRefund={() => setShowProductRefundModal(true)}
+          isOnline={isOnline}
+          isSyncing={isSyncing}
+          pendingSalesCount={pendingSales.length}
+          onSyncPending={syncPendingSales}
+          selectedPOS={selectedPOS}
+          onOpenPOSSelector={() => setShowPOSSelector(true)}
+          pointsOfSaleCount={pointsOfSale.length}
+          hasCashSession={!!cashSession}
+          user={user}
+          posTalonarios={posTalonarios}
+          showCianboxPopover={showCianboxPopover}
+          onToggleCianboxPopover={setShowCianboxPopover}
+          qzConnected={qzConnected}
+          qzConnecting={qzConnecting}
+          onQzConnect={qzConnect}
+          selectedPrinter={selectedPrinter}
+        />
 
         {/* Resultados de búsqueda */}
         {searchResults.length > 0 && (
