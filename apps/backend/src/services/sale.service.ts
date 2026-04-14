@@ -187,7 +187,7 @@ class SaleService {
       const itemSubtotal = new Prisma.Decimal(item.unitPrice)
         .times(normalizedQuantity)
         .minus(item.discount);
-      const taxAmount = itemSubtotal.times(item.taxRate).dividedBy(121); // IVA incluido
+      const taxAmount = itemSubtotal.times(item.taxRate).dividedBy(new Prisma.Decimal(100).plus(item.taxRate));
 
       subtotal = subtotal.plus(itemSubtotal);
       totalDiscount = totalDiscount.plus(item.discount);
