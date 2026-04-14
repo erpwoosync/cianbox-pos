@@ -122,16 +122,28 @@ class SaleService {
     const startOfDay = new Date(today);
     startOfDay.setHours(0, 0, 0, 0);
 
-    const count = await prisma.sale.count({
-      where: {
-        tenantId,
-        pointOfSaleId,
-        createdAt: { gte: startOfDay },
-      },
-    });
+    // Retry loop to prevent duplicate sale numbers under concurrent requests
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const count = await prisma.sale.count({
+        where: {
+          tenantId,
+          pointOfSaleId,
+          createdAt: { gte: startOfDay },
+        },
+      });
+      const sequence = String(count + 1 + attempt).padStart(4, '0');
+      const saleNumber = `${pos.branch.code}-${pos.code}-${dateStr}-${sequence}`;
 
-    const sequence = String(count + 1).padStart(4, '0');
-    return `${pos.branch.code}-${pos.code}-${dateStr}-${sequence}`;
+      const exists = await prisma.sale.findFirst({
+        where: { tenantId, saleNumber },
+        select: { id: true },
+      });
+      if (!exists) return saleNumber;
+    }
+
+    // Last resort fallback
+    const fallback = `${pos.branch.code}-${pos.code}-${dateStr}-${Date.now()}`;
+    return fallback;
   }
 
   /**
