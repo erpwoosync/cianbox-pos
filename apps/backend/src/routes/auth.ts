@@ -372,7 +372,13 @@ router.post(
       const sessionId = req.body.sessionId;
 
       if (sessionId) {
-        // Cerrar sesión específica
+        // Cerrar sesión específica — verificar que pertenece al usuario
+        const session = await prisma.userSession.findFirst({
+          where: { id: sessionId, userId: req.user!.userId },
+        });
+        if (!session) {
+          throw new ApiError(404, 'NOT_FOUND', 'Sesión no encontrada');
+        }
         await prisma.userSession.update({
           where: { id: sessionId },
           data: {
