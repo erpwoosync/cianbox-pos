@@ -29,10 +29,11 @@ import {
   CloudUpload,
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, storeCreditsService, cianboxService, cianboxInvoiceService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
+import { productsService, salesService, pointsOfSaleService, mercadoPagoService, cashService, promotionsService, categoriesService, cianboxService, cianboxInvoiceService, MPOrderResult, MPPaymentDetails, CashSession } from '../services/api';
 import { useIndexedDB } from '../hooks/useIndexedDB';
 import { STORES } from '../services/indexedDB';
 import { useCart, CartItem, Ticket } from '../hooks/useCart';
+import { usePayment } from '../hooks/usePayment';
 import MPPointPaymentModal from '../components/MPPointPaymentModal';
 import MPQRPaymentModal from '../components/MPQRPaymentModal';
 import OrphanPaymentModal from '../components/OrphanPaymentModal';
@@ -47,9 +48,9 @@ import CustomerSelectorModal from '../components/CustomerSelectorModal';
 import SalesHistoryModal from '../components/SalesHistoryModal';
 import ProductRefundModal from '../components/ProductRefundModal';
 import StoreCreditModal from '../components/StoreCreditModal';
-import CardPaymentModal, { CardPaymentData } from '../components/CardPaymentModal';
-import GiftCardPaymentSection, { AppliedGiftCard } from '../components/GiftCardPaymentSection';
-import StoreCreditPaymentSection, { AppliedStoreCredit } from '../components/StoreCreditPaymentSection';
+import CardPaymentModal from '../components/CardPaymentModal';
+import GiftCardPaymentSection from '../components/GiftCardPaymentSection';
+import StoreCreditPaymentSection from '../components/StoreCreditPaymentSection';
 import CashRequiredOverlay from '../components/CashRequiredOverlay';
 import { Customer, CONSUMIDOR_FINAL } from '../services/customers';
 import { offlineSyncService } from '../services/offlineSync';
@@ -244,26 +245,6 @@ export default function POS() {
   const [selectedPOS, setSelectedPOS] = useState<PointOfSale | null>(null);
   const [showPOSSelector, setShowPOSSelector] = useState(false);
 
-  // Estado del pago
-  const [showPayment, setShowPayment] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>('CASH');
-  const [amountTendered, setAmountTendered] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  // Estado de Mercado Pago
-  const [showMPPointModal, setShowMPPointModal] = useState(false);
-  const [showMPQRModal, setShowMPQRModal] = useState(false);
-  const [showOrphanPaymentModal, setShowOrphanPaymentModal] = useState(false);
-  const [mpPointAvailable, setMpPointAvailable] = useState(false);
-  const [mpQRAvailable, setMpQRAvailable] = useState(false);
-
-  // Estado de Store Credit (Vales)
-  const [showStoreCreditModal, setShowStoreCreditModal] = useState(false);
-
-  // Estado de pago con tarjeta (terminales no integrados)
-  const [showCardPaymentModal, setShowCardPaymentModal] = useState(false);
-  const [pendingCardPaymentMethod, setPendingCardPaymentMethod] = useState<'CREDIT_CARD' | 'DEBIT_CARD' | null>(null);
-  const [cardPaymentData, setCardPaymentData] = useState<CardPaymentData | null>(null);
 
   // Estado de curva de talles (productos variables)
   const [showSizeCurveModal, setShowSizeCurveModal] = useState(false);
@@ -290,6 +271,61 @@ export default function POS() {
         taxIdType: currentTicket.customerTaxIdType as Customer['taxIdType'],
       }
     : null;
+
+  // Payment hook - gestión de pagos, gift cards, vales, recargos y MP
+  const {
+    showPayment,
+    setShowPayment,
+    selectedPaymentMethod,
+    setSelectedPaymentMethod,
+    amountTendered,
+    setAmountTendered,
+    isProcessing,
+    setIsProcessing,
+    showMPPointModal,
+    setShowMPPointModal,
+    showMPQRModal,
+    setShowMPQRModal,
+    showOrphanPaymentModal,
+    setShowOrphanPaymentModal,
+    mpPointAvailable,
+    mpQRAvailable,
+    showStoreCreditModal,
+    setShowStoreCreditModal,
+    showCardPaymentModal,
+    setShowCardPaymentModal,
+    pendingCardPaymentMethod,
+    setPendingCardPaymentMethod,
+    cardPaymentData,
+    setCardPaymentData,
+    appliedGiftCards,
+    setAppliedGiftCards,
+    appliedStoreCredits,
+    setAppliedStoreCredits,
+    customerCredits,
+    giftCardAmount,
+    storeCreditAmount,
+    totalAfterGiftCards,
+    productsAmountForCard,
+    tenderedAmount,
+    amountToPay,
+    change,
+    handleMPPointPayment,
+    handleMPQRPayment,
+    handleMPPointPaymentSuccess,
+    handleMPQRPaymentSuccess,
+    handleMPPaymentError,
+    generateExternalReference,
+    updateSurchargeItem,
+    removeSurchargeItem,
+  } = usePayment({
+    total,
+    productsSubtotal,
+    selectedPOS,
+    updateCart,
+    selectedCustomer,
+    tenant,
+  });
 
   // Estado de selector de talles (escaneo de código padre)
   const [showTalleSelectorModal, setShowTalleSelectorModal] = useState(false);
@@ -323,19 +359,6 @@ export default function POS() {
   const [cashMode] = useState<'REQUIRED' | 'OPTIONAL' | 'AUTO'>('OPTIONAL');
   const cashRequired = cashMode === 'REQUIRED' && !cashSession;
 
-  // Estado de gift cards
-  const [appliedGiftCards, setAppliedGiftCards] = useState<AppliedGiftCard[]>([]);
-  const giftCardAmount = appliedGiftCards.reduce((sum, gc) => sum + gc.amountApplied, 0);
-
-  // Estado de store credits (vales)
-  const [appliedStoreCredits, setAppliedStoreCredits] = useState<AppliedStoreCredit[]>([]);
-  const storeCreditAmount = appliedStoreCredits.reduce((sum, sc) => sum + sc.amountApplied, 0);
-
-  // Estado de créditos disponibles del cliente (para sugerir uso)
-  const [customerCredits, setCustomerCredits] = useState<{
-    totalAvailable: number;
-    count: number;
-  } | null>(null);
 
   // Estado de promociones
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>([]);
@@ -550,34 +573,6 @@ ${html.replace('<html>', '').replace('</html>', '')}
     loadInitialData();
   }, []);
 
-  // Cargar créditos disponibles del cliente cuando cambia
-  useEffect(() => {
-    const loadCustomerCredits = async () => {
-      // Si no hay cliente o es Consumidor Final, limpiar créditos
-      if (!selectedCustomer || selectedCustomer.id === CONSUMIDOR_FINAL.id) {
-        setCustomerCredits(null);
-        return;
-      }
-
-      try {
-        const result = await storeCreditsService.getCustomerCredits(selectedCustomer.id);
-        if (result.success && result.totalAvailable > 0) {
-          setCustomerCredits({
-            totalAvailable: result.totalAvailable,
-            count: result.count,
-          });
-        } else {
-          setCustomerCredits(null);
-        }
-      } catch (error) {
-        console.error('Error cargando créditos del cliente:', error);
-        setCustomerCredits(null);
-      }
-    };
-
-    loadCustomerCredits();
-  }, [selectedCustomer?.id]);
-
   // Cargar sesión de caja cuando se selecciona POS
   useEffect(() => {
     if (selectedPOS) {
@@ -643,37 +638,6 @@ ${html.replace('<html>', '').replace('</html>', '')}
       }
     }
   };
-
-  // Verificar disponibilidad de Mercado Pago cuando se selecciona un POS
-  useEffect(() => {
-    const checkMPAvailability = async () => {
-      if (!selectedPOS) {
-        setMpPointAvailable(false);
-        setMpQRAvailable(false);
-        return;
-      }
-
-      // Verificar MP Point (requiere device asociado al POS)
-      try {
-        const pointConfig = await mercadoPagoService.checkPointConfig(selectedPOS.id);
-        setMpPointAvailable(pointConfig.hasDevice);
-      } catch (error) {
-        console.error('Error checking MP Point config:', error);
-        setMpPointAvailable(false);
-      }
-
-      // Verificar MP QR
-      try {
-        const qrConfig = await mercadoPagoService.checkQRConfig();
-        setMpQRAvailable(qrConfig.isConnected);
-      } catch (error) {
-        console.error('Error checking MP QR config:', error);
-        setMpQRAvailable(false);
-      }
-    };
-
-    checkMPAvailability();
-  }, [selectedPOS]);
 
   const loadInitialData = async () => {
     try {
@@ -958,111 +922,6 @@ ${html.replace('<html>', '').replace('</html>', '')}
     setShowProductRefundModal(false);
   };
 
-  // Obtener el modo efectivo de visualización de recargo (POS override > tenant default)
-  const getEffectiveSurchargeDisplayMode = (): SurchargeDisplayMode => {
-    // Prioridad: POS override > tenant default > 'SEPARATE_ITEM'
-    if (selectedPOS?.surchargeDisplayMode) {
-      return selectedPOS.surchargeDisplayMode;
-    }
-    return tenant?.surchargeDisplayMode || 'SEPARATE_ITEM';
-  };
-
-  // Agregar o actualizar recargo financiero al carrito
-  const updateSurchargeItem = (surchargeAmount: number, installments: number, cardBrandName: string, surchargeRate: number = 0) => {
-    const displayMode = getEffectiveSurchargeDisplayMode();
-
-    updateCart((prev) => {
-      // Primero restaurar precios originales si había recargo distribuido
-      const itemsRestored = prev.map((item) => {
-        if (item.originalUnitPrice !== undefined && !item.isSurcharge && !item.isReturn) {
-          return {
-            ...item,
-            unitPrice: item.originalUnitPrice,
-            unitPriceNet: item.originalUnitPriceNet || item.originalUnitPrice / 1.21,
-            subtotal: item.quantity * item.originalUnitPrice - item.discount,
-            originalUnitPrice: undefined,
-            originalUnitPriceNet: undefined,
-            appliedSurchargeRate: undefined,
-          };
-        }
-        return item;
-      });
-
-      // Filtrar items de recargo existentes
-      const itemsWithoutSurcharge = itemsRestored.filter((item) => !item.isSurcharge);
-
-      // Si no hay recargo, retornar items restaurados
-      if (surchargeAmount <= 0 || surchargeRate <= 0) {
-        return itemsWithoutSurcharge;
-      }
-
-      if (displayMode === 'DISTRIBUTED') {
-        // MODO DISTRIBUIDO: aumentar precios de productos proporcionalmente
-        const multiplier = 1 + (surchargeRate / 100);
-        return itemsWithoutSurcharge.map((item) => {
-          if (item.isReturn) return item; // No aplicar a devoluciones
-
-          const newUnitPrice = item.unitPrice * multiplier;
-          const newUnitPriceNet = item.unitPriceNet * multiplier;
-          return {
-            ...item,
-            originalUnitPrice: item.unitPrice,
-            originalUnitPriceNet: item.unitPriceNet,
-            unitPrice: newUnitPrice,
-            unitPriceNet: newUnitPriceNet,
-            subtotal: item.quantity * newUnitPrice - item.discount,
-            appliedSurchargeRate: surchargeRate,
-          };
-        });
-      } else {
-        // MODO ITEM SEPARADO (comportamiento actual)
-        const surchargeItem: CartItem = {
-          id: generateId(),
-          product: {
-            id: 'surcharge',
-            sku: 'RECARGO',
-            barcode: '',
-            name: `Recargo financiero - ${cardBrandName} ${installments} cuotas`,
-            cianboxProductId: 0, // Producto ficticio para sincronización
-            taxRate: 21,
-          } as Product,
-          quantity: 1,
-          unitPrice: surchargeAmount,
-          unitPriceNet: surchargeAmount / 1.21, // Asumimos IVA 21%
-          discount: 0,
-          subtotal: surchargeAmount,
-          isSurcharge: true,
-        };
-
-        return [...itemsWithoutSurcharge, surchargeItem];
-      }
-    });
-  };
-
-  // Remover recargo del carrito (ambos modos)
-  const removeSurchargeItem = () => {
-    updateCart((prev) => {
-      // Restaurar precios originales si había recargo distribuido
-      const itemsRestored = prev.map((item) => {
-        if (item.originalUnitPrice !== undefined && !item.isSurcharge && !item.isReturn) {
-          return {
-            ...item,
-            unitPrice: item.originalUnitPrice,
-            unitPriceNet: item.originalUnitPriceNet || item.originalUnitPrice / 1.21,
-            subtotal: item.quantity * item.originalUnitPrice - item.discount,
-            originalUnitPrice: undefined,
-            originalUnitPriceNet: undefined,
-            appliedSurchargeRate: undefined,
-          };
-        }
-        return item;
-      });
-
-      // Filtrar items de recargo (modo SEPARATE_ITEM)
-      return itemsRestored.filter((item) => !item.isSurcharge);
-    });
-  };
-
   // Handler para clic en producto - maneja productos padre (curva de talles)
   const handleProductClick = (product: Product) => {
     if (product.isParent) {
@@ -1111,19 +970,6 @@ ${html.replace('<html>', '').replace('</html>', '')}
     setTalleVariantes([]);
     setTalleParentInfo(null);
   };
-
-  // Totales derivados del hook + gift cards/vales locales
-  const totalAfterGiftCards = total - giftCardAmount - storeCreditAmount; // Monto pendiente despues de gift cards y vales
-  const productsAmountForCard = productsSubtotal - giftCardAmount - storeCreditAmount;
-
-  // Si el total se vuelve negativo mientras el panel de pago está abierto,
-  // redirigir al modal de vale de crédito
-  useEffect(() => {
-    if (showPayment && total < 0) {
-      setShowPayment(false);
-      setShowStoreCreditModal(true);
-    }
-  }, [showPayment, total]);
 
   // Agrupar descuentos por promoción
   const discountsByPromotion = cart.reduce((acc, item) => {
@@ -1192,11 +1038,6 @@ ${html.replace('<html>', '').replace('</html>', '')}
     }
   };
 
-  // Calcular vuelto (considerando gift cards y vales aplicados)
-  const tenderedAmount = parseFloat(amountTendered) || 0;
-  const amountToPay = total - giftCardAmount - storeCreditAmount; // Monto pendiente despues de gift cards y vales
-  const change = tenderedAmount - amountToPay;
-
   // Sincronizar ventas pendientes
   const syncPendingSales = async () => {
     if (isSyncing || pendingSales.length === 0 || !isOnline) {
@@ -1241,47 +1082,6 @@ ${html.replace('<html>', '').replace('</html>', '')}
     } else {
       console.log(`[POS] Quedan ${remaining.length} ventas pendientes`);
     }
-  };
-
-  // Generar referencia externa para órdenes de MP
-  const generateExternalReference = () => {
-    return `POS-${selectedPOS?.code || 'X'}-${Date.now()}`;
-  };
-
-  // Handler para iniciar pago con MP Point
-  const handleMPPointPayment = () => {
-    if (!selectedPOS) {
-      setShowPOSSelector(true);
-      return;
-    }
-    setShowMPPointModal(true);
-  };
-
-  // Handler para iniciar pago con MP QR
-  const handleMPQRPayment = () => {
-    if (!selectedPOS) {
-      setShowPOSSelector(true);
-      return;
-    }
-    setShowMPQRModal(true);
-  };
-
-  // Handler cuando el pago con MP Point es exitoso
-  const handleMPPointPaymentSuccess = async (result: MPOrderResult) => {
-    setShowMPPointModal(false);
-    await processSaleWithMPPayment(result, false);
-  };
-
-  // Handler cuando el pago con MP QR es exitoso
-  const handleMPQRPaymentSuccess = async (result: MPOrderResult) => {
-    setShowMPQRModal(false);
-    await processSaleWithMPPayment(result, true);
-  };
-
-  // Handler cuando el pago con MP falla
-  const handleMPPaymentError = (error: string) => {
-    console.error('Error en pago MP:', error);
-    // Los modales manejan su propio estado de error
   };
 
   // Procesar venta con resultado de pago MP
@@ -2810,7 +2610,10 @@ ${html.replace('<html>', '').replace('</html>', '')}
       <MPPointPaymentModal
         isOpen={showMPPointModal}
         onClose={() => setShowMPPointModal(false)}
-        onSuccess={handleMPPointPaymentSuccess}
+        onSuccess={async (result: MPOrderResult) => {
+          handleMPPointPaymentSuccess();
+          await processSaleWithMPPayment(result, false);
+        }}
         onError={handleMPPaymentError}
         pointOfSaleId={selectedPOS?.id || ''}
         amount={total}
@@ -2821,7 +2624,10 @@ ${html.replace('<html>', '').replace('</html>', '')}
       <MPQRPaymentModal
         isOpen={showMPQRModal}
         onClose={() => setShowMPQRModal(false)}
-        onSuccess={handleMPQRPaymentSuccess}
+        onSuccess={async (result: MPOrderResult) => {
+          handleMPQRPaymentSuccess();
+          await processSaleWithMPPayment(result, true);
+        }}
         onError={handleMPPaymentError}
         pointOfSaleId={selectedPOS?.id || ''}
         amount={total}
